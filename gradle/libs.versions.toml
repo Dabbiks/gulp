@@ -1,0 +1,28 @@
+[versions]
+java = "25"
+jspecify = "1.0.1"
+lwjgl = "3.4.3"
+teavm = "0.15.0"
+junit = "6.1.3"
+assertj = "3.27.7"
+jacoco = "0.8.15"
+spotless = "8.10.2"
+palantir-java-format = "2.98.0"
+
+[libraries]
+jspecify = { module = "org.jspecify:jspecify", version.ref = "jspecify" }
+
+lwjgl-bom = { module = "org.lwjgl:lwjgl-bom", version.ref = "lwjgl" }
+lwjgl-core = { module = "org.lwjgl:lwjgl" }
+lwjgl-glfw = { module = "org.lwjgl:lwjgl-glfw" }
+lwjgl-opengl = { module = "org.lwjgl:lwjgl-opengl" }
+
+teavm-core = { module = "org.teavm:teavm-core", version.ref = "teavm" }
+
+junit-bom = { module = "org.junit:junit-bom", version.ref = "junit" }
+junit-jupiter = { module = "org.junit.jupiter:junit-jupiter" }
+junit-platform-launcher = { module = "org.junit.platform:junit-platform-launcher" }
+assertj-core = { module = "org.assertj:assertj-core", version.ref = "assertj" }
+
+# Used by build-logic only.
+spotless-gradle = { module = "com.diffplug.spotless:spotless-plugin-gradle", version.ref = "spotless" }
