@@ -1,6 +1,10 @@
 package dev.gulp.api;
 
 import dev.gulp.api.graphics.Color;
+import dev.gulp.api.module.GameModule;
+import java.util.ArrayList;
+import java.util.List;
+import org.jspecify.annotations.Nullable;
 
 /**
  * Settings a game chooses in {@link Game#configure(GameSettings)}, before the platform starts.
@@ -28,6 +32,8 @@ public final class GameSettings {
     private int targetFps = 0;
     private int ticksPerSecond = 60;
     private Color clearColor = Color.BLACK;
+    private final List<GameModule> modules = new ArrayList<>();
+    private @Nullable Boolean developerConsole;
 
     /** Creates settings with default values: 1280x720 resizable window, VSync on, 60 ticks per second. */
     public GameSettings() {}
@@ -214,6 +220,60 @@ public final class GameSettings {
      */
     public GameSettings clearColor(Color clearColor) {
         this.clearColor = clearColor;
+        return this;
+    }
+
+    /**
+     * Returns the declared modules, in declaration order.
+     *
+     * @return an unmodifiable list
+     */
+    public List<GameModule> modules() {
+        return List.copyOf(modules);
+    }
+
+    /**
+     * Declares the game's modules. The engine orders them by their dependencies, not by this order. Each module class
+     * must be annotated with {@link dev.gulp.api.module.ModuleInfo}.
+     *
+     * <pre>{@code
+     * settings.modules(new HudModule(), new PlayerModule(), new CoinModule());
+     * }</pre>
+     *
+     * @param modules the modules to add
+     * @return this settings object
+     * @throws IllegalArgumentException if the same instance is added twice
+     */
+    public GameSettings modules(GameModule... modules) {
+        for (GameModule module : modules) {
+            for (GameModule existing : this.modules) {
+                if (existing == module) {
+                    throw new IllegalArgumentException("Module declared twice: " + module);
+                }
+            }
+            this.modules.add(module);
+        }
+        return this;
+    }
+
+    /**
+     * Returns the explicit developer console choice.
+     *
+     * @return {@code true} or {@code false} if set, {@code null} for the default: available in development builds only
+     */
+    public @Nullable Boolean developerConsole() {
+        return developerConsole;
+    }
+
+    /**
+     * Enables or disables the developer console (in-game under {@code ~} from stage 9, and the terminal on desktop).
+     * By default it is available in development builds only; {@code true} enables it in production builds too.
+     *
+     * @param developerConsole whether the console is available
+     * @return this settings object
+     */
+    public GameSettings developerConsole(boolean developerConsole) {
+        this.developerConsole = developerConsole;
         return this;
     }
 }

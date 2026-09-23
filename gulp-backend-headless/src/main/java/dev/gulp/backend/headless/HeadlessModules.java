@@ -1,16 +1,17 @@
 package dev.gulp.backend.headless;
 
+import dev.gulp.core.GeneratedModules;
 import dev.gulp.platform.PlatformModules;
 import java.util.HashMap;
 import java.util.Map;
 import org.jspecify.annotations.Nullable;
 
 /**
- * Registry of generated code filled by hand. Until the annotation processor exists (stage 1) tests register
- * implementations directly.
+ * Registry of generated code: the code {@code gulp-processor} generated for the classpath, plus entries a test
+ * registers by hand, which take precedence.
  *
  * <pre>{@code
- * backend.modules().register(Dispatcher.class, MyListener.class, new MyListener$Handlers());
+ * backend.modules().register(ModuleDescriptor.class, FakeModule.class, new ModuleDescriptor("fake", ...));
  * }</pre>
  */
 public final class HeadlessModules implements PlatformModules {
@@ -20,7 +21,7 @@ public final class HeadlessModules implements PlatformModules {
     HeadlessModules() {}
 
     /**
-     * Registers generated code.
+     * Registers generated code by hand.
      *
      * @param <T> the contract type
      * @param contract the kind of generated code
@@ -34,6 +35,9 @@ public final class HeadlessModules implements PlatformModules {
     @Override
     public <T> @Nullable T lookup(Class<T> contract, Class<?> subject) {
         Map<Class<?>, Object> bySubject = entries.get(contract);
-        return bySubject == null ? null : contract.cast(bySubject.get(subject));
+        Object manual = bySubject == null ? null : bySubject.get(subject);
+        return manual != null
+                ? contract.cast(manual)
+                : GeneratedModules.shared().lookup(contract, subject);
     }
 }

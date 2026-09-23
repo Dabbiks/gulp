@@ -2019,17 +2019,17 @@ Trzynaście etapów od pustego repozytorium do wersji 1.0, wykonywanych po kolei
 
 ### Etap 1 — Rdzeń
 
-- [ ] `Engine`, `Gulp`, pętla ze stałym krokiem (akumulator, limit 5 ticków nadrabiania, alpha interpolacji), pauza i `timeScale`.
-- [ ] `Game` i `GameSettings`.
-- [ ] System modułów: `@ModuleInfo`, walidacja w procesorze adnotacji i przy starcie, sortowanie topologiczne z błędem cyklu, cykl życia, śledzenie własności, włączanie i wyłączanie w trakcie gry, stan `FAILED`.
-- [ ] Eventy: `Event`, `Cancellable`, `HandlerList`, priorytety, dispatch generowany przez procesor, subskrypcje lambda, subskrypcje przypięte do obiektu, polityka wyjątków, dziedziczenie eventów.
-- [ ] Scheduler: zadania, `TaskRunnable`, `Sequence`, `Promise`, `async().thenSync()`, pauza i `realtime()`.
-- [ ] `Key`, `Registry`, zamrażanie, rejestry wbudowane (puste typy).
-- [ ] `Services`.
-- [ ] Dane: parser i zapis JSON, parser podzbioru YAML, `Config`, `Codec` + generowanie dla `@Serializable`, `DataContainer`, `DataType`.
-- [ ] Logger (plik na desktopie), `Pool`, kolekcje prymitywne.
-- [ ] Komendy: rejestracja, argumenty typowane, podpowiedzi, konsola w terminalu (konsola w grze w etapie 9).
-- [ ] **Kamień milowy:** test headless — gra z dwoma modułami (zależność, listener, `every(20)`, odczyt konfiguracji); wyłączenie modułu anuluje jego zadania i listenery.
+- [x] `Engine`, `Gulp`, pętla ze stałym krokiem (akumulator, limit 5 ticków nadrabiania, alpha interpolacji), pauza i `timeScale`.
+- [x] `Game` i `GameSettings`. — *Ustawienia wyświetlania (`baseResolution`, `stretchMode`, `aspectMode`, `pixelPerfect`, `icon`) dochodzą w etapie 2 z `Display` (ADR 0006).*
+- [x] System modułów: `@ModuleInfo`, walidacja w procesorze adnotacji i przy starcie, sortowanie topologiczne z błędem cyklu, cykl życia, śledzenie własności, włączanie i wyłączanie w trakcie gry, stan `FAILED`.
+- [x] Eventy: `Event`, `Cancellable`, `HandlerList`, priorytety, dispatch generowany przez procesor, subskrypcje lambda, subskrypcje przypięte do obiektu, polityka wyjątków, dziedziczenie eventów.
+- [x] Scheduler: zadania, `TaskRunnable`, `Sequence`, `Promise`, `async().thenSync()`, pauza i `realtime()`.
+- [x] `Key`, `Registry`, zamrażanie, rejestry wbudowane (puste typy).
+- [x] `Services`.
+- [x] Dane: parser i zapis JSON, parser podzbioru YAML, `Config`, `Codec` + generowanie dla `@Serializable`, `DataContainer`, `DataType`. — *`DataType.VEC2` w etapie 2 razem z `Vec2`.*
+- [x] Logger (plik na desktopie), `Pool`, kolekcje prymitywne.
+- [x] Komendy: rejestracja, argumenty typowane, podpowiedzi, konsola w terminalu (konsola w grze w etapie 9). — *Wbudowane: `/help`, `/tps`, `/modules`, `/module`, `/reload config`, `/timescale`; pozostałe w etapach swoich podsystemów.*
+- [x] **Kamień milowy:** test headless — gra z dwoma modułami (zależność, listener, `every(20)`, odczyt konfiguracji); wyłączenie modułu anuluje jego zadania i listenery. — *`gulp-core/src/test/java/dev/gulp/core/milestone/MilestoneTest.java`; build web (etap 3) jeszcze nie istnieje.*
 
 ### Etap 2 — Matematyka i grafika
 

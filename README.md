@@ -2,7 +2,7 @@
 
 Framework gier 2D w Javie 25 dla desktopu (Windows, macOS, Linux) i przeglądarki. Pisanie gry ma przypominać pisanie pluginu serwerowego: klasa główna z cyklem życia, moduły, listenery eventów, zadania w schedulerze i rejestry z kluczami. Sceny i UI buduje się wyłącznie kodem.
 
-> Status: **etap 0 z 12** — szkielet buildu, SPI platformy, okno desktopowe i backend testowy. API nie jest jeszcze stabilne. Plan: [`docs/spec.md`](docs/spec.md), sekcja 22.
+> Status: **etap 1 z 12 ukończony** — rdzeń: silnik z pętlą o stałym kroku, moduły, eventy, scheduler, rejestry, usługi, konfiguracja YAML, komendy. Grafika od etapu 2. API nie jest jeszcze stabilne. Plan: [`docs/spec.md`](docs/spec.md), sekcja 22.
 
 ## Minimalna gra
 
@@ -19,6 +19,21 @@ public final class MyGame extends Game {
     }
 
     @Override public void onStart() {}
+}
+```
+
+Część gry jako moduł (wymaga `gulp-processor` jako procesora adnotacji):
+
+```java
+@ModuleInfo(id = "economy")
+final class EconomyModule extends GameModule {
+    int coins;
+
+    @Override public void onEnable() {
+        coins = config().getInt("start", 0);            // assets/mygame/config/economy.yml
+        every(20, () -> coins += 1);                     // co 20 ticków, anulowane przy wyłączeniu
+        command("coins", ctx -> ctx.reply("Coins: " + coins));
+    }
 }
 ```
 

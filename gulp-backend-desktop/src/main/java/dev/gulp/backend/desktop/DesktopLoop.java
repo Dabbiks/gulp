@@ -17,12 +17,14 @@ public final class DesktopLoop implements PlatformLoop {
 
     private final DesktopWindow window;
     private final long exitAfterFrames;
+    private final Runnable beforeFrame;
     private boolean running;
     private boolean stopRequested;
 
-    DesktopLoop(DesktopWindow window, long exitAfterFrames) {
+    DesktopLoop(DesktopWindow window, long exitAfterFrames, Runnable beforeFrame) {
         this.window = window;
         this.exitAfterFrames = exitAfterFrames;
+        this.beforeFrame = beforeFrame;
     }
 
     @Override
@@ -36,6 +38,7 @@ public final class DesktopLoop implements PlatformLoop {
         try {
             while (!stopRequested) {
                 glfwPollEvents();
+                beforeFrame.run();
                 boolean keepRunning = handler.frame(System.nanoTime());
                 glfwSwapBuffers(window.handle());
                 frames++;

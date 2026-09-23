@@ -25,7 +25,7 @@
 - Java 25; rekordy dla typów wartości, `sealed` dla zamkniętych hierarchii. Kod, nazwy i komentarze po angielsku; dokumentacja projektu po polsku.
 - Każdy pakiet ma `package-info.java` z `@NullMarked`; `@Nullable` tam, gdzie wartość może być pusta (ADR 0004).
 - Publiczne API w `gulp-api` i `gulp-platform` musi mieć Javadoc (wymusza to `-Xdoclint` + `-Werror`) z przykładem użycia.
-- Pokrycie testami ≥ 80% linii w `gulp-api`, `gulp-core`, `gulp-backend-headless` (sprawdzane w `check`).
+- Pokrycie testami ≥ 80% linii w `gulp-api`, `gulp-core`, `gulp-backend-headless`, liczone ze wszystkich trzech zestawów testów (ADR 0005, sprawdzane w `check`).
 - Jednostki: pozycje w jednostkach świata (1 = kafelek), czas logiki w tickach lub `Duration`, czasy wizualne w sekundach (`float`), kąty w stopniach, kolory jako `Color`.
 
 ## Polecenia
@@ -35,10 +35,12 @@
 ./gradlew spotlessApply               # formatowanie (palantir-java-format)
 ./gradlew :examples:showcase:run      # showcase na desktopie
 ./gradlew :examples:showcase:run -Pgulp.exitAfterFrames=120   # zamyka okno samo (CI)
-./gradlew :gulp-core:test --tests "dev.gulp.core.GulpRuntimeTest"
+./gradlew :gulp-core:test --tests "dev.gulp.core.milestone.MilestoneTest"
 ```
 
-Testy gier bez okna: `HeadlessRunner.start(game).step(n)` z `gulp-backend-headless` (do czasu `GameTestHarness` w `gulp-test`).
+Testy gier bez okna: `HeadlessRunner.start(game)` z `gulp-backend-headless`, potem `step(1)` (start gry) i `step(n)` (n ticków przy 60 TPS); zawsze `stop()` na końcu, bo w procesie może działać tylko jeden silnik. `GameTestHarness` z `gulp-test` przyjdzie później.
+
+Moduły, listenery (`@EventHandler`) i `@Serializable` wymagają `gulp-processor` jako procesora adnotacji (`annotationProcessor` / `testAnnotationProcessor`). Anonimowe i prywatne klasy nie mogą być listenerami.
 
 ## Układ
 

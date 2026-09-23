@@ -1,0 +1,3 @@
+# Core demo: how often to report, and what to say.
+report_every_seconds: 5
+greeting: Witaj w Gulpie! Zażółć gęślą jaźń.

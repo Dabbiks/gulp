@@ -1,0 +1,2 @@
+# Default game settings of the showcase. Copy to <data dir>/config/game.yml to override.
+difficulty: normal

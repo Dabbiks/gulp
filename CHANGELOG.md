@@ -4,6 +4,30 @@ Format oparty na [Keep a Changelog](https://keepachangelog.com/pl/1.1.0/); wersj
 
 ## [Unreleased]
 
+### Etap 1 — Rdzeń
+
+#### Dodane
+
+- `Engine` i `Gulp.engine()`: pętla ze stałym krokiem (akumulator, maks. 5 ticków nadrabiania, `alpha` interpolacji), osobne ticki gry i czasu rzeczywistego, pauza, `timeScale`, mierzone TPS, zatrzymanie, eventy cyklu życia (`GameStart/Stop`, `ModuleEnable/Disable`, `TickStart/End`, `Pause/Resume`, `FocusGained/Lost`, `WindowResize`).
+- `Game` i `GameModule` jako `Owner`: skróty `listen`, `on`, `run`, `later`, `every`, `command`, `key`, `config`, `logger`, `data`, `require`; `GameSettings.modules(...)` i konsola deweloperska.
+- Moduły: `@ModuleInfo`, sortowanie topologiczne z pełną ścieżką cyklu, stany `LOADED`/`ENABLED`/`DISABLED`/`FAILED`, włączanie i wyłączanie w trakcie gry (kaskadowo), automatyczne usuwanie listenerów, zadań, komend i usług właściciela.
+- Eventy: priorytety z `MONITOR`, `Cancellable`, `ignoreCancelled`, dziedziczenie po klasach eventów, subskrypcje lambda i przypięte do celu (`TargetedEvent`), izolacja wyjątków, limit zagnieżdżenia 64, dispatch bez alokacji.
+- Scheduler: `run`, `later`, `every` (ticki lub `Duration`), widoki `owner(...)` i `realtime()`, `TaskRunnable`, `Sequence`, `async().thenSync()` z `Promise`, anulowanie zadania po 3 błędach z rzędu, planowanie z dowolnego wątku.
+- `Key`, `Registry`, `Registries` z 10 rejestrami wbudowanymi (typy-zaślepki), zamrażanie po fazie ładowania.
+- `Services` z priorytetami i eventami rejestracji.
+- Dane: model `JsonValue`, parser i zapis JSON, parser i zapis podzbioru YAML, `Config` (domyślne z zasobów + nadpisania użytkownika, sekcje, zapis, przeładowanie, `ConfigReloadEvent`), `Codec` z kombinatorami, `DataType`, `DataContainer`.
+- `gulp-processor`: dispatchery listenerów, deskryptory i walidacja modułów (id, duplikaty, cykle), codeki `@Serializable`, indeks w `META-INF/services`.
+- Komendy: builder z aliasami, argumentami typowanymi (liczby z zakresem, słowa, tekst do końca linii, wybór, klucze, enumy), podkomendy, podpowiedzi; `/help`, `/tps`, `/modules`, `/module enable|disable`, `/reload config`, `/timescale`; konsola z historią i terminal na desktopie.
+- `Logger` per właściciel (`logs/latest.log` na desktopie), `@ThreadSafe`, `Pool`, `IntList`, `IntMap`.
+- SPI platformy: `PlatformLog`, `PlatformConsole`; desktop: `PlatformFiles` (zasoby z katalogu lub classpath, dane w katalogu aplikacji), log, konsola terminala; headless: log, konsola i rejestr kodu generowanego.
+- Showcase: moduł `core` z konfiguracją, zadaniem cyklicznym, sekwencją, listenerem i komendą `/hello`.
+- ADR 0005 (pokrycie ze wszystkich testów) i 0006 (rozstrzygnięcia rdzenia).
+
+#### Zmienione
+
+- `GulpRuntime` z etapu 0 zastąpiony przez `GulpEngine`; `DesktopBackend.create` przyjmuje id gry.
+- Build: `-Xlint:all,-processing`; weryfikacja pokrycia liczy testy `gulp-api`, `gulp-core` i `gulp-backend-headless` razem.
+
 ### Etap 0 — Fundamenty
 
 #### Dodane

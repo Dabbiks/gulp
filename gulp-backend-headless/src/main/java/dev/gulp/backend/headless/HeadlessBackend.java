@@ -30,6 +30,8 @@ public final class HeadlessBackend implements PlatformBackend {
     private final HeadlessNet net = new HeadlessNet(mainQueue::add);
     private final HeadlessInfo info = new HeadlessInfo();
     private final HeadlessModules modules = new HeadlessModules();
+    private final HeadlessLog log = new HeadlessLog();
+    private final HeadlessConsole console = new HeadlessConsole();
     private final HeadlessLoop loop;
 
     /**
@@ -47,6 +49,7 @@ public final class HeadlessBackend implements PlatformBackend {
             mainQueue.removeFirst().run();
         }
         input.deliverQueued();
+        console.deliverTyped();
     }
 
     @Override
@@ -107,6 +110,16 @@ public final class HeadlessBackend implements PlatformBackend {
     @Override
     public HeadlessModules modules() {
         return modules;
+    }
+
+    @Override
+    public HeadlessLog log() {
+        return log;
+    }
+
+    @Override
+    public HeadlessConsole console() {
+        return console;
     }
 
     @Override

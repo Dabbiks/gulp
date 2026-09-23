@@ -14,10 +14,11 @@ class HeadlessRunnerTest {
         TestGame game = new TestGame();
         HeadlessRunner runner = HeadlessRunner.start(game);
 
-        assertThat(game.calls).containsExactly("onStart");
+        assertThat(game.calls).as("the game starts on the first frame").isEmpty();
         assertThat(runner.step(60)).isEqualTo(60);
+        assertThat(game.calls).containsExactly("onStart");
         assertThat(runner.backend().loop().nanoTime()).isEqualTo(60 * HeadlessLoop.DEFAULT_FRAME_NANOS);
-        assertThat(runner.runtime().frameCount()).isEqualTo(60);
+        assertThat(runner.engine().frameCount()).isEqualTo(60);
         assertThat(runner.settings().windowWidth()).isEqualTo(320);
         assertThat(runner.isRunning()).isTrue();
 
@@ -40,6 +41,7 @@ class HeadlessRunnerTest {
         assertThat(runner.backend().loop().nanoTime()).isEqualTo(5_000);
         assertThatThrownBy(() -> runner.backend().loop().setFrameNanos(0)).isInstanceOf(IllegalArgumentException.class);
         assertThatThrownBy(() -> runner.step(-1)).isInstanceOf(IllegalArgumentException.class);
+        runner.stop();
     }
 
     @Test
@@ -48,6 +50,7 @@ class HeadlessRunnerTest {
 
         assertThatThrownBy(() -> runner.backend().loop().run(new StopAfter(1)))
                 .isInstanceOf(IllegalStateException.class);
+        runner.stop();
     }
 
     @Test

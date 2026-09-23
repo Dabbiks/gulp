@@ -99,6 +99,20 @@ public interface PlatformBackend {
      */
     PlatformModules modules();
 
+    /**
+     * Returns the log destination.
+     *
+     * @return the log
+     */
+    PlatformLog log();
+
+    /**
+     * Returns the terminal console.
+     *
+     * @return the console
+     */
+    PlatformConsole console();
+
     /** Releases the window, graphics context, audio device and threads. Called once, after the loop exits. */
     void dispose();
 }

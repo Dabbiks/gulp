@@ -16,7 +16,8 @@ java {
 
 tasks.withType<JavaCompile>().configureEach {
     options.encoding = "UTF-8"
-    options.compilerArgs.addAll(listOf("-Xlint:all", "-Werror", "-parameters"))
+    // "processing" only reports annotations no processor claims (e.g. JUnit @Test), which is noise with gulp-processor.
+    options.compilerArgs.addAll(listOf("-Xlint:all,-processing", "-Werror", "-parameters"))
 }
 
 tasks.withType<Javadoc>().configureEach {

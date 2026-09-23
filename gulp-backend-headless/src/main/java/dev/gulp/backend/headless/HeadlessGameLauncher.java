@@ -38,6 +38,10 @@ public final class HeadlessGameLauncher implements GameLauncher {
         HeadlessRunner runner = HeadlessRunner.start(game);
         try {
             runner.backend().loop().runUntilStopped(Long.getLong(MAX_FRAMES_PROPERTY, 0L));
+            Throwable failure = runner.engine().failure();
+            if (failure != null) {
+                throw new IllegalStateException("The game failed to start", failure);
+            }
         } finally {
             runner.stop();
         }

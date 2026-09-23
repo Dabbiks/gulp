@@ -3,14 +3,15 @@ package dev.gulp.backend.desktop;
 import static org.lwjgl.glfw.GLFW.*;
 import static org.lwjgl.system.MemoryUtil.NULL;
 
+import dev.gulp.core.GeneratedModules;
+import dev.gulp.core.MainQueue;
 import dev.gulp.platform.PlatformAudio;
 import dev.gulp.platform.PlatformBackend;
 import dev.gulp.platform.PlatformDecoders;
-import dev.gulp.platform.PlatformFiles;
 import dev.gulp.platform.PlatformInput;
-import dev.gulp.platform.PlatformModules;
 import dev.gulp.platform.PlatformNet;
 import dev.gulp.platform.WindowConfig;
+import java.nio.file.Path;
 import org.lwjgl.glfw.Callbacks;
 import org.lwjgl.glfw.GLFWErrorCallback;
 import org.lwjgl.glfw.GLFWVidMode;
@@ -19,12 +20,12 @@ import org.lwjgl.opengl.GL;
 /**
  * Desktop platform on LWJGL 3: GLFW window with an OpenGL 3.3 core context.
  *
- * <p>Stage 0 implements the loop, window, graphics, executor and system information. Input and audio arrive in stage
- * 5, files and decoders in stages 2–3, network in stage 10, generated modules in stage 1; until then their accessors
- * throw {@link UnsupportedOperationException}.
+ * <p>Implemented: loop, window, graphics, files, log, terminal console, executor, system information and generated code.
+ * Input and audio arrive in stage 5, decoders in stage 2, network in stage 10; until then their accessors throw
+ * {@link UnsupportedOperationException}.
  *
  * <pre>{@code
- * DesktopBackend backend = DesktopBackend.create(new WindowConfig("Demo", 960, 540, true, false, true));
+ * DesktopBackend backend = DesktopBackend.create("demo", new WindowConfig("Demo", 960, 540, true, false, true));
  * }</pre>
  */
 public final class DesktopBackend implements PlatformBackend {
@@ -38,27 +39,37 @@ public final class DesktopBackend implements PlatformBackend {
     private final DesktopLoop loop;
     private final DesktopExecutor executor = new DesktopExecutor();
     private final DesktopInfo info;
+    private final MainQueue mainQueue = new MainQueue();
+    private final DesktopLog log;
+    private final DesktopConsole console = new DesktopConsole();
+    private final DesktopFiles files;
     private boolean disposed;
 
-    private DesktopBackend(GLFWErrorCallback errorCallback, DesktopWindow window) {
+    private DesktopBackend(GLFWErrorCallback errorCallback, DesktopWindow window, Path dataDirectory, DesktopLog log) {
         this.errorCallback = errorCallback;
         this.window = window;
-        this.loop = new DesktopLoop(window, Long.getLong(EXIT_AFTER_FRAMES_PROPERTY, 0L));
+        this.log = log;
+        this.files = new DesktopFiles(DesktopFiles.defaultAssetsDirectory(), dataDirectory, executor, mainQueue);
+        this.loop = new DesktopLoop(window, Long.getLong(EXIT_AFTER_FRAMES_PROPERTY, 0L), this::beforeFrame);
         this.info = new DesktopInfo(gl);
     }
 
     /**
      * Initialises GLFW, opens the window and makes its OpenGL 3.3 core context current on this thread.
      *
+     * @param appId the game id, used for the user data directory
      * @param config window parameters
      * @return the backend
      * @throws IllegalStateException if GLFW cannot start or OpenGL 3.3 core is unavailable
      */
-    public static DesktopBackend create(WindowConfig config) {
+    public static DesktopBackend create(String appId, WindowConfig config) {
+        Path dataDirectory = DesktopFiles.defaultDataDirectory(appId);
+        DesktopLog log = new DesktopLog(dataDirectory.resolve("logs"));
         GLFWErrorCallback errorCallback =
                 GLFWErrorCallback.createPrint(System.err).set();
         if (!glfwInit()) {
             errorCallback.free();
+            log.close();
             throw new IllegalStateException("Unable to initialise GLFW");
         }
 
@@ -84,6 +95,7 @@ public final class DesktopBackend implements PlatformBackend {
         if (handle == NULL) {
             glfwTerminate();
             errorCallback.free();
+            log.close();
             throw new IllegalStateException("Could not create a window with an OpenGL 3.3 core context."
                     + " Update the graphics driver; on virtual machines enable 3D acceleration.");
         }
@@ -97,7 +109,7 @@ public final class DesktopBackend implements PlatformBackend {
 
         DesktopWindow window = new DesktopWindow(handle, config.fullscreen());
         glfwShowWindow(handle);
-        return new DesktopBackend(errorCallback, window);
+        return new DesktopBackend(errorCallback, window, dataDirectory, log);
     }
 
     private static void centerOnPrimaryMonitor(long handle) {
@@ -142,8 +154,8 @@ public final class DesktopBackend implements PlatformBackend {
     }
 
     @Override
-    public PlatformFiles files() {
-        throw notYet("PlatformFiles", 3);
+    public DesktopFiles files() {
+        return files;
     }
 
     @Override
@@ -167,8 +179,24 @@ public final class DesktopBackend implements PlatformBackend {
     }
 
     @Override
-    public PlatformModules modules() {
-        throw notYet("PlatformModules", 1);
+    public GeneratedModules modules() {
+        return GeneratedModules.shared();
+    }
+
+    @Override
+    public DesktopLog log() {
+        return log;
+    }
+
+    @Override
+    public DesktopConsole console() {
+        return console;
+    }
+
+    private void beforeFrame() {
+        mainQueue.drain(
+                error -> log.write(DesktopLog.ERROR, "gulp", "Unhandled exception in a platform callback", error));
+        console.deliverTyped();
     }
 
     private static UnsupportedOperationException notYet(String service, int stage) {
@@ -188,5 +216,6 @@ public final class DesktopBackend implements PlatformBackend {
         glfwDestroyWindow(handle);
         glfwTerminate();
         errorCallback.free();
+        log.close();
     }
 }

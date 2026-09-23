@@ -9,4 +9,5 @@ dependencies {
     api(project(":gulp-platform"))
 
     testImplementation(project(":gulp-backend-headless"))
+    testAnnotationProcessor(project(":gulp-processor"))
 }

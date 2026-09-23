@@ -1,16 +1,20 @@
 package dev.gulp.api;
 
+import dev.gulp.api.spi.EngineBinding;
 import dev.gulp.api.spi.GameLauncher;
 import java.util.ServiceLoader;
 import org.jspecify.annotations.Nullable;
 
 /**
- * Static facade of the framework and the entry point of every game.
+ * Static facade of the framework: the entry point of every game and the access point to the running engine.
  *
  * <pre>{@code
  * public static void main(String[] args) {
  *     Gulp.launch(new CoinGame());
  * }
+ *
+ * // anywhere on the main thread while the game runs
+ * long tick = Gulp.engine().tick();
  * }</pre>
  *
  * <p>The backend is not chosen by game code: {@link #launch(Game)} picks the highest-priority {@link GameLauncher}
@@ -34,6 +38,30 @@ public final class Gulp {
     public static void launch(Game game) {
         select(ServiceLoader.load(GameLauncher.class), System.getProperty(BACKEND_PROPERTY))
                 .launch(game);
+    }
+
+    /**
+     * Returns the running engine.
+     *
+     * @return the engine
+     * @throws IllegalStateException if no game is running
+     */
+    public static Engine engine() {
+        Engine engine = EngineBinding.current();
+        if (engine == null) {
+            throw new IllegalStateException("No Gulp engine is running. Engine services are available from"
+                    + " Game.onLoad() until Game.onStop(); start the game with Gulp.launch(game).");
+        }
+        return engine;
+    }
+
+    /**
+     * Returns whether an engine is running.
+     *
+     * @return {@code true} between engine start and stop
+     */
+    public static boolean isRunning() {
+        return EngineBinding.current() != null;
     }
 
     /**
