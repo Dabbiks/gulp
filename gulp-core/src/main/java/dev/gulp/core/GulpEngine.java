@@ -7,6 +7,7 @@ import dev.gulp.api.LogLevel;
 import dev.gulp.api.Logger;
 import dev.gulp.api.Owner;
 import dev.gulp.api.Platform;
+import dev.gulp.api.asset.Assets;
 import dev.gulp.api.command.Commands;
 import dev.gulp.api.data.Config;
 import dev.gulp.api.event.Events;
@@ -25,9 +26,11 @@ import dev.gulp.api.module.ModuleManager;
 import dev.gulp.api.registry.Key;
 import dev.gulp.api.registry.Registries;
 import dev.gulp.api.render.Display;
+import dev.gulp.api.scheduler.Promise;
 import dev.gulp.api.scheduler.Scheduler;
 import dev.gulp.api.service.Services;
 import dev.gulp.api.spi.EngineBinding;
+import dev.gulp.core.asset.AssetsImpl;
 import dev.gulp.core.command.BuiltinCommands;
 import dev.gulp.core.command.CommandsImpl;
 import dev.gulp.core.command.ConsoleImpl;
@@ -110,6 +113,7 @@ public final class GulpEngine implements Engine, FrameHandler, CoreContext {
     private final GraphicsImpl graphics;
     private final DisplayImpl display;
     private final Renderer renderer;
+    private final AssetsImpl assets;
     private final long tickNanos;
 
     private @Nullable Thread mainThread;
@@ -118,6 +122,8 @@ public final class GulpEngine implements Engine, FrameHandler, CoreContext {
     private boolean stopRequested;
     private @Nullable Throwable failure;
     private int pendingConfigs;
+    private @Nullable Promise<Void> startup;
+    private @Nullable Throwable startupError;
 
     private boolean paused;
     private float timeScale = 1f;
@@ -172,6 +178,7 @@ public final class GulpEngine implements Engine, FrameHandler, CoreContext {
         this.graphics = new GraphicsImpl(backend.gl(), backend.decoders(), this, mainQueue, game, engineLogger);
         this.display = new DisplayImpl(settings, () -> new PromiseImpl<>(game, this, mainQueue));
         this.renderer = new Renderer(graphics, display, events);
+        this.assets = new AssetsImpl(game, this, mainQueue, backend.files(), graphics, events, engineLogger);
         // Size and camera bounds are valid before the first frame, so onLoad and onEnable can use them.
         PlatformWindow window = backend.window();
         display.update(
@@ -256,10 +263,11 @@ public final class GulpEngine implements Engine, FrameHandler, CoreContext {
         List<ConfigImpl> configs = new ArrayList<>();
         configs.add(gameConfig);
         configs.addAll(modules.configs());
-        pendingConfigs = configs.size();
+        pendingConfigs = configs.size() + 1;
         for (ConfigImpl config : configs) {
             config.load(() -> pendingConfigs--);
         }
+        assets.loadManifest(() -> pendingConfigs--);
         engineLogger.info("Starting " + game.id() + " on " + backend.name() + " with "
                 + modules.ids().size() + " module(s)");
         backend.loop().run(this);
@@ -271,7 +279,18 @@ public final class GulpEngine implements Engine, FrameHandler, CoreContext {
         mainQueue.drain(error -> engineLogger.error("Unhandled exception in main-thread work", error));
         if (phase == Phase.LOADING && pendingConfigs == 0 && !stopRequested) {
             try {
-                startGame(nanoTime);
+                if (!gameLoaded) {
+                    loadGame();
+                }
+                Promise<Void> startupAssets = startup;
+                if (startupAssets != null && startupAssets.isFailed()) {
+                    Throwable error = startupError;
+                    if (error != null) {
+                        throw new IllegalStateException("The startup assets failed to load", error);
+                    }
+                } else if (startupAssets != null && startupAssets.isDone()) {
+                    startGame(nanoTime);
+                }
             } catch (Throwable error) {
                 failure = error;
                 stopRequested = true;
@@ -286,11 +305,19 @@ public final class GulpEngine implements Engine, FrameHandler, CoreContext {
         return !stopRequested && !backend.window().shouldClose();
     }
 
-    private void startGame(long nanoTime) {
+    private void loadGame() {
         gameLoaded = true;
         game.onLoad();
         modules.loadAll();
         registries.freeze();
+        // onStart waits for the startup group; the renderer shows the loading screen meanwhile.
+        Promise<Void> startupAssets = assets.loadGroup(Assets.STARTUP);
+        startupAssets.onFailure(error -> startupError = error);
+        startup = startupAssets;
+    }
+
+    private void startGame(long nanoTime) {
+        startup = null;
         game.onStart();
         phase = Phase.RUNNING;
         modules.enableDefaults();
@@ -356,6 +383,11 @@ public final class GulpEngine implements Engine, FrameHandler, CoreContext {
 
     private void render(long nanoTime) {
         PlatformWindow window = backend.window();
+        if (phase == Phase.LOADING && startup != null) {
+            renderer.showLoading(assets.loadingScreen(), assets.startup().progress());
+        } else {
+            renderer.hideLoading();
+        }
         renderer.render(
                 window.framebufferWidth(),
                 window.framebufferHeight(),
@@ -386,6 +418,7 @@ public final class GulpEngine implements Engine, FrameHandler, CoreContext {
             }
             cleanup(engineOwner);
         } finally {
+            assets.clear();
             try {
                 renderer.dispose();
                 graphics.disposeAll();
@@ -486,6 +519,11 @@ public final class GulpEngine implements Engine, FrameHandler, CoreContext {
     @Override
     public Display display() {
         return display;
+    }
+
+    @Override
+    public Assets assets() {
+        return assets;
     }
 
     @Override

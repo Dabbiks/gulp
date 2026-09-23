@@ -44,6 +44,21 @@ public interface Promise<T extends @Nullable Object> {
     <R extends @Nullable Object> Promise<R> map(Function<? super T, ? extends R> mapper);
 
     /**
+     * Returns a promise that continues with another asynchronous step once this one succeeds.
+     *
+     * <pre>{@code
+     * Promise<Texture> texture = files.read("coins/sprites/player.png")
+     *         .flatMap(graphics()::decode)
+     *         .map(graphics()::texture);
+     * }</pre>
+     *
+     * @param <R> the new result type
+     * @param next starts the next step on the main thread; an exception fails the new promise
+     * @return a promise of the next step's result
+     */
+    <R extends @Nullable Object> Promise<R> flatMap(Function<? super T, ? extends Promise<R>> next);
+
+    /**
      * Returns whether the promise completed, successfully or not.
      *
      * @return {@code true} once completed

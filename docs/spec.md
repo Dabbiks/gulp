@@ -2045,13 +2045,13 @@ Trzynaście etapów od pustego repozytorium do wersji 1.0, wykonywanych po kolei
 
 ### Etap 3 — Web
 
-- [ ] `gulp-backend-web`: konfiguracja TeaVM (Wasm GC + fallback JS), szablon HTML z ekranem ładowania.
-- [ ] Pętla `requestAnimationFrame`, `Gl` na WebGL2, canvas z DPI i zmianą rozmiaru, pełny ekran.
-- [ ] Surowe zdarzenia klawiatury i myszy na obu platformach (pełny input w etapie 5).
-- [ ] `PlatformFiles` przez `fetch`, manifest zasobów, dekodowanie obrazów w przeglądarce, wykonawca kooperacyjny.
-- [ ] `Assets`: klucze, `load` / `get`, grupy, liczenie referencji, grupa startup i domyślny ekran ładowania.
-- [ ] Plugin Gradle: `runDesktop`, `runWeb` (serwer z automatycznym odświeżaniem), `buildWeb`.
-- [ ] Test dymny w przeglądarce headless w CI.
+- [x] `gulp-backend-web`: konfiguracja TeaVM (Wasm GC + fallback JS), szablon HTML z ekranem ładowania.
+- [x] Pętla `requestAnimationFrame`, `Gl` na WebGL2, canvas z DPI i zmianą rozmiaru, pełny ekran.
+- [x] Surowe zdarzenia klawiatury i myszy na obu platformach (pełny input w etapie 5).
+- [x] `PlatformFiles` przez `fetch`, manifest zasobów, dekodowanie obrazów w przeglądarce, wykonawca kooperacyjny.
+- [x] `Assets`: klucze, `load` / `get`, grupy, liczenie referencji, grupa startup i domyślny ekran ładowania.
+- [x] Plugin Gradle: `runDesktop`, `runWeb` (serwer z automatycznym odświeżaniem), `buildWeb`.
+- [x] Test dymny w przeglądarce headless w CI.
 - [ ] **Kamień milowy:** scena z etapu 2 działa bez zmian w Chrome, Firefox i Safari; rozmiar paczki zmierzony i zapisany.
 
 ### Etap 4 — Zasoby, tekst i fonty

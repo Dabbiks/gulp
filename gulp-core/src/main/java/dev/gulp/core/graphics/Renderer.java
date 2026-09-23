@@ -1,5 +1,6 @@
 package dev.gulp.core.graphics;
 
+import dev.gulp.api.asset.LoadingScreen;
 import dev.gulp.api.graphics.Color;
 import dev.gulp.api.graphics.Pixmap;
 import dev.gulp.api.graphics.TextureFilter;
@@ -9,6 +10,7 @@ import dev.gulp.api.render.PreRenderEvent;
 import dev.gulp.api.render.RenderLayer;
 import dev.gulp.api.render.RenderLayerEvent;
 import dev.gulp.api.render.StretchMode;
+import dev.gulp.core.asset.AssetsImpl;
 import dev.gulp.core.event.EventBus;
 import dev.gulp.core.scheduler.PromiseImpl;
 import dev.gulp.platform.Gl;
@@ -32,6 +34,8 @@ public final class Renderer {
     private final DrawImpl draw;
     private final Affine2 projection = new Affine2();
     private @Nullable FrameBufferImpl offscreen;
+    private @Nullable LoadingScreen loadingScreen;
+    private float loadingProgress;
 
     /**
      * Creates the renderer.
@@ -47,6 +51,22 @@ public final class Renderer {
         this.events = events;
         this.batcher = new Batcher(gl, graphics.defaultShader());
         this.draw = new DrawImpl(gl, batcher, graphics);
+    }
+
+    /**
+     * Draws a loading screen in screen space on the following frames, instead of the game.
+     *
+     * @param screen the loading screen
+     * @param progress loading progress from 0 to 1
+     */
+    public void showLoading(LoadingScreen screen, float progress) {
+        this.loadingScreen = screen;
+        this.loadingProgress = progress;
+    }
+
+    /** Stops drawing the loading screen. */
+    public void hideLoading() {
+        this.loadingScreen = null;
     }
 
     /**
@@ -195,6 +215,19 @@ public final class Renderer {
                     targetHeight,
                     targetFramebuffer);
             events.call(new PostRenderEvent(draw));
+            draw.flush();
+        }
+
+        LoadingScreen loading = loadingScreen;
+        if (loading != null) {
+            screenProjection(lw, lh);
+            draw.begin(projection, screenPixel, 1f, 0f, tx, ty, tw, th, targetHeight, targetFramebuffer);
+            try {
+                loading.draw(draw, display, loadingProgress);
+            } catch (RuntimeException error) {
+                // A broken custom screen must not stop loading; fall back to the default one.
+                loadingScreen = AssetsImpl.DEFAULT_LOADING_SCREEN;
+            }
             draw.flush();
         }
 

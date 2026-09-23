@@ -1,5 +1,6 @@
 pluginManagement {
     includeBuild("build-logic")
+    includeBuild("gulp-gradle-plugin")
     repositories {
         gradlePluginPortal()
         mavenCentral()
@@ -25,7 +26,6 @@ include(
     "gulp-processor",
     "gulp-test",
     "gulp-tools",
-    "gulp-gradle-plugin",
 )
 
 include("examples:showcase")

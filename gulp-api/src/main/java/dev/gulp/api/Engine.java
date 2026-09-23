@@ -1,5 +1,6 @@
 package dev.gulp.api;
 
+import dev.gulp.api.asset.Assets;
 import dev.gulp.api.command.Commands;
 import dev.gulp.api.event.Events;
 import dev.gulp.api.graphics.Graphics;
@@ -88,6 +89,13 @@ public interface Engine {
      * @return the display
      */
     Display display();
+
+    /**
+     * Returns asset loading by key.
+     *
+     * @return the assets
+     */
+    Assets assets();
 
     /**
      * Returns platform information.

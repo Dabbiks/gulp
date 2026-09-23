@@ -4,6 +4,43 @@ Format oparty na [Keep a Changelog](https://keepachangelog.com/pl/1.1.0/); wersj
 
 ## [Unreleased]
 
+### Etap 3 — Web
+
+#### Dodane
+
+- `gulp-backend-web` na TeaVM 0.15 (Wasm GC + fallback JS):
+  - pętla na `requestAnimationFrame`;
+  - `Gl` na WebGL2;
+  - canvas z `devicePixelRatio`, zmianą rozmiaru i pełnym ekranem;
+  - fokus z Page Visibility API;
+  - surowe zdarzenia klawiatury, myszy, kółka i dotyku, z blokadą domyślnych akcji przeglądarki, gdy canvas ma fokus;
+  - pliki przez `fetch`, dane użytkownika w IndexedDB, dekodowanie obrazów przez `createImageBitmap`;
+  - wykonawca kooperacyjny;
+  - komendy konsoli z narzędzi deweloperskich (`gulp.command("/tps")`).
+- Szablon strony z ekranem ładowania, paskiem postępu pobierania, wykrywaniem Wasm GC i automatycznym fallbackiem na JS (`?target=js|wasm` wymusza cel).
+- Surowe wejście na desktopie (klawiatura, tekst, mysz, kółko, schowek). Kody klawiszy to identyfikatory USB HID, wspólne dla wszystkich backendów.
+- `dev.gulp.api.asset`:
+  - `AssetKey`, `AssetType` (tekstura, obraz, tekst, bajty), własne `AssetLoader` z zależnościami;
+  - `Assets` z `get`, `load`, `isLoaded`, `unload`, `progress`, grupami (`add`, `addFolder` z manifestu) i liczeniem referencji;
+  - grupa `startup` ładowana przed `onStart` z podmienialnym `LoadingScreen`;
+  - eventy `AssetLoadEvent`, `AssetLoadFailedEvent`, `AssetGroupLoadedEvent`, `AssetReloadEvent`;
+  - `Engine.assets()`.
+- `Promise.flatMap`.
+- Plugin `dev.gulp.game`:
+  - `runDesktop`, `buildWeb`, `runWeb` (serwer na `localhost:8080`, z `--continuous` przebudowa i przeładowanie strony po zmianie), `stopWeb`, `packageWeb`, `generateAssetManifest`;
+  - konfiguracje `desktopRuntime` i `webRuntime`;
+  - blok `gulp { web { target; jsFallback; port } }`.
+- Test dymny `:examples:showcase:webSmokeTest` (Playwright for Java): Chromium, Firefox i WebKit, każdy jako Wasm GC i jako JS. W CI działa w osobnym jobie `web`, który wypisuje też rozmiar paczki.
+- Showcase ładuje monetę z PNG przez grupę `startup` i rysuje monety oraz piłki w osobnych batchach. Działa w przeglądarce bez zmian w kodzie gry.
+- ADR 0008 (web, zasoby, plugin).
+
+#### Zmienione
+
+- `gulp-gradle-plugin` jest teraz included buildem; główne `check` i `spotlessApply` obejmują też jego zadania.
+- Showcase uruchamia się przez `runDesktop` zamiast `run`; CI też.
+- Brak zasobu na webie i w danych użytkownika zgłasza `FileNotFoundException`, jak na desktopie.
+
+
 ### Etap 2 — Matematyka i grafika
 
 #### Dodane

@@ -46,7 +46,7 @@ jobs:
       - name: Open the showcase window for 120 frames
         env:
           LIBGL_ALWAYS_SOFTWARE: "1"
-        run: xvfb-run -a -s "-screen 0 1280x720x24" ./gradlew :examples:showcase:run -Pgulp.exitAfterFrames=120 --console=plain
+        run: xvfb-run -a -s "-screen 0 1280x720x24" ./gradlew :examples:showcase:runDesktop -Pgulp.exitAfterFrames=120 --console=plain
       - name: Visual tests against reference images
         env:
           LIBGL_ALWAYS_SOFTWARE: "1"
@@ -58,10 +58,8 @@ jobs:
           name: visual-test-screenshots
           path: gulp-backend-desktop/build/visual
 
-  web-build:
-    # Hook for roadmap stage 3: enable once :examples:showcase:buildWeb exists.
-    name: web build (stage 3)
-    if: false
+  web:
+    name: web build and smoke test (Chromium, Firefox, WebKit)
     runs-on: ubuntu-latest
     needs: check
     steps:
@@ -71,4 +69,15 @@ jobs:
           distribution: temurin
           java-version: "25"
       - uses: gradle/actions/setup-gradle@v4
-      - run: ./gradlew :examples:showcase:buildWeb --console=plain
+      - name: Build the showcase for browsers
+        run: ./gradlew :examples:showcase:buildWeb --console=plain
+      - name: Bundle size (gzip)
+        run: |
+          cd examples/showcase/build/web
+          for f in game.wasm game.js game.wasm-runtime.js gulp-runtime.js index.html; do
+            echo "$f: $(wc -c < "$f") bytes, $(gzip -9c "$f" | wc -c) gzipped"
+          done
+      - name: Install headless browsers
+        run: ./gradlew :examples:showcase:installBrowsers --console=plain
+      - name: Smoke test in headless browsers
+        run: ./gradlew :examples:showcase:webSmokeTest --console=plain

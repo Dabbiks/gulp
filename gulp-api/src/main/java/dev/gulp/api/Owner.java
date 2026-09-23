@@ -1,5 +1,6 @@
 package dev.gulp.api;
 
+import dev.gulp.api.asset.Assets;
 import dev.gulp.api.command.CommandExecutor;
 import dev.gulp.api.command.Commands;
 import dev.gulp.api.data.Config;
@@ -145,6 +146,15 @@ public interface Owner {
      */
     default Display display() {
         return engine().display();
+    }
+
+    /**
+     * Returns asset loading by key.
+     *
+     * @return the assets
+     */
+    default Assets assets() {
+        return engine().assets();
     }
 
     /**

@@ -5,6 +5,7 @@ lwjgl = "3.4.3"
 teavm = "0.15.0"
 junit = "6.1.3"
 assertj = "3.27.7"
+playwright = "1.63.0"
 jacoco = "0.8.15"
 spotless = "8.10.2"
 palantir-java-format = "2.98.0"
@@ -19,11 +20,16 @@ lwjgl-opengl = { module = "org.lwjgl:lwjgl-opengl" }
 lwjgl-stb = { module = "org.lwjgl:lwjgl-stb" }
 
 teavm-core = { module = "org.teavm:teavm-core", version.ref = "teavm" }
+teavm-jso = { module = "org.teavm:teavm-jso", version.ref = "teavm" }
+teavm-jso-apis = { module = "org.teavm:teavm-jso-apis", version.ref = "teavm" }
+teavm-classlib = { module = "org.teavm:teavm-classlib", version.ref = "teavm" }
+teavm-gradle-plugin = { module = "org.teavm:teavm-gradle-plugin", version.ref = "teavm" }
 
 junit-bom = { module = "org.junit:junit-bom", version.ref = "junit" }
 junit-jupiter = { module = "org.junit.jupiter:junit-jupiter" }
 junit-platform-launcher = { module = "org.junit.platform:junit-platform-launcher" }
 assertj-core = { module = "org.assertj:assertj-core", version.ref = "assertj" }
+playwright = { module = "com.microsoft.playwright:playwright", version.ref = "playwright" }
 
 # Used by build-logic only.
 spotless-gradle = { module = "com.diffplug.spotless:spotless-plugin-gradle", version.ref = "spotless" }

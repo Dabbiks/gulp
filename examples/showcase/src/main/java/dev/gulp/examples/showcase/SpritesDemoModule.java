@@ -1,10 +1,12 @@
 package dev.gulp.examples.showcase;
 
+import dev.gulp.api.asset.AssetKey;
 import dev.gulp.api.command.Arguments;
 import dev.gulp.api.command.Command;
 import dev.gulp.api.event.lifecycle.TickStartEvent;
 import dev.gulp.api.graphics.Color;
 import dev.gulp.api.graphics.Pixmap;
+import dev.gulp.api.graphics.Texture;
 import dev.gulp.api.graphics.TextureFilter;
 import dev.gulp.api.graphics.TextureRegion;
 import dev.gulp.api.math.Mathf;
@@ -18,7 +20,8 @@ import dev.gulp.api.render.RenderStats;
 import java.time.Duration;
 
 /**
- * Stage 2 demo: many bouncing sprites drawn with interpolation, shapes on the UI layer, and render statistics in the
+ * Stages 2 and 3 demo: many bouncing coins (a PNG from the startup asset group) and balls (drawn into a {@code Pixmap}),
+ * with interpolation, shapes on the UI layer, and render statistics in the
  * log.
  *
  * <p>Try in the terminal: {@code /sprites 50000}, {@code /zoom 2}.
@@ -27,9 +30,10 @@ import java.time.Duration;
 final class SpritesDemoModule extends GameModule {
 
     private static final int DEFAULT_COUNT = 10_000;
+    private static final AssetKey<Texture> COIN = AssetKey.texture("showcase:sprites/coin");
 
     private final Rng rng = new Rng(42);
-    private TextureRegion sprite;
+    private TextureRegion[] sprites = new TextureRegion[0];
     private int count;
     private float[] x = new float[0];
     private float[] y = new float[0];
@@ -40,8 +44,18 @@ final class SpritesDemoModule extends GameModule {
     private float time;
 
     @Override
+    public void onLoad() {
+        // Loaded before Game.onStart behind the loading screen, so onEnable can use it.
+        assets().startup().add(COIN);
+    }
+
+    @Override
     public void onEnable() {
-        sprite = graphics().texture(ball(), TextureFilter.NEAREST).region();
+        Texture coin = assets().get(COIN);
+        coin.setFilter(TextureFilter.NEAREST);
+        sprites = new TextureRegion[] {
+            coin.region(), graphics().texture(ball(), TextureFilter.NEAREST).region()
+        };
         spawn(DEFAULT_COUNT);
         on(TickStartEvent.class, e -> update(1f / engine().targetTps()));
         on(RenderLayerEvent.class, e -> {
@@ -131,8 +145,16 @@ final class SpritesDemoModule extends GameModule {
     }
 
     private void drawWorld(Draw draw, float alpha) {
-        for (int i = 0; i < count; i++) {
-            draw.image(sprite, Mathf.lerp(previousX[i], x[i], alpha), Mathf.lerp(previousY[i], y[i], alpha), 1f, 1f);
+        // One pass per texture keeps each in a single batch: even indices are coins, odd ones balls.
+        for (int t = 0; t < sprites.length; t++) {
+            for (int i = t; i < count; i += sprites.length) {
+                draw.image(
+                        sprites[t],
+                        Mathf.lerp(previousX[i], x[i], alpha),
+                        Mathf.lerp(previousY[i], y[i], alpha),
+                        1f,
+                        1f);
+            }
         }
     }
 

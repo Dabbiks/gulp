@@ -33,8 +33,11 @@
 ```bash
 ./gradlew check                       # format, kompilacja z -Werror, testy, pokrycie
 ./gradlew spotlessApply               # formatowanie (palantir-java-format)
-./gradlew :examples:showcase:run      # showcase na desktopie
-./gradlew :examples:showcase:run -Pgulp.exitAfterFrames=120   # zamyka okno samo (CI)
+./gradlew :examples:showcase:runDesktop   # showcase na desktopie
+./gradlew :examples:showcase:runWeb --continuous   # showcase w przeglądarce, localhost:8080, przeładowanie po zmianach
+./gradlew :examples:showcase:buildWeb     # strona w build/web (Wasm GC + JS)
+./gradlew :examples:showcase:webSmokeTest -Pgulp.browsers=chromium   # test dymny web (Playwright; installBrowsers raz)
+./gradlew :examples:showcase:runDesktop -Pgulp.exitAfterFrames=120   # zamyka okno samo (CI)
 ./gradlew :gulp-backend-desktop:visualTest   # testy wizualne w oknie GL (-Pgulp.updateReferences odświeża wzorce)
 ./gradlew :gulp-core:test --tests "dev.gulp.core.milestone.MilestoneTest"
 ```
@@ -52,5 +55,8 @@ Moduły, listenery (`@EventHandler`) i `@Serializable` wymagają `gulp-processor
 | `gulp-platform` | SPI platformy (sekcja 7) |
 | `gulp-core` | implementacja API na SPI |
 | `gulp-backend-desktop` / `-web` / `-headless` | implementacje platformy |
-| `gulp-processor`, `gulp-test`, `gulp-tools`, `gulp-gradle-plugin` | procesor adnotacji, narzędzia testowe, CLI, plugin Gradle |
+| `gulp-processor`, `gulp-test`, `gulp-tools` | procesor adnotacji, narzędzia testowe, CLI |
+| `gulp-gradle-plugin` | plugin `dev.gulp.game` — osobny included build (ADR 0008); główne `check` i `spotlessApply` go obejmują |
 | `examples/showcase` | przykład każdej funkcji |
+
+Web: kod w `gulp-backend-web` rozmawia z przeglądarką tylko przez `@JSBody` wołające `gulp-runtime.js` (prymitywy, napisy, `ArrayBuffer`); `Int8Array.fromJavaArray` nie działa w Wasm GC — używaj `copyFromJavaArray`. Po zmianach w backendzie web uruchom `webSmokeTest`.

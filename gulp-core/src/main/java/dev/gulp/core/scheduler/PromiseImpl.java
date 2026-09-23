@@ -147,6 +147,60 @@ public final class PromiseImpl<T extends @Nullable Object> implements Promise<T>
     }
 
     @Override
+    public <R extends @Nullable Object> Promise<R> flatMap(Function<? super T, ? extends Promise<R>> next) {
+        PromiseImpl<R> chained = new PromiseImpl<>(owner, context, mainQueue);
+        thenSync(result -> {
+            Promise<R> step;
+            try {
+                step = next.apply(result);
+            } catch (Throwable failure) {
+                chained.fail(failure);
+                return;
+            }
+            step.thenSync(chained::complete);
+            step.onFailure(chained::fail);
+        });
+        onFailure(chained::fail);
+        return chained;
+    }
+
+    /**
+     * Returns a promise that already succeeded.
+     *
+     * @param <V> the value type
+     * @param owner owner of the callbacks
+     * @param context engine context
+     * @param mainQueue main-thread queue
+     * @param value the result
+     * @return the completed promise
+     */
+    public static <V extends @Nullable Object> PromiseImpl<V> completed(
+            Owner owner, CoreContext context, MainQueue mainQueue, V value) {
+        PromiseImpl<V> promise = new PromiseImpl<>(owner, context, mainQueue);
+        promise.complete(value);
+        return promise;
+    }
+
+    /**
+     * Returns a promise that already failed, without logging the failure as unhandled.
+     *
+     * @param <V> the value type
+     * @param owner owner of the callbacks
+     * @param context engine context
+     * @param mainQueue main-thread queue
+     * @param failure the error
+     * @return the failed promise
+     */
+    public static <V extends @Nullable Object> PromiseImpl<V> failed(
+            Owner owner, CoreContext context, MainQueue mainQueue, Throwable failure) {
+        PromiseImpl<V> promise = new PromiseImpl<>(owner, context, mainQueue);
+        promise.onFailure(error -> {});
+        promise.fail(failure);
+        promise.onFailure.clear();
+        return promise;
+    }
+
+    @Override
     public boolean isDone() {
         return state != State.PENDING;
     }

@@ -4,7 +4,9 @@ package dev.gulp.platform;
  * Receives raw input events. The backend calls it on the main thread, before each frame, with only primitive arguments
  * so that dispatch does not allocate.
  *
- * <p>Key codes are layout-independent key positions defined in stage 5 together with the input API; the scancode is
+ * <p>Key codes are layout-independent key positions: USB HID usage ids of the keyboard page ({@code 4} = A, {@code 44}
+ * = space, {@code 79}–{@code 82} = arrows, {@code 224}–{@code 231} = modifiers; {@code 0} for unknown keys), the same
+ * on every backend. Modifiers: 1 shift, 2 control, 4 alt, 8 super. The scancode is
  * the raw platform value.
  *
  * <pre>{@code

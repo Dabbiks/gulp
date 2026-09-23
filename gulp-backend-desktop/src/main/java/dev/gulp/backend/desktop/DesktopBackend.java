@@ -20,7 +20,7 @@ import org.lwjgl.opengl.GL;
 /**
  * Desktop platform on LWJGL 3: GLFW window with an OpenGL 3.3 core context.
  *
- * <p>Implemented: loop, window, graphics, files, image decoding, log, terminal console, executor, system information and generated code.
+ * <p>Implemented: loop, window, graphics, raw keyboard and mouse input, files, image decoding, log, terminal console, executor, system information and generated code.
  * Input and audio arrive in stage 5, decoders in stage 2, network in stage 10; until then their accessors throw
  * {@link UnsupportedOperationException}.
  *
@@ -44,6 +44,7 @@ public final class DesktopBackend implements PlatformBackend {
     private final DesktopConsole console = new DesktopConsole();
     private final DesktopFiles files;
     private final DesktopDecoders decoders;
+    private final DesktopInput input;
     private boolean disposed;
 
     private DesktopBackend(GLFWErrorCallback errorCallback, DesktopWindow window, Path dataDirectory, DesktopLog log) {
@@ -54,6 +55,7 @@ public final class DesktopBackend implements PlatformBackend {
         this.loop = new DesktopLoop(window, Long.getLong(EXIT_AFTER_FRAMES_PROPERTY, 0L), this::beforeFrame);
         this.info = new DesktopInfo(gl);
         this.decoders = new DesktopDecoders(executor, mainQueue);
+        this.input = new DesktopInput(window.handle(), mainQueue);
     }
 
     /**
@@ -147,7 +149,7 @@ public final class DesktopBackend implements PlatformBackend {
 
     @Override
     public PlatformInput input() {
-        throw notYet("PlatformInput", 5);
+        return input;
     }
 
     @Override
