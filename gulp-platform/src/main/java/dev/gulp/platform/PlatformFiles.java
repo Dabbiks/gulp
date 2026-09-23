@@ -2,6 +2,8 @@ package dev.gulp.platform;
 
 import java.nio.ByteBuffer;
 import java.util.List;
+import java.util.function.Consumer;
+import org.jspecify.annotations.Nullable;
 
 /**
  * Read-only game assets and writable user data. All reads are asynchronous because the web can only fetch.
@@ -63,4 +65,29 @@ public interface PlatformFiles {
      * @return for example a directory path or {@code "IndexedDB gulp/coins"}
      */
     String userDataLocation();
+
+    /**
+     * Lists resource packs: on desktop the folders and ZIP files in {@code resourcepacks/} of the user data folder, on
+     * the web the packs bundled by the build.
+     *
+     * @param callback receives the packs, or an empty list
+     */
+    void listResourcePacks(PlatformCallback<List<ResourcePackInfo>> callback);
+
+    /**
+     * Reads a file from a resource pack.
+     *
+     * @param packId the pack
+     * @param path the path inside the pack, as for {@link #readAsset(String, PlatformCallback)}
+     * @param callback receives the contents
+     */
+    void readResourcePackFile(String packId, String path, PlatformCallback<ByteBuffer> callback);
+
+    /**
+     * Watches the assets for changes, for hot reload in development. Backends that cannot watch (the web, packaged
+     * games) ignore it.
+     *
+     * @param listener receives changed asset paths on the main thread, or {@code null} to stop
+     */
+    void watchAssets(@Nullable Consumer<String> listener);
 }

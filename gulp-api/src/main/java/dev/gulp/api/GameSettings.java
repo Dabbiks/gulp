@@ -44,6 +44,8 @@ public final class GameSettings {
     private boolean pixelSnap;
     private Color letterboxColor = Color.BLACK;
     private int pixelsPerUnit = 16;
+    private String defaultLocale = "en_us";
+    private @Nullable String locale;
 
     /** Creates settings with default values: 1280x720 resizable window, VSync on, 60 ticks per second. */
     public GameSettings() {}
@@ -394,6 +396,56 @@ public final class GameSettings {
         }
         this.pixelsPerUnit = pixelsPerUnit;
         return this;
+    }
+
+    /**
+     * Returns the language used when a translation is missing in the current one.
+     *
+     * @return a locale such as {@code en_us}, the default
+     */
+    public String defaultLocale() {
+        return defaultLocale;
+    }
+
+    /**
+     * Sets the language used when a translation is missing in the current one.
+     *
+     * @param defaultLocale a locale such as {@code pl_pl}
+     * @return this settings object
+     */
+    public GameSettings defaultLocale(String defaultLocale) {
+        this.defaultLocale = normalizeLocale(defaultLocale);
+        return this;
+    }
+
+    /**
+     * Returns the language to start with.
+     *
+     * @return a locale, or {@code null} to use the system language
+     */
+    public @Nullable String locale() {
+        return locale;
+    }
+
+    /**
+     * Sets the language to start with instead of the system language.
+     *
+     * @param locale a locale such as {@code pl_pl}, or {@code null} for the system language
+     * @return this settings object
+     */
+    public GameSettings locale(@Nullable String locale) {
+        this.locale = locale == null ? null : normalizeLocale(locale);
+        return this;
+    }
+
+    /**
+     * Normalizes a locale to lower case with an underscore: {@code pl-PL} becomes {@code pl_pl}.
+     *
+     * @param locale the locale
+     * @return the normalized locale
+     */
+    public static String normalizeLocale(String locale) {
+        return locale.trim().replace('-', '_').toLowerCase(java.util.Locale.ROOT);
     }
 
     /**

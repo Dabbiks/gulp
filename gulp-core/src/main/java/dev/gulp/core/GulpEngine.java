@@ -7,6 +7,7 @@ import dev.gulp.api.LogLevel;
 import dev.gulp.api.Logger;
 import dev.gulp.api.Owner;
 import dev.gulp.api.Platform;
+import dev.gulp.api.asset.AssetKey;
 import dev.gulp.api.asset.Assets;
 import dev.gulp.api.command.Commands;
 import dev.gulp.api.data.Config;
@@ -21,6 +22,8 @@ import dev.gulp.api.event.lifecycle.TickEndEvent;
 import dev.gulp.api.event.lifecycle.TickStartEvent;
 import dev.gulp.api.event.lifecycle.WindowResizeEvent;
 import dev.gulp.api.graphics.Graphics;
+import dev.gulp.api.graphics.TextureRegion;
+import dev.gulp.api.i18n.Translations;
 import dev.gulp.api.module.GameModule;
 import dev.gulp.api.module.ModuleManager;
 import dev.gulp.api.registry.Key;
@@ -30,6 +33,8 @@ import dev.gulp.api.scheduler.Promise;
 import dev.gulp.api.scheduler.Scheduler;
 import dev.gulp.api.service.Services;
 import dev.gulp.api.spi.EngineBinding;
+import dev.gulp.api.text.Font;
+import dev.gulp.api.text.FontFamily;
 import dev.gulp.core.asset.AssetsImpl;
 import dev.gulp.core.command.BuiltinCommands;
 import dev.gulp.core.command.CommandsImpl;
@@ -39,12 +44,14 @@ import dev.gulp.core.event.EventBus;
 import dev.gulp.core.graphics.DisplayImpl;
 import dev.gulp.core.graphics.GraphicsImpl;
 import dev.gulp.core.graphics.Renderer;
+import dev.gulp.core.i18n.TranslationsImpl;
 import dev.gulp.core.log.LoggerImpl;
 import dev.gulp.core.module.ModuleManagerImpl;
 import dev.gulp.core.registry.RegistriesImpl;
 import dev.gulp.core.scheduler.PromiseImpl;
 import dev.gulp.core.scheduler.SchedulerImpl;
 import dev.gulp.core.service.ServicesImpl;
+import dev.gulp.core.text.TextSystem;
 import dev.gulp.platform.FrameHandler;
 import dev.gulp.platform.PlatformBackend;
 import dev.gulp.platform.PlatformModules;
@@ -81,6 +88,9 @@ public final class GulpEngine implements Engine, FrameHandler, CoreContext {
     /** Maximum game ticks run in one frame; the rest of the backlog is dropped. */
     public static final int MAX_CATCH_UP_TICKS = 5;
 
+    /** Key of the built-in font. */
+    public static final String DEFAULT_FONT = "gulp:fonts/default.msdf.json";
+
     /** Frame time longer than this (a debugger pause, a hidden tab) is clamped. */
     private static final long MAX_FRAME_NANOS = 250_000_000L;
 
@@ -114,6 +124,8 @@ public final class GulpEngine implements Engine, FrameHandler, CoreContext {
     private final DisplayImpl display;
     private final Renderer renderer;
     private final AssetsImpl assets;
+    private final TranslationsImpl translations;
+    private final TextSystem textSystem;
     private final long tickNanos;
 
     private @Nullable Thread mainThread;
@@ -124,6 +136,7 @@ public final class GulpEngine implements Engine, FrameHandler, CoreContext {
     private int pendingConfigs;
     private @Nullable Promise<Void> startup;
     private @Nullable Throwable startupError;
+    private long firstFrameNanos;
 
     private boolean paused;
     private float timeScale = 1f;
@@ -178,7 +191,46 @@ public final class GulpEngine implements Engine, FrameHandler, CoreContext {
         this.graphics = new GraphicsImpl(backend.gl(), backend.decoders(), this, mainQueue, game, engineLogger);
         this.display = new DisplayImpl(settings, () -> new PromiseImpl<>(game, this, mainQueue));
         this.renderer = new Renderer(graphics, display, events);
-        this.assets = new AssetsImpl(game, this, mainQueue, backend.files(), graphics, events, engineLogger);
+        this.assets = new AssetsImpl(
+                game, this, mainQueue, backend.files(), graphics, backend.decoders(), events, engineLogger);
+        String startLocale = settings.locale() != null
+                ? settings.locale()
+                : GameSettings.normalizeLocale(backend.info().systemLocale());
+        this.translations = new TranslationsImpl(
+                assets,
+                List.of(id, Key.RESERVED),
+                startLocale,
+                settings.defaultLocale(),
+                events,
+                engineLogger,
+                () -> new PromiseImpl<>(game, this, mainQueue));
+        this.textSystem = new TextSystem(
+                new TextSystem.Resolver() {
+                    @Override
+                    public @Nullable Font font(String key) {
+                        return assets.getIfLoaded(AssetKey.font(key));
+                    }
+
+                    @Override
+                    public @Nullable TextureRegion region(String key) {
+                        return assets.findRegion(key);
+                    }
+
+                    @Override
+                    public String translate(String key, Object[] arguments) {
+                        return translations.tr(key, arguments);
+                    }
+
+                    @Override
+                    public int translationRevision() {
+                        return translations.revision();
+                    }
+                },
+                engineLogger::warn);
+        graphics.setTextSystem(textSystem);
+        renderer.draw().setTextSystem(textSystem);
+        assets.setReloadListener(textSystem::invalidate);
+        assets.setPackFolders(development && !backend.info().isWeb());
         // Size and camera bounds are valid before the first frame, so onLoad and onEnable can use them.
         PlatformWindow window = backend.window();
         display.update(
@@ -263,11 +315,28 @@ public final class GulpEngine implements Engine, FrameHandler, CoreContext {
         List<ConfigImpl> configs = new ArrayList<>();
         configs.add(gameConfig);
         configs.addAll(modules.configs());
-        pendingConfigs = configs.size() + 1;
+        pendingConfigs = configs.size() + 3;
         for (ConfigImpl config : configs) {
             config.load(() -> pendingConfigs--);
         }
         assets.loadManifest(() -> pendingConfigs--);
+        assets.loadResourcePacks(() -> pendingConfigs--);
+        translations.load(() -> pendingConfigs--);
+        // The built-in font loads with the configs; without it (tests without assets) text is skipped with a warning.
+        pendingConfigs++;
+        assets.load(AssetKey.font(DEFAULT_FONT))
+                .thenSync(font -> {
+                    textSystem.setDefaultFamily(FontFamily.of(font));
+                    pendingConfigs--;
+                })
+                .onFailure(error -> {
+                    engineLogger.warn(
+                            "The default font is not available; text will not be drawn: " + error.getMessage());
+                    pendingConfigs--;
+                });
+        if (development) {
+            backend.files().watchAssets(this::assetChanged);
+        }
         engineLogger.info("Starting " + game.id() + " on " + backend.name() + " with "
                 + modules.ids().size() + " module(s)");
         backend.loop().run(this);
@@ -388,6 +457,10 @@ public final class GulpEngine implements Engine, FrameHandler, CoreContext {
         } else {
             renderer.hideLoading();
         }
+        if (firstFrameNanos == 0L) {
+            firstFrameNanos = nanoTime;
+        }
+        renderer.draw().setTime((nanoTime - firstFrameNanos) / 1e9f);
         renderer.render(
                 window.framebufferWidth(),
                 window.framebufferHeight(),
@@ -428,6 +501,7 @@ public final class GulpEngine implements Engine, FrameHandler, CoreContext {
             phase = Phase.STOPPED;
             backend.window().setListener(null);
             backend.console().setInputListener(null);
+            backend.files().watchAssets(null);
             EngineBinding.unbind(this);
             engineLogger.info("Stopped " + game.id());
         }
@@ -524,6 +598,25 @@ public final class GulpEngine implements Engine, FrameHandler, CoreContext {
     @Override
     public Assets assets() {
         return assets;
+    }
+
+    @Override
+    public Translations translations() {
+        return translations;
+    }
+
+    /** Hot reload: assets, configs and translations whose files changed. */
+    private void assetChanged(String path) {
+        assets.fileChanged(path);
+        if (path.contains("/lang/")) {
+            translations.reload();
+        }
+        for (ConfigImpl config : allConfigs()) {
+            if (path.equals(config.assetPath())) {
+                config.reload();
+                engineLogger.info("Reloaded config " + config.name());
+            }
+        }
     }
 
     @Override

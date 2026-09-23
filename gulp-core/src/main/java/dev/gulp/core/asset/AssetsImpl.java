@@ -9,12 +9,18 @@ import dev.gulp.api.asset.AssetLoadContext;
 import dev.gulp.api.asset.AssetLoadEvent;
 import dev.gulp.api.asset.AssetLoadFailedEvent;
 import dev.gulp.api.asset.AssetLoader;
+import dev.gulp.api.asset.AssetReloadEvent;
 import dev.gulp.api.asset.AssetType;
 import dev.gulp.api.asset.Assets;
 import dev.gulp.api.asset.LoadingScreen;
+import dev.gulp.api.asset.ResourcePack;
+import dev.gulp.api.asset.ResourcePackChangeEvent;
+import dev.gulp.api.asset.ResourcePacks;
 import dev.gulp.api.data.JsonValue;
 import dev.gulp.api.graphics.Color;
 import dev.gulp.api.graphics.Texture;
+import dev.gulp.api.graphics.TextureAtlas;
+import dev.gulp.api.graphics.TextureRegion;
 import dev.gulp.api.math.Rect;
 import dev.gulp.api.registry.Key;
 import dev.gulp.api.scheduler.Promise;
@@ -23,9 +29,12 @@ import dev.gulp.core.MainQueue;
 import dev.gulp.core.data.JsonReader;
 import dev.gulp.core.event.EventBus;
 import dev.gulp.core.graphics.GraphicsImpl;
+import dev.gulp.core.graphics.TextureImpl;
 import dev.gulp.core.scheduler.PromiseImpl;
 import dev.gulp.platform.PlatformCallback;
+import dev.gulp.platform.PlatformDecoders;
 import dev.gulp.platform.PlatformFiles;
+import dev.gulp.platform.ResourcePackInfo;
 import java.io.FileNotFoundException;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
@@ -66,6 +75,7 @@ public final class AssetsImpl implements Assets {
     private final CoreContext context;
     private final MainQueue mainQueue;
     private final PlatformFiles files;
+    private final GraphicsImpl graphics;
     private final EventBus events;
     private final Logger logger;
     private final Map<AssetKey<?>, Entry<?>> entries = new HashMap<>();
@@ -76,6 +86,11 @@ public final class AssetsImpl implements Assets {
     private int pending;
     private int requested;
     private int finished;
+    private final List<ResourcePackInfo> availablePacks = new ArrayList<>();
+    private final List<ResourcePackInfo> enabledPacks = new ArrayList<>();
+    private final ResourcePacksImpl resourcePacks = new ResourcePacksImpl();
+    private Runnable reloadListener = () -> {};
+    private boolean packFolders;
 
     /**
      * Creates the asset manager with loaders for the built-in types.
@@ -85,6 +100,7 @@ public final class AssetsImpl implements Assets {
      * @param mainQueue main-thread queue
      * @param files where files come from
      * @param graphics decodes images and creates textures
+     * @param decoders opens font files
      * @param events where asset events go
      * @param logger where load errors go
      */
@@ -94,12 +110,14 @@ public final class AssetsImpl implements Assets {
             MainQueue mainQueue,
             PlatformFiles files,
             GraphicsImpl graphics,
+            PlatformDecoders decoders,
             EventBus events,
             Logger logger) {
         this.owner = owner;
         this.context = context;
         this.mainQueue = mainQueue;
         this.files = files;
+        this.graphics = graphics;
         this.events = events;
         this.logger = logger;
         registerLoader(AssetType.TEXTURE, new AssetLoader<>() {
@@ -116,6 +134,7 @@ public final class AssetsImpl implements Assets {
         registerLoader(AssetType.PIXMAP, loading -> loading.bytes().flatMap(graphics::decode));
         registerLoader(AssetType.TEXT, AssetLoadContext::text);
         registerLoader(AssetType.BYTES, AssetLoadContext::bytes);
+        BuiltinLoaders.register(this, graphics, decoders);
     }
 
     // ------------------------------------------------------------------ engine hooks
@@ -220,9 +239,34 @@ public final class AssetsImpl implements Assets {
         pending++;
         requested++;
         AssetKey<T> key = entry.key;
+        String name = key.key().path().substring(key.key().path().lastIndexOf('/') + 1);
+        if (manifest == null && name.indexOf('.') < 0 && key.type().extensions().size() > 1) {
+            // No manifest to consult: try the extensions one by one.
+            probe(candidates(key), 0, found -> begin(entry, found));
+            return;
+        }
+        begin(entry, resolve(key));
+    }
+
+    private void probe(List<String> candidates, int index, java.util.function.Consumer<@Nullable String> found) {
+        if (index >= candidates.size()) {
+            found.accept(null);
+            return;
+        }
+        String candidate = candidates.get(index);
+        readBytes(candidate).thenSync(bytes -> found.accept(candidate)).onFailure(error -> {
+            if (error instanceof FileNotFoundException) {
+                probe(candidates, index + 1, found);
+            } else {
+                found.accept(candidate);
+            }
+        });
+    }
+
+    private <T> void begin(Entry<T> entry, @Nullable String path) {
+        AssetKey<T> key = entry.key;
         @SuppressWarnings("unchecked")
         AssetLoader<T> loader = (AssetLoader<T>) loaders.get(key.type());
-        String path = resolve(key);
         Promise<T> loading;
         if (loader == null) {
             loading = failed(new IllegalStateException("No loader is registered for asset type '" + key.type()
@@ -232,7 +276,8 @@ public final class AssetsImpl implements Assets {
                     + String.join(", ", candidates(key)) + ")"));
         } else {
             try {
-                loading = loader.load(new Context(entry, path));
+                entry.path = path;
+                loading = loader.load(new Context(entry.key, path, entry.dependencies));
             } catch (Throwable error) {
                 loading = failed(error);
             }
@@ -280,20 +325,135 @@ public final class AssetsImpl implements Assets {
     @Nullable String resolve(AssetKey<?> key) {
         String base = key.key().namespace() + "/" + key.key().path();
         String name = base.substring(base.lastIndexOf('/') + 1);
-        Set<String> known = manifest;
-        if (name.indexOf('.') >= 0) {
+        List<String> extensions = key.type().extensions();
+        if (name.indexOf('.') >= 0 || extensions.isEmpty()) {
             return base;
         }
-        if (known == null) {
-            List<String> extensions = key.type().extensions();
-            return extensions.isEmpty() ? base : base + "." + extensions.get(0);
+        if (manifest == null) {
+            return base + "." + extensions.get(0);
+        }
+        if (key.type() == AssetType.ATLAS
+                && packFolders
+                && !filesUnder(base + "/").isEmpty()) {
+            return base + "/";
         }
         for (String candidate : candidates(key)) {
-            if (known.contains(candidate)) {
+            if (exists(candidate)) {
                 return candidate;
             }
         }
+        if (key.type() == AssetType.ATLAS && !filesUnder(base + "/").isEmpty()) {
+            return base + "/";
+        }
         return null;
+    }
+
+    private boolean exists(String path) {
+        Set<String> known = manifest;
+        if (known != null && known.contains(path)) {
+            return true;
+        }
+        for (ResourcePackInfo pack : enabledPacks) {
+            if (pack.files().contains(path)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Lists known files under a folder, from the manifest and the enabled resource packs.
+     *
+     * @param folder a path ending with {@code /}
+     * @return the file paths, sorted
+     */
+    public List<String> filesUnder(String folder) {
+        Set<String> found = new java.util.TreeSet<>();
+        Set<String> known = manifest;
+        if (known != null) {
+            for (String path : known) {
+                if (path.startsWith(folder)) {
+                    found.add(path);
+                }
+            }
+        }
+        for (ResourcePackInfo pack : enabledPacks) {
+            for (String path : pack.files()) {
+                if (path.startsWith(folder)) {
+                    found.add(path);
+                }
+            }
+        }
+        return new ArrayList<>(found);
+    }
+
+    /**
+     * Reads a file, from the first enabled resource pack that has it or from the game's assets.
+     *
+     * @param path the asset path
+     * @return the contents
+     */
+    public Promise<byte[]> readBytes(String path) {
+        PromiseImpl<byte[]> promise = newPromise();
+        PlatformCallback<ByteBuffer> callback = new PlatformCallback<>() {
+            @Override
+            public void success(ByteBuffer data) {
+                byte[] bytes = new byte[data.remaining()];
+                data.duplicate().get(bytes);
+                promise.complete(bytes);
+            }
+
+            @Override
+            public void failure(Throwable error) {
+                promise.fail(error);
+            }
+        };
+        for (ResourcePackInfo pack : enabledPacks) {
+            if (pack.files().contains(path)) {
+                files.readResourcePackFile(pack.id(), path, callback);
+                return promise;
+            }
+        }
+        files.readAsset(path, callback);
+        return promise;
+    }
+
+    /**
+     * Returns a new pending promise owned by the game.
+     *
+     * @param <T> the value type
+     * @return the promise
+     */
+    <T> PromiseImpl<T> newPromise() {
+        return new PromiseImpl<>(owner, context, mainQueue);
+    }
+
+    /**
+     * Returns a promise of all values, in order; it fails with the first failure.
+     *
+     * @param <T> the value type
+     * @param promises the promises
+     * @return the combined promise
+     */
+    <T> Promise<List<T>> all(List<Promise<T>> promises) {
+        PromiseImpl<List<T>> result = newPromise();
+        if (promises.isEmpty()) {
+            result.complete(List.of());
+            return result;
+        }
+        List<T> values = new ArrayList<>(Collections.nCopies(promises.size(), null));
+        int[] remaining = {promises.size()};
+        for (int i = 0; i < promises.size(); i++) {
+            int index = i;
+            promises.get(i).thenSync(value -> {
+                values.set(index, value);
+                if (--remaining[0] == 0) {
+                    result.complete(values);
+                }
+            });
+            promises.get(i).onFailure(result::fail);
+        }
+        return result;
     }
 
     private static List<String> candidates(AssetKey<?> key) {
@@ -458,6 +618,256 @@ public final class AssetsImpl implements Assets {
         return AssetType.BYTES;
     }
 
+    @Override
+    public TextureRegion region(String key) {
+        Key parsed = Key.parse(key);
+        String[] parts = TextureAtlasImpl.splitRegion(parsed.namespace(), parsed.path());
+        AssetKey<TextureAtlas> atlas = AssetKey.atlas(parsed.namespace() + ":" + parts[0]);
+        if (!isLoaded(atlas)) {
+            throw new IllegalStateException("Atlas " + atlas.key() + " is not loaded; load it (or the region key " + key
+                    + ") before asking for its regions");
+        }
+        return get(atlas).region(parts[1]);
+    }
+
+    /**
+     * Returns a region if its atlas is loaded, for inline images in text.
+     *
+     * @param key the region key
+     * @return the region, or {@code null}
+     */
+    public @Nullable TextureRegion findRegion(String key) {
+        try {
+            Key parsed = Key.parse(key);
+            String[] parts = TextureAtlasImpl.splitRegion(parsed.namespace(), parsed.path());
+            AssetKey<TextureAtlas> atlas = AssetKey.atlas(parsed.namespace() + ":" + parts[0]);
+            if (isLoaded(atlas)) {
+                return get(atlas).find(parts[1]);
+            }
+            AssetKey<TextureRegion> region = AssetKey.region(key);
+            return isLoaded(region) ? get(region) : null;
+        } catch (IllegalArgumentException e) {
+            return null;
+        }
+    }
+
+    /**
+     * Returns a loaded asset, or {@code null}.
+     *
+     * @param <T> the value type
+     * @param key the asset
+     * @return the value if loaded
+     */
+    public <T> @Nullable T getIfLoaded(AssetKey<T> key) {
+        return isLoaded(key) ? get(key) : null;
+    }
+
+    @Override
+    public ResourcePacks resourcePacks() {
+        return resourcePacks;
+    }
+
+    /**
+     * Asks the platform for resource packs; run at startup.
+     *
+     * @param done called on the main thread when the list arrived
+     */
+    public void loadResourcePacks(Runnable done) {
+        files.listResourcePacks(new PlatformCallback<>() {
+            @Override
+            public void success(List<ResourcePackInfo> packs) {
+                availablePacks.clear();
+                availablePacks.addAll(packs);
+                done.run();
+            }
+
+            @Override
+            public void failure(Throwable error) {
+                logger.warn("Cannot list resource packs", error);
+                done.run();
+            }
+        });
+    }
+
+    /**
+     * Packs atlases from their image folders even when a packed atlas exists; used in development so edited sprites are
+     * picked up by hot reload.
+     *
+     * @param on whether to prefer folders
+     */
+    public void setPackFolders(boolean on) {
+        this.packFolders = on;
+    }
+
+    /**
+     * Sets what runs after assets were reloaded (the text system forgets its cached layouts).
+     *
+     * @param listener the listener
+     */
+    public void setReloadListener(Runnable listener) {
+        this.reloadListener = listener;
+    }
+
+    /**
+     * Reloads the assets read from a changed file. The manifest is read again first, so new files are found.
+     *
+     * @param path the changed asset path
+     */
+    public void fileChanged(String path) {
+        loadManifest(() -> {
+            List<Entry<?>> affected = new ArrayList<>();
+            for (Entry<?> entry : entries.values()) {
+                String entryPath = entry.path;
+                if (entry.loaded
+                        && entryPath != null
+                        && (entryPath.equals(path) || (entryPath.endsWith("/") && path.startsWith(entryPath)))) {
+                    affected.add(entry);
+                }
+            }
+            for (Entry<?> entry : affected) {
+                reload(entry);
+            }
+        });
+    }
+
+    /**
+     * Reloads every loaded asset, after the resource packs changed.
+     *
+     * @return completes when all reloads finished
+     */
+    Promise<Void> reloadAll() {
+        List<Promise<Object>> reloads = new ArrayList<>();
+        for (Entry<?> entry : new ArrayList<>(entries.values())) {
+            if (entry.loaded && entry.key.type() != AssetType.REGION) {
+                reloads.add(reload(entry));
+            }
+        }
+        return all(reloads).map(list -> null);
+    }
+
+    /** Loads an asset again and swaps the result in; textures and atlases keep their identity. */
+    @SuppressWarnings("unchecked")
+    private <T> Promise<Object> reload(Entry<T> entry) {
+        PromiseImpl<Object> done = newPromise();
+        done.onFailure(error -> {});
+        AssetLoader<T> loader = (AssetLoader<T>) loaders.get(entry.key.type());
+        String path = resolve(entry.key);
+        if (loader == null || path == null) {
+            done.complete(entry.key);
+            return done;
+        }
+        if (entry.key.type() == AssetType.TEXTURE && entry.value instanceof TextureImpl texture) {
+            readBytes(path)
+                    .flatMap(graphics::decode)
+                    .thenSync(pixmap -> {
+                        texture.replace(pixmap);
+                        reloaded(entry);
+                        done.complete(entry.key);
+                    })
+                    .onFailure(error -> reloadFailed(entry, error, done));
+            return done;
+        }
+        List<AssetKey<?>> dependencies = new ArrayList<>();
+        Promise<T> loading;
+        try {
+            loading = loader.load(new Context(entry.key, path, dependencies));
+        } catch (Throwable error) {
+            reloadFailed(entry, error, done);
+            return done;
+        }
+        loading.thenSync(value -> {
+            T previous = entry.value;
+            List<AssetKey<?>> previousDependencies = new ArrayList<>(entry.dependencies);
+            entry.dependencies.clear();
+            entry.dependencies.addAll(dependencies);
+            entry.path = path;
+            if (previous instanceof TextureAtlasImpl atlas && value instanceof TextureAtlasImpl fresh) {
+                atlas.replace(fresh.regionMap(), fresh.pages(), freshOwned(fresh));
+            } else {
+                entry.value = value;
+                if (previous != null && previous != value) {
+                    loader.dispose(previous);
+                }
+            }
+            for (AssetKey<?> dependency : previousDependencies) {
+                unload(dependency);
+            }
+            reloaded(entry);
+            done.complete(entry.key);
+        });
+        loading.onFailure(error -> {
+            for (AssetKey<?> dependency : dependencies) {
+                unload(dependency);
+            }
+            reloadFailed(entry, error, done);
+        });
+        return done;
+    }
+
+    private static List<Texture> freshOwned(TextureAtlasImpl atlas) {
+        return atlas.ownedPages();
+    }
+
+    private void reloaded(Entry<?> entry) {
+        logger.info("Reloaded " + entry.key);
+        reloadListener.run();
+        if (events.hasListeners(AssetReloadEvent.class)) {
+            events.call(new AssetReloadEvent(entry.key));
+        }
+    }
+
+    private void reloadFailed(Entry<?> entry, Throwable error, PromiseImpl<Object> done) {
+        logger.error("Cannot reload asset " + entry.key + "; keeping the previous version: " + error.getMessage());
+        done.complete(entry.key);
+    }
+
+    /** {@link ResourcePacks} over the platform's pack list. */
+    private final class ResourcePacksImpl implements ResourcePacks {
+        @Override
+        public List<ResourcePack> available() {
+            List<ResourcePack> packs = new ArrayList<>();
+            for (ResourcePackInfo info : availablePacks) {
+                packs.add(new ResourcePack(info.id(), info.description()));
+            }
+            return packs;
+        }
+
+        @Override
+        public List<ResourcePack> enabled() {
+            List<ResourcePack> packs = new ArrayList<>();
+            for (ResourcePackInfo info : enabledPacks) {
+                packs.add(new ResourcePack(info.id(), info.description()));
+            }
+            return packs;
+        }
+
+        @Override
+        public Promise<Void> setEnabled(List<String> ids) {
+            context.checkMainThread("ResourcePacks.setEnabled");
+            List<ResourcePackInfo> chosen = new ArrayList<>();
+            for (String id : ids) {
+                ResourcePackInfo found = null;
+                for (ResourcePackInfo info : availablePacks) {
+                    if (info.id().equals(id)) {
+                        found = info;
+                    }
+                }
+                if (found == null) {
+                    logger.warn("Unknown resource pack '" + id + "'; available: " + available());
+                } else if (!chosen.contains(found)) {
+                    chosen.add(found);
+                }
+            }
+            enabledPacks.clear();
+            enabledPacks.addAll(chosen);
+            return reloadAll().map(nothing -> {
+                if (events.hasListeners(ResourcePackChangeEvent.class)) {
+                    events.call(new ResourcePackChangeEvent(enabled()));
+                }
+                return null;
+            });
+        }
+    }
     // ------------------------------------------------------------------ internals
 
     private static final class Entry<T> {
@@ -473,6 +883,8 @@ public final class AssetsImpl implements Assets {
         boolean loaded;
         boolean released;
 
+        @Nullable String path;
+
         Entry(AssetKey<T> key, PromiseImpl<T> promise) {
             this.key = key;
             this.promise = promise;
@@ -480,17 +892,19 @@ public final class AssetsImpl implements Assets {
     }
 
     private final class Context implements AssetLoadContext {
-        private final Entry<?> entry;
+        private final AssetKey<?> key;
         private final String path;
+        private final List<AssetKey<?>> dependencies;
 
-        Context(Entry<?> entry, String path) {
-            this.entry = entry;
+        Context(AssetKey<?> key, String path, List<AssetKey<?>> dependencies) {
+            this.key = key;
             this.path = path;
+            this.dependencies = dependencies;
         }
 
         @Override
         public AssetKey<?> key() {
-            return entry.key;
+            return key;
         }
 
         @Override
@@ -500,21 +914,7 @@ public final class AssetsImpl implements Assets {
 
         @Override
         public Promise<byte[]> bytes() {
-            PromiseImpl<byte[]> promise = new PromiseImpl<>(owner, context, mainQueue);
-            files.readAsset(path, new PlatformCallback<>() {
-                @Override
-                public void success(ByteBuffer data) {
-                    byte[] bytes = new byte[data.remaining()];
-                    data.duplicate().get(bytes);
-                    promise.complete(bytes);
-                }
-
-                @Override
-                public void failure(Throwable error) {
-                    promise.fail(error);
-                }
-            });
-            return promise;
+            return readBytes(path);
         }
 
         @Override
@@ -524,7 +924,7 @@ public final class AssetsImpl implements Assets {
 
         @Override
         public <D> Promise<D> dependency(AssetKey<D> key) {
-            entry.dependencies.add(key);
+            dependencies.add(key);
             return load(key);
         }
     }

@@ -163,6 +163,62 @@
         .catch(report);
     },
 
+
+    // Dynamic fonts: the file is registered with the FontFace API and glyphs are drawn with Canvas2D.
+    fontCounter: 0,
+    glyphCanvas: null,
+    lastGlyph: null,
+    openFont(bytes, ok, fail) {
+      const family = "gulp-font-" + (this.fontCounter++);
+      const face = new FontFace(family, bytes);
+      face.load().then(loaded => { document.fonts.add(loaded); ok(family); },
+        e => fail(String(e && e.message || e))).catch(report);
+    },
+    glyphContext(family, size) {
+      if (!this.glyphCanvas) {
+        this.glyphCanvas = document.createElement("canvas");
+        this.glyphCanvas.width = 8;
+        this.glyphCanvas.height = 8;
+      }
+      const context = this.glyphCanvas.getContext("2d", { willReadFrequently: true });
+      context.font = size + "px \"" + family + "\"";
+      return context;
+    },
+    fontMetrics(family, size) {
+      const m = this.glyphContext(family, size).measureText("Hg");
+      const ascent = m.fontBoundingBoxAscent ?? m.actualBoundingBoxAscent;
+      const descent = m.fontBoundingBoxDescent ?? m.actualBoundingBoxDescent;
+      return new Float32Array([ascent, descent, (ascent + descent) * 1.15]);
+    },
+    measureText(family, size, text) {
+      return this.glyphContext(family, size).measureText(text).width;
+    },
+    rasterize(family, codePoint, size) {
+      const text = String.fromCodePoint(codePoint);
+      let context = this.glyphContext(family, size);
+      const m = context.measureText(text);
+      const left = Math.ceil(m.actualBoundingBoxLeft || 0) + 1;
+      const ascent = Math.ceil(m.actualBoundingBoxAscent || 0) + 1;
+      const width = Math.max(0, left + Math.ceil(m.actualBoundingBoxRight || 0) + 1);
+      const height = Math.max(0, ascent + Math.ceil(m.actualBoundingBoxDescent || 0) + 1);
+      if (width <= 2 || height <= 2) {
+        this.lastGlyph = { header: new Float32Array([0, 0, 0, 0, m.width]), data: new Int8Array(0) };
+        return;
+      }
+      if (this.glyphCanvas.width < width || this.glyphCanvas.height < height) {
+        this.glyphCanvas.width = Math.max(this.glyphCanvas.width, width);
+        this.glyphCanvas.height = Math.max(this.glyphCanvas.height, height);
+        context = this.glyphContext(family, size);
+      }
+      context.clearRect(0, 0, width, height);
+      context.fillStyle = "#fff";
+      context.textBaseline = "alphabetic";
+      context.fillText(text, left, ascent);
+      const pixels = context.getImageData(0, 0, width, height).data;
+      const coverage = new Int8Array(width * height);
+      for (let i = 0; i < coverage.length; i++) coverage[i] = pixels[i * 4 + 3];
+      this.lastGlyph = { header: new Float32Array([width, height, -left, ascent, m.width]), data: coverage };
+    },
     /** Decodes an image to straight RGBA. */
     decodeImage(bytes, ok, fail) {
       const blob = new Blob([bytes]);

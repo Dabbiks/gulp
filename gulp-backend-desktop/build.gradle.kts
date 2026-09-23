@@ -21,11 +21,13 @@ dependencies {
     implementation(libs.lwjgl.glfw)
     implementation(libs.lwjgl.opengl)
     implementation(libs.lwjgl.stb)
+    implementation(libs.lwjgl.freetype)
     for (natives in lwjglNatives) {
         runtimeOnly(variantOf(libs.lwjgl.core) { classifier(natives) })
         runtimeOnly(variantOf(libs.lwjgl.glfw) { classifier(natives) })
         runtimeOnly(variantOf(libs.lwjgl.opengl) { classifier(natives) })
         runtimeOnly(variantOf(libs.lwjgl.stb) { classifier(natives) })
+        runtimeOnly(variantOf(libs.lwjgl.freetype) { classifier(natives) })
     }
 }
 

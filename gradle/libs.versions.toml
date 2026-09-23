@@ -18,6 +18,8 @@ lwjgl-core = { module = "org.lwjgl:lwjgl" }
 lwjgl-glfw = { module = "org.lwjgl:lwjgl-glfw" }
 lwjgl-opengl = { module = "org.lwjgl:lwjgl-opengl" }
 lwjgl-stb = { module = "org.lwjgl:lwjgl-stb" }
+lwjgl-freetype = { module = "org.lwjgl:lwjgl-freetype" }
+lwjgl-msdfgen = { module = "org.lwjgl:lwjgl-msdfgen" }
 
 teavm-core = { module = "org.teavm:teavm-core", version.ref = "teavm" }
 teavm-jso = { module = "org.teavm:teavm-jso", version.ref = "teavm" }

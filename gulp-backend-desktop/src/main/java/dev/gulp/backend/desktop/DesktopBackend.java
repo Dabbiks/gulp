@@ -201,6 +201,7 @@ public final class DesktopBackend implements PlatformBackend {
         mainQueue.drain(
                 error -> log.write(DesktopLog.ERROR, "gulp", "Unhandled exception in a platform callback", error));
         console.deliverTyped();
+        files.pollChanges();
     }
 
     private static UnsupportedOperationException notYet(String service, int stage) {
@@ -215,6 +216,7 @@ public final class DesktopBackend implements PlatformBackend {
         }
         disposed = true;
         executor.shutdown();
+        files.closeWatcher();
         long handle = window.handle();
         Callbacks.glfwFreeCallbacks(handle);
         glfwDestroyWindow(handle);

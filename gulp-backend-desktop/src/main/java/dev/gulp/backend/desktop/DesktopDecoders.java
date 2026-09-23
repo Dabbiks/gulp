@@ -14,8 +14,8 @@ import org.lwjgl.stb.STBImage;
 import org.lwjgl.system.MemoryStack;
 
 /**
- * Image decoding with stb_image on the executor; results arrive on the main thread. Audio and fonts arrive in stages 4
- * and 5.
+ * Image decoding with stb_image on the executor and font opening with FreeType; results arrive on the main thread.
+ * Audio arrives in stage 5.
  */
 final class DesktopDecoders implements PlatformDecoders {
 
@@ -73,7 +73,19 @@ final class DesktopDecoders implements PlatformDecoders {
     }
 
     @Override
-    public PlatformFontFace openFont(ByteBuffer fontFile) {
-        throw new UnsupportedOperationException("Font loading arrives in stage 4");
+    public void openFont(ByteBuffer fontFile, PlatformCallback<PlatformFontFace> callback) {
+        // FreeType faces are used from the main thread only, so they are opened there too.
+        ByteBuffer copy = ByteBuffer.allocateDirect(fontFile.remaining()).order(ByteOrder.nativeOrder());
+        copy.put(fontFile.duplicate()).flip();
+        mainQueue.post(() -> {
+            PlatformFontFace face;
+            try {
+                face = FreeTypeFontFace.open(copy);
+            } catch (RuntimeException e) {
+                callback.failure(e);
+                return;
+            }
+            callback.success(face);
+        });
     }
 }

@@ -4,6 +4,56 @@ Format oparty na [Keep a Changelog](https://keepachangelog.com/pl/1.1.0/); wersj
 
 ## [Unreleased]
 
+### Etap 4 — Zasoby, tekst i fonty
+
+#### Dodane
+
+- `dev.gulp.api.text`:
+  - `Font` (MSDF, bitmapowy, dynamiczny) z łańcuchem fallbacków;
+  - `FontFamily` z udawanym bold i italic, gdy brakuje wariantu;
+  - `TextStyle` (rozmiar, kolor, obrys, cień, odstępy, bold, italic);
+  - `Text` (tekst sformatowany, `translatable`, obrazki w tekście, linki, efekty);
+  - `Markup` (`[b]`, `[i]`, `[color]`, `[size]`, `[font]`, `[img]`, `[link]`, `[wave]`, `[shake]`, `[rainbow]`, `[pulse]`, `[fade]`, `[[`);
+  - `TextLayout` i `TextBox` (zawijanie po słowach i znakach, wyrównanie, limit linii, wielokropek);
+  - `TextLinkClickEvent`, `TextRevealCompleteEvent`.
+- `Draw.text(...)` w siedmiu wariantach, w tym punkt z wyrównaniem, prostokąt z zawijaniem i gotowy układ z `visibleCharacters`.
+- `graphics().layout`, `graphics().defaultFont()`, `graphics().gridFont(...)`.
+- Font domyślny Fira Sans (SIL OFL) jako MSDF: łacina rozszerzona, grecki, cyrylica.
+- Shader MSDF z antyaliasingiem w pikselach ekranu, obrysem, cieniem i pogrubieniem.
+- Fonty dynamiczne: FreeType na desktopie, Canvas2D i FontFace API na webie. Glify trafiają do stron cache osobno dla każdego rozmiaru.
+- Zasoby:
+  - `AssetType.FONT`, `ATLAS`, `REGION`, `AssetKey.font/atlas/region`;
+  - `TextureAtlas`;
+  - `assets().region("ns:sprites/…")`;
+  - resource packi (`assets().resourcePacks()`, `ResourcePackChangeEvent`);
+  - atlasy pakowane przy ładowaniu w trybie deweloperskim;
+  - czytanie atlasów w formacie TexturePackera (hash, array, wielostronicowy).
+- Hot reload na desktopie: tekstury i atlasy są podmieniane w miejscu, reszta zasobów, konfiguracje i tłumaczenia są wczytywane na nowo. Do tego `AssetReloadEvent`.
+- `dev.gulp.api.i18n`:
+  - `Translations` z `tr(...)`, łańcuchem locale → język → domyślny i `setLocale`;
+  - `LocaleChangeEvent`;
+  - `GameSettings.locale` i `defaultLocale`;
+  - `Engine.translations()` i `Owner.tr(...)`.
+- `gulp-tools`:
+  - generator MSDF (LWJGL msdfgen, kerning z GPOS) i fontów BMFont;
+  - packer atlasów (wspólny `AtlasBuilder` i `RectPacker` z `gulp-core`);
+  - CLI `GulpTools`.
+- Plugin:
+  - `packAssets` (atlasy z folderów `sprites/`, fonty z `gulp { assets { msdfFont(...); bitmapFont(...) } }`);
+  - `generateAssetKeys` (klasa `GameAssets`);
+  - `bundleResourcePacks`;
+  - manifest obejmuje zasoby z bibliotek;
+  - `runDesktop` czyta zasoby prosto ze źródeł (hot reload).
+- SPI: `PlatformFiles.listResourcePacks`, `readResourcePackFile`, `watchAssets`, `ResourcePackInfo`. `PlatformDecoders.openFont` jest teraz asynchroniczne.
+- Showcase: moduł `text` pokazuje polski tekst we wszystkich typach fontów, efekty markupu, monetę z atlasu w tekście, tłumaczenia (pl i en) i hot reload `lang/pl_pl.json` oraz `textures/banner.png`.
+- ADR 0009.
+
+#### Naprawione
+
+- Web nie widział manifestu zasobów: bramka odrzucała sam plik manifestu.
+- Nazwy w `gulp-runtime.js`: pomiar tekstu nadpisywał dopasowanie rozmiaru canvasu. Test dymny sprawdza teraz rozmiar bufora canvasu.
+- Zadania TeaVM mają cały classpath jako wejście i nie korzystają z build cache.
+
 ### Etap 3 — Web
 
 #### Dodane

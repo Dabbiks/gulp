@@ -11,6 +11,10 @@ import dev.gulp.api.math.Polygon;
 import dev.gulp.api.math.Rect;
 import dev.gulp.api.math.Transform2D;
 import dev.gulp.api.math.Vec2;
+import dev.gulp.api.text.Text;
+import dev.gulp.api.text.TextAlign;
+import dev.gulp.api.text.TextLayout;
+import dev.gulp.api.text.TextStyle;
 import java.util.List;
 import java.util.function.Consumer;
 import org.jspecify.annotations.Nullable;
@@ -362,4 +366,81 @@ public interface Draw {
      * @return current units per pixel
      */
     float pixelSize();
+
+    /**
+     * Draws text in the default style with its top-left corner at a point.
+     *
+     * @param text the characters; {@code \n} starts a new line
+     * @param x left edge
+     * @param y top edge
+     * @return this draw
+     */
+    Draw text(String text, float x, float y);
+
+    /**
+     * Draws text with its top-left corner at a point.
+     *
+     * @param text the characters
+     * @param x left edge
+     * @param y top edge
+     * @param style the style
+     * @return this draw
+     */
+    Draw text(String text, float x, float y, TextStyle style);
+
+    /**
+     * Draws rich text with its top-left corner at a point.
+     *
+     * @param text the text
+     * @param x left edge
+     * @param y top edge
+     * @param style the base style
+     * @return this draw
+     */
+    Draw text(Text text, float x, float y, TextStyle style);
+
+    /**
+     * Draws text aligned to a point: {@link TextAlign#CENTER} centers it on the point, {@link TextAlign#TOP_RIGHT}
+     * puts its top-right corner there.
+     *
+     * @param text the characters
+     * @param x the point
+     * @param y the point
+     * @param style the style
+     * @param align which part of the text sits on the point
+     * @return this draw
+     */
+    Draw text(String text, float x, float y, TextStyle style, TextAlign align);
+
+    /**
+     * Draws rich text wrapped by words to the width of a rectangle and aligned inside it.
+     *
+     * @param text the text
+     * @param rect the rectangle
+     * @param style the base style
+     * @param align alignment of the lines and of the block inside the rectangle
+     * @return this draw
+     */
+    Draw text(Text text, Rect rect, TextStyle style, TextAlign align);
+
+    /**
+     * Draws a prepared layout with its top-left corner at a point.
+     *
+     * @param layout the layout
+     * @param x left edge
+     * @param y top edge
+     * @return this draw
+     */
+    Draw text(TextLayout layout, float x, float y);
+
+    /**
+     * Draws the first characters of a prepared layout, for typewriter effects.
+     *
+     * @param layout the layout
+     * @param x left edge
+     * @param y top edge
+     * @param visibleCharacters how many characters and images to draw
+     * @return this draw
+     */
+    Draw text(TextLayout layout, float x, float y, int visibleCharacters);
 }

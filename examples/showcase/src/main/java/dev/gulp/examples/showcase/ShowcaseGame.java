@@ -30,7 +30,7 @@ public final class ShowcaseGame extends Game {
         settings.title("Gulp Showcase")
                 .windowSize(960, 540)
                 .clearColor(Color.rgb(0x1d2b53))
-                .modules(new CoreDemoModule(), new SpritesDemoModule());
+                .modules(new CoreDemoModule(), new SpritesDemoModule(), new TextDemoModule());
     }
 
     @Override

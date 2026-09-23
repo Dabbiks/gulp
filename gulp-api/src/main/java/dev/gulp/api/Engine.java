@@ -4,6 +4,7 @@ import dev.gulp.api.asset.Assets;
 import dev.gulp.api.command.Commands;
 import dev.gulp.api.event.Events;
 import dev.gulp.api.graphics.Graphics;
+import dev.gulp.api.i18n.Translations;
 import dev.gulp.api.module.ModuleManager;
 import dev.gulp.api.registry.Registries;
 import dev.gulp.api.render.Display;
@@ -96,6 +97,13 @@ public interface Engine {
      * @return the assets
      */
     Assets assets();
+
+    /**
+     * Returns translated strings.
+     *
+     * @return the translations
+     */
+    Translations translations();
 
     /**
      * Returns platform information.

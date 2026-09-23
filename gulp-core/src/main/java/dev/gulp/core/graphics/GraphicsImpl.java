@@ -11,9 +11,18 @@ import dev.gulp.api.graphics.Texture;
 import dev.gulp.api.graphics.TextureFilter;
 import dev.gulp.api.graphics.TextureRegion;
 import dev.gulp.api.scheduler.Promise;
+import dev.gulp.api.text.Font;
+import dev.gulp.api.text.FontFamily;
+import dev.gulp.api.text.Text;
+import dev.gulp.api.text.TextBox;
+import dev.gulp.api.text.TextLayout;
+import dev.gulp.api.text.TextStyle;
 import dev.gulp.core.CoreContext;
 import dev.gulp.core.MainQueue;
 import dev.gulp.core.scheduler.PromiseImpl;
+import dev.gulp.core.text.BitmapFontImpl;
+import dev.gulp.core.text.TextLayoutImpl;
+import dev.gulp.core.text.TextSystem;
 import dev.gulp.platform.DecodedImage;
 import dev.gulp.platform.Gl;
 import dev.gulp.platform.PlatformCallback;
@@ -24,6 +33,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import org.jspecify.annotations.Nullable;
 
 /** {@link Graphics}: creates GPU resources and frees whatever is left when the engine stops. */
 public final class GraphicsImpl implements Graphics {
@@ -39,6 +49,8 @@ public final class GraphicsImpl implements Graphics {
     private final List<ShaderImpl> shaders = new ArrayList<>();
     private final List<FrameBufferImpl> frameBuffers = new ArrayList<>();
     private final ShaderImpl defaultShader;
+    private final ShaderImpl msdfShader;
+    private @Nullable TextSystem textSystem;
     private final TextureImpl white;
     private final TextureImpl fallback;
 
@@ -63,6 +75,7 @@ public final class GraphicsImpl implements Graphics {
         includes.put("gulp:common.glsl", ShaderImpl.COMMON_INCLUDE);
         this.defaultShader =
                 new ShaderImpl(gl, ShaderImpl.DEFAULT_VERTEX, ShaderImpl.DEFAULT_FRAGMENT, includes, logger);
+        this.msdfShader = new ShaderImpl(gl, ShaderImpl.DEFAULT_VERTEX, ShaderImpl.MSDF_FRAGMENT, includes, logger);
         Pixmap one = new Pixmap(1, 1);
         one.fill(Color.WHITE);
         this.white = new TextureImpl(gl, 1, 1, TextureFilter.NEAREST, one);
@@ -77,6 +90,44 @@ public final class GraphicsImpl implements Graphics {
 
     ShaderImpl defaultShader() {
         return defaultShader;
+    }
+
+    ShaderImpl msdfShader() {
+        return msdfShader;
+    }
+
+    /**
+     * Connects text layout.
+     *
+     * @param system the text system
+     */
+    public void setTextSystem(TextSystem system) {
+        this.textSystem = system;
+    }
+
+    @Override
+    public TextLayout layout(Text text, TextStyle style, TextBox box) {
+        TextSystem system = textSystem;
+        TextLayoutImpl layout = system == null ? null : system.layout(text, style, box);
+        if (layout == null) {
+            throw new IllegalStateException("No font is loaded yet: the default font loads before Game.onStart");
+        }
+        return layout;
+    }
+
+    @Override
+    public FontFamily defaultFont() {
+        TextSystem system = textSystem;
+        FontFamily family = system == null ? null : system.defaultFamily();
+        if (family == null) {
+            throw new IllegalStateException("The default font is not loaded yet; it is ready from Game.onStart");
+        }
+        return family;
+    }
+
+    @Override
+    public Font gridFont(TextureRegion sheet, String characters, int cellWidth, int cellHeight) {
+        return BitmapFontImpl.grid("grid", sheet, characters, cellWidth, cellHeight);
     }
 
     TextureImpl whiteTexture() {
@@ -214,6 +265,7 @@ public final class GraphicsImpl implements Graphics {
         shaders.clear();
         textures.clear();
         defaultShader.dispose();
+        msdfShader.dispose();
         white.dispose();
         fallback.dispose();
     }

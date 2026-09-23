@@ -16,6 +16,17 @@ import dev.gulp.api.math.Rect;
 import dev.gulp.api.math.Transform2D;
 import dev.gulp.api.math.Vec2;
 import dev.gulp.api.render.Draw;
+import dev.gulp.api.text.FontKind;
+import dev.gulp.api.text.Text;
+import dev.gulp.api.text.TextAlign;
+import dev.gulp.api.text.TextBox;
+import dev.gulp.api.text.TextEffect;
+import dev.gulp.api.text.TextLayout;
+import dev.gulp.api.text.TextStyle;
+import dev.gulp.core.text.FontImpl;
+import dev.gulp.core.text.Glyph;
+import dev.gulp.core.text.TextLayoutImpl;
+import dev.gulp.core.text.TextSystem;
 import dev.gulp.platform.Gl;
 import java.util.Arrays;
 import java.util.List;
@@ -622,6 +633,328 @@ public final class DrawImpl implements Draw {
         return (al << 24) | (bl << 16) | (g << 8) | r;
     }
 
+    // ------------------------------------------------------------------ text
+
+    private static final int PASS_SHADOW = 0;
+    private static final int PASS_OUTLINE = 1;
+    private static final int PASS_MAIN = 2;
+    private static final float[] OUTLINE_DX = {1f, -1f, 0f, 0f, 0.7f, -0.7f, 0.7f, -0.7f};
+    private static final float[] OUTLINE_DY = {0f, 0f, 1f, -1f, 0.7f, 0.7f, -0.7f, -0.7f};
+
+    private @Nullable TextSystem textSystem;
+    private float time;
+    private float msdfRange = -1f;
+    private float msdfOutline = -1f;
+    private float msdfWeight = -1f;
+    private @Nullable Color msdfOutlineColor;
+
+    /**
+     * Connects text drawing.
+     *
+     * @param system lays out text
+     */
+    public void setTextSystem(TextSystem system) {
+        this.textSystem = system;
+    }
+
+    /**
+     * Sets the time that drives animated text effects.
+     *
+     * @param seconds seconds since the engine started
+     */
+    public void setTime(float seconds) {
+        this.time = seconds;
+    }
+
+    @Override
+    public Draw text(String text, float x, float y) {
+        return text(text, x, y, TextStyle.DEFAULT);
+    }
+
+    @Override
+    public Draw text(String text, float x, float y, TextStyle style) {
+        TextSystem system = textSystem;
+        TextLayoutImpl layout = system == null ? null : system.layout(text, style, TextBox.NONE);
+        if (layout != null) {
+            drawLayout(layout, x, y, Integer.MAX_VALUE);
+        }
+        return this;
+    }
+
+    @Override
+    public Draw text(Text text, float x, float y, TextStyle style) {
+        TextSystem system = textSystem;
+        TextLayoutImpl layout = system == null ? null : system.layout(text, style, TextBox.NONE);
+        if (layout != null) {
+            drawLayout(layout, x, y, Integer.MAX_VALUE);
+        }
+        return this;
+    }
+
+    @Override
+    public Draw text(String text, float x, float y, TextStyle style, TextAlign align) {
+        TextSystem system = textSystem;
+        TextLayoutImpl layout = system == null ? null : system.layout(text, style, TextBox.NONE.align(align));
+        if (layout != null) {
+            drawLayout(
+                    layout,
+                    x - layout.width() * align.horizontal(),
+                    y - layout.height() * align.vertical(),
+                    Integer.MAX_VALUE);
+        }
+        return this;
+    }
+
+    @Override
+    public Draw text(Text text, Rect rect, TextStyle style, TextAlign align) {
+        TextSystem system = textSystem;
+        TextBox box = TextBox.width(Math.max(1f, rect.width())).align(align);
+        TextLayoutImpl layout = system == null ? null : system.layout(text, style, box);
+        if (layout != null) {
+            drawLayout(
+                    layout,
+                    rect.x(),
+                    rect.y() + (rect.height() - layout.height()) * align.vertical(),
+                    Integer.MAX_VALUE);
+        }
+        return this;
+    }
+
+    @Override
+    public Draw text(TextLayout layout, float x, float y) {
+        return text(layout, x, y, Integer.MAX_VALUE);
+    }
+
+    @Override
+    public Draw text(TextLayout layout, float x, float y, int visibleCharacters) {
+        if (layout instanceof TextLayoutImpl impl) {
+            drawLayout(impl, x, y, visibleCharacters);
+        }
+        return this;
+    }
+
+    private void drawLayout(TextLayoutImpl layout, float x, float y, int visible) {
+        int count = Math.min(Math.max(0, visible), layout.count());
+        if (count == 0) {
+            return;
+        }
+        Material saved = material;
+        TextStyle style = layout.style();
+        float pixel = pixelSize();
+        if (style.hasShadow()) {
+            textPass(layout, x + style.shadowX(), y + style.shadowY(), count, PASS_SHADOW, pixel);
+        }
+        if (style.outlineWidth() > 0f) {
+            textPass(layout, x, y, count, PASS_OUTLINE, pixel);
+        }
+        textPass(layout, x, y, count, PASS_MAIN, pixel);
+        material(saved);
+    }
+
+    private void textPass(TextLayoutImpl layout, float x, float y, int count, int pass, float pixel) {
+        TextStyle style = layout.style();
+        for (int i = 0; i < count; i++) {
+            float size = layout.size(i);
+            int effects = layout.effects(i);
+            float gx = x + layout.x(i);
+            float gy = y + layout.y(i);
+            float scale = 1f;
+            float alphaFactor = 1f;
+            if ((effects & (1 << TextEffect.WAVE.ordinal())) != 0) {
+                gy += (float) Math.sin(time * 6f - i * 0.45f) * size * 0.1f;
+            }
+            if ((effects & (1 << TextEffect.SHAKE.ordinal())) != 0) {
+                int hash = (i * 73856093) ^ ((int) (time * 20f) * 19349663);
+                hash ^= hash >>> 13;
+                hash *= 0x5bd1e995;
+                gx += (((hash & 0xff) / 127.5f) - 1f) * size * 0.04f;
+                gy += ((((hash >>> 8) & 0xff) / 127.5f) - 1f) * size * 0.04f;
+            }
+            if ((effects & (1 << TextEffect.PULSE.ordinal())) != 0) {
+                scale = 1f + 0.12f * (float) Math.sin(time * 5f + i * 0.25f);
+            }
+            if ((effects & (1 << TextEffect.FADE.ordinal())) != 0) {
+                alphaFactor = 0.35f + 0.65f * (0.5f + 0.5f * (float) Math.sin(time * 3f - i * 0.35f));
+            }
+            int color = textColor(layout, i, pass, effects, alphaFactor);
+            TextureRegion image = layout.image(i);
+            if (image != null) {
+                if (pass != PASS_OUTLINE) {
+                    batcher.shader(graphics.defaultShader());
+                    float h = size * scale;
+                    float w = h * image.width() / Math.max(1, image.height());
+                    useTexture(image.texture());
+                    glyphQuad(image.u(), image.v(), image.u2(), image.v2(), gx, gy - h, gx + w, gy, gy, 0f, color);
+                }
+                continue;
+            }
+            FontImpl font = layout.font(i);
+            Glyph glyph = layout.glyph(i);
+            if (font == null || glyph == null) {
+                continue;
+            }
+            Glyph drawn = font.image(glyph, size / pixel);
+            Texture texture = drawn.texture;
+            if (texture == null || !drawn.hasImage()) {
+                continue;
+            }
+            boolean msdf = font.kind() == FontKind.MSDF;
+            boolean fakeBold = (layout.flags(i) & TextLayoutImpl.FAKE_BOLD) != 0;
+            float slant = (layout.flags(i) & TextLayoutImpl.FAKE_ITALIC) != 0 ? TextSystem.italicSlant() : 0f;
+            if (msdf && pass == PASS_OUTLINE) {
+                continue;
+            }
+            float cx = gx + (drawn.left + drawn.right) * 0.5f * size;
+            float cy = gy + (drawn.top + drawn.bottom) * 0.5f * size;
+            float x0 = cx + (gx + drawn.left * size - cx) * scale;
+            float x1 = cx + (gx + drawn.right * size - cx) * scale;
+            float y0 = cy + (gy + drawn.top * size - cy) * scale;
+            float y1 = cy + (gy + drawn.bottom * size - cy) * scale;
+            if (msdf) {
+                batcher.shader(graphics.msdfShader());
+                float outline = style.outlineWidth() / pixel;
+                Color outlineColor = pass == PASS_SHADOW ? style.shadowColor() : style.outlineColor();
+                msdfUniforms(font.distanceRange(), outline, fakeBold ? size * 0.035f / pixel : 0f, outlineColor);
+                useTexture(texture);
+                glyphQuad(drawn.u, drawn.v, drawn.u2, drawn.v2, x0, y0, x1, y1, gy, slant, color);
+                continue;
+            }
+            batcher.shader(graphics.defaultShader());
+            useTexture(texture);
+            if (pass == PASS_OUTLINE) {
+                float o = style.outlineWidth();
+                for (int d = 0; d < OUTLINE_DX.length; d++) {
+                    float ox = OUTLINE_DX[d] * o;
+                    float oy = OUTLINE_DY[d] * o;
+                    glyphQuad(
+                            drawn.u, drawn.v, drawn.u2, drawn.v2, x0 + ox, y0 + oy, x1 + ox, y1 + oy, gy + oy, slant,
+                            color);
+                }
+                continue;
+            }
+            glyphQuad(drawn.u, drawn.v, drawn.u2, drawn.v2, x0, y0, x1, y1, gy, slant, color);
+            if (fakeBold) {
+                float shift = Math.max(pixel, size * 0.05f);
+                glyphQuad(drawn.u, drawn.v, drawn.u2, drawn.v2, x0 + shift, y0, x1 + shift, y1, gy, slant, color);
+            }
+        }
+    }
+
+    private int textColor(TextLayoutImpl layout, int i, int pass, int effects, float alphaFactor) {
+        TextStyle style = layout.style();
+        float r;
+        float g;
+        float b;
+        float a;
+        if (pass == PASS_SHADOW) {
+            Color c = style.shadowColor();
+            r = c.r();
+            g = c.g();
+            b = c.b();
+            a = c.a();
+        } else if (pass == PASS_OUTLINE) {
+            Color c = style.outlineColor();
+            r = c.r();
+            g = c.g();
+            b = c.b();
+            a = c.a();
+        } else if ((effects & (1 << TextEffect.RAINBOW.ordinal())) != 0) {
+            float hue = (time * 0.35f + i * 0.06f) % 1f;
+            float h6 = hue * 6f;
+            int sector = (int) h6;
+            float f = h6 - sector;
+            float s = 0.7f;
+            float p = 1f - s;
+            float q = 1f - s * f;
+            float t = 1f - s * (1f - f);
+            switch (sector % 6) {
+                case 0 -> {
+                    r = 1f;
+                    g = t;
+                    b = p;
+                }
+                case 1 -> {
+                    r = q;
+                    g = 1f;
+                    b = p;
+                }
+                case 2 -> {
+                    r = p;
+                    g = 1f;
+                    b = t;
+                }
+                case 3 -> {
+                    r = p;
+                    g = q;
+                    b = 1f;
+                }
+                case 4 -> {
+                    r = t;
+                    g = p;
+                    b = 1f;
+                }
+                default -> {
+                    r = 1f;
+                    g = p;
+                    b = q;
+                }
+            }
+            a = layout.color(i).a();
+        } else {
+            Color c = layout.color(i);
+            r = c.r();
+            g = c.g();
+            b = c.b();
+            a = c.a();
+        }
+        a *= alphaFactor;
+        int packedColor = (Math.round(a * 255f) << 24)
+                | (Math.round(b * a * 255f) << 16)
+                | (Math.round(g * a * 255f) << 8)
+                | Math.round(r * a * 255f);
+        return multiply(packedColor, packed);
+    }
+
+    private void msdfUniforms(float range, float outline, float weight, Color outlineColor) {
+        if (range == msdfRange
+                && outline == msdfOutline
+                && weight == msdfWeight
+                && outlineColor.equals(msdfOutlineColor)) {
+            return;
+        }
+        batcher.flush();
+        ShaderImpl shader = graphics.msdfShader();
+        shader.set("u_distanceRange", range);
+        shader.set("u_outline", outline);
+        shader.set("u_weight", weight);
+        shader.set("u_outlineColor", outlineColor);
+        msdfRange = range;
+        msdfOutline = outline;
+        msdfWeight = weight;
+        msdfOutlineColor = outlineColor;
+    }
+
+    private void glyphQuad(
+            float u,
+            float v,
+            float u2,
+            float v2,
+            float x0,
+            float y0,
+            float x1,
+            float y1,
+            float baseline,
+            float slant,
+            int abgr) {
+        int base = batcher.reserve(4, 6);
+        float top = (baseline - y0) * slant;
+        float bottom = (baseline - y1) * slant;
+        emit(x0 + top, y0, u, v, abgr, false);
+        emit(x1 + top, y0, u2, v, abgr, false);
+        emit(x1 + bottom, y1, u2, v2, abgr, false);
+        emit(x0 + bottom, y1, u, v2, abgr, false);
+        batcher.quad(base);
+    }
     // ------------------------------------------------------------------ state
 
     @Override

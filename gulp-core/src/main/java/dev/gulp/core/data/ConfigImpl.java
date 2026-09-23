@@ -126,6 +126,15 @@ public final class ConfigImpl extends AbstractSection implements Config {
         return loaded;
     }
 
+    /**
+     * Returns the asset path of the defaults, for hot reload.
+     *
+     * @return the path inside the assets folder
+     */
+    public String assetPath() {
+        return assetPath;
+    }
+
     @Override
     public String name() {
         return name;

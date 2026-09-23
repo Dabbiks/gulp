@@ -39,6 +39,8 @@
 ./gradlew :examples:showcase:webSmokeTest -Pgulp.browsers=chromium   # test dymny web (Playwright; installBrowsers raz)
 ./gradlew :examples:showcase:runDesktop -Pgulp.exitAfterFrames=120   # zamyka okno samo (CI)
 ./gradlew :gulp-backend-desktop:visualTest   # testy wizualne w oknie GL (-Pgulp.updateReferences odświeża wzorce)
+./gradlew :examples:showcase:packAssets   # atlasy z folderów sprites/ i fonty z gulp { assets { ... } }
+./gradlew :gulp-tools:generateDefaultFont # odświeża wbudowany font MSDF w gulp-core
 ./gradlew :gulp-core:test --tests "dev.gulp.core.milestone.MilestoneTest"
 ```
 
@@ -60,3 +62,5 @@ Moduły, listenery (`@EventHandler`) i `@Serializable` wymagają `gulp-processor
 | `examples/showcase` | przykład każdej funkcji |
 
 Web: kod w `gulp-backend-web` rozmawia z przeglądarką tylko przez `@JSBody` wołające `gulp-runtime.js` (prymitywy, napisy, `ArrayBuffer`); `Int8Array.fromJavaArray` nie działa w Wasm GC — używaj `copyFromJavaArray`. Po zmianach w backendzie web uruchom `webSmokeTest`.
+
+Tekst i zasoby: font domyślny (`gulp:fonts/default.msdf.json`) ładuje się przed `onLoad`; w testach headless tekst wymaga `backend.files().useClasspathAssets(true)`. Klucze zasobów gry bierz z generowanej klasy `GameAssets`. Szczegóły formatów: ADR 0009.

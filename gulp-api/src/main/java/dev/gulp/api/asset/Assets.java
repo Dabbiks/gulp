@@ -1,5 +1,6 @@
 package dev.gulp.api.asset;
 
+import dev.gulp.api.graphics.TextureRegion;
 import dev.gulp.api.scheduler.Promise;
 
 /**
@@ -112,4 +113,21 @@ public interface Assets {
      * @param screen the loading screen
      */
     void setLoadingScreen(LoadingScreen screen);
+
+    /**
+     * Returns a region of a loaded atlas by its image path.
+     *
+     * @param key {@code namespace:atlas/region}, for example {@code coins:sprites/player/idle_0}
+     * @return the region
+     * @throws IllegalStateException if the atlas {@code coins:sprites} is not loaded
+     * @throws IllegalArgumentException if the atlas has no such region
+     */
+    TextureRegion region(String key);
+
+    /**
+     * Returns the resource packs.
+     *
+     * @return the resource packs
+     */
+    ResourcePacks resourcePacks();
 }

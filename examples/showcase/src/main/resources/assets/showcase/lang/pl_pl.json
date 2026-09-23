@@ -1,0 +1,7 @@
+{
+  "text": {
+    "title": "Tekst w Gulpie",
+    "hello": "Zażółć gęślą jaźń — {0} monet",
+    "reload": "Zmień ten plik lub textures/banner.png: zmiana pojawi się bez restartu."
+  }
+}

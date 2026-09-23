@@ -57,6 +57,34 @@ public final class ShaderImpl implements Shader {
             }
             """;
 
+    /** MSDF text: median of the three distances, screen-space antialiasing, outline and imitated bold. */
+    static final String MSDF_FRAGMENT = """
+            #include "gulp:common.glsl"
+            uniform float u_distanceRange;
+            uniform float u_outline;
+            uniform float u_weight;
+            uniform vec4 u_outlineColor;
+
+            float median(float r, float g, float b) {
+                return max(min(r, g), min(max(r, g), b));
+            }
+
+            void main() {
+                vec3 msd = texture(u_texture, v_texCoord).rgb;
+                float distance = median(msd.r, msd.g, msd.b) - 0.5;
+                vec2 unitRange = vec2(u_distanceRange) / vec2(textureSize(u_texture, 0));
+                vec2 screenSize = vec2(1.0) / fwidth(v_texCoord);
+                float pixels = max(0.5 * dot(unitRange, screenSize), 1.0);
+                // The field only reaches pixels / 2 beyond the edge; wider outlines would fill the whole quad.
+                float reach = max(pixels * 0.5 - 1.0, 0.0);
+                float screenDistance = distance * pixels + min(u_weight, reach);
+                float fill = clamp(screenDistance + 0.5, 0.0, 1.0);
+                float outer = clamp(screenDistance + min(u_outline, reach - min(u_weight, reach)) + 0.5, 0.0, 1.0);
+                vec4 outline = vec4(u_outlineColor.rgb * u_outlineColor.a, u_outlineColor.a) * v_color.a;
+                fragColor = v_color * fill + outline * (outer - fill);
+            }
+            """;
+
     private final Gl gl;
     private final int program;
     private final boolean valid;

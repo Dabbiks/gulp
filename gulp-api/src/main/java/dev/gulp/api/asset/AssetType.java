@@ -2,6 +2,9 @@ package dev.gulp.api.asset;
 
 import dev.gulp.api.graphics.Pixmap;
 import dev.gulp.api.graphics.Texture;
+import dev.gulp.api.graphics.TextureAtlas;
+import dev.gulp.api.graphics.TextureRegion;
+import dev.gulp.api.text.Font;
 import java.util.List;
 import java.util.Locale;
 
@@ -31,6 +34,21 @@ public final class AssetType<T> {
 
     /** File contents as bytes. */
     public static final AssetType<byte[]> BYTES = new AssetType<>("bytes", List.of("bin"));
+
+    /** Font: MSDF ({@code .msdf.json}), bitmap ({@code .fnt}) or dynamic ({@code .ttf}, {@code .otf}). */
+    public static final AssetType<Font> FONT = new AssetType<>("font", List.of("msdf.json", "fnt", "ttf", "otf"));
+
+    /**
+     * Texture atlas: a packed {@code .atlas.json} (or TexturePacker JSON) with its pages; in development a folder of
+     * images packed when loaded.
+     */
+    public static final AssetType<TextureAtlas> ATLAS = new AssetType<>("atlas", List.of("atlas.json", "json"));
+
+    /**
+     * One region of an atlas, keyed by the image path: {@code coins:sprites/player/idle_0} is region
+     * {@code player/idle_0} of atlas {@code coins:sprites}, which is loaded with it.
+     */
+    public static final AssetType<TextureRegion> REGION = new AssetType<>("region", List.of());
 
     private final String name;
     private final List<String> extensions;

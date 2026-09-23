@@ -312,7 +312,31 @@ class HeadlessDevicesTest {
                         "audio ok 1ch@44100",
                         "audio failed IllegalArgumentException");
 
-        PlatformFontFace face = decoders.openFont(someBytes);
+        java.util.concurrent.atomic.AtomicReference<PlatformFontFace> opened =
+                new java.util.concurrent.atomic.AtomicReference<>();
+        decoders.openFont(someBytes, new PlatformCallback<>() {
+            @Override
+            public void success(PlatformFontFace value) {
+                opened.set(value);
+            }
+
+            @Override
+            public void failure(Throwable error) {
+                log.add("font failed " + error.getClass().getSimpleName());
+            }
+        });
+        decoders.openFont(ByteBuffer.allocate(0), new PlatformCallback<>() {
+            @Override
+            public void success(PlatformFontFace value) {}
+
+            @Override
+            public void failure(Throwable error) {
+                log.add("font failed " + error.getClass().getSimpleName());
+            }
+        });
+        nextFrame();
+        assertThat(log).endsWith("font failed IllegalArgumentException");
+        PlatformFontFace face = opened.get();
         GlyphBitmap glyph = face.rasterize(face.glyphIndex('A'), 20f);
         assertThat(glyph.width()).isEqualTo(10);
         assertThat(glyph.coverage().remaining()).isEqualTo(100);
@@ -320,8 +344,6 @@ class HeadlessDevicesTest {
         assertThat(face.ascent(10f) + face.descent(10f)).isEqualTo(10f);
         assertThat(face.lineHeight(10f)).isEqualTo(12f);
         face.dispose();
-        assertThatThrownBy(() -> decoders.openFont(ByteBuffer.allocate(0)))
-                .isInstanceOf(IllegalArgumentException.class);
     }
 
     @Test

@@ -11,11 +11,16 @@ dependencies {
     annotationProcessor(project(":gulp-processor"))
     desktopRuntime(project(":gulp-backend-desktop"))
     webRuntime(project(":gulp-backend-web"))
+    gulpTools(project(":gulp-tools"))
 }
 
 gulp {
     mainClass = "dev.gulp.examples.showcase.ShowcaseGame"
     title = "Gulp Showcase"
+    assets {
+        // A crisp pixel-style font from Fira Sans (SIL OFL), generated at build time.
+        bitmapFont("showcase:fonts/pixel", file("fonts-src/FiraSans-Regular.ttf"), 14, false)
+    }
 }
 
 // Smoke test of the web build in real browsers (Chromium, Firefox, WebKit) through Playwright:

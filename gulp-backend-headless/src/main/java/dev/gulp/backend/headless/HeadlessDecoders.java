@@ -61,11 +61,15 @@ public final class HeadlessDecoders implements PlatformDecoders {
     }
 
     @Override
-    public PlatformFontFace openFont(ByteBuffer fontFile) {
-        if (!fontFile.hasRemaining()) {
-            throw new IllegalArgumentException("Empty font data");
-        }
-        return new StubFontFace();
+    public void openFont(ByteBuffer fontFile, PlatformCallback<PlatformFontFace> callback) {
+        boolean empty = !fontFile.hasRemaining();
+        mainQueue.accept(() -> {
+            if (empty) {
+                callback.failure(new IllegalArgumentException("Empty font data"));
+            } else {
+                callback.success(new StubFontFace());
+            }
+        });
     }
 
     /** Monospaced face whose glyphs are filled squares of {@code 0.5 * size}. */

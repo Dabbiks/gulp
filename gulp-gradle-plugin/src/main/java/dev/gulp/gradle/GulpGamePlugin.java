@@ -83,6 +83,12 @@ public final class GulpGamePlugin implements Plugin<Project> {
             c.defaultDependencies(d -> d.add(project.getDependencies().create("dev.gulp:gulp-backend-web:" + version)));
         });
         project.getConfigurations().named("teavmImplementation", c -> c.extendsFrom(webRuntime));
+        Configuration gulpTools = project.getConfigurations().create("gulpTools", c -> {
+            c.setDescription("Atlas packer and font generator run by packAssets.");
+            c.defaultDependencies(d -> d.add(project.getDependencies().create("dev.gulp:gulp-tools:" + version)));
+        });
+        gulp.getAssetKeysPackage()
+                .convention(gulp.getMainClass().map(m -> m.contains(".") ? m.substring(0, m.lastIndexOf('.')) : ""));
 
         SourceSet main = project.getExtensions()
                 .getByType(JavaPluginExtension.class)
@@ -93,12 +99,42 @@ public final class GulpGamePlugin implements Plugin<Project> {
                 .getSourceSets()
                 .getByName("teavm");
 
+        // Atlases from sprites/ folders and fonts declared in gulp { assets { ... } }.
+        TaskProvider<PackAssets> packAssets = project.getTasks().register("packAssets", PackAssets.class, task -> {
+            task.setGroup(GROUP);
+            task.setDescription("Packs sprites/ folders into atlases and generates fonts.");
+            task.getResourceDirectories().from(project.file("src/main/resources"));
+            task.getFonts().set(project.provider(() -> gulp.getAssets().getFonts()));
+            task.getFontSources()
+                    .from(project.provider(() -> gulp.getAssets().getFonts().stream()
+                            .map(GulpAssets.FontSpec::source)
+                            .toList()));
+            task.getToolsClasspath().from(gulpTools);
+            task.getOutputDirectory()
+                    .set(project.getLayout().getBuildDirectory().dir("generated/gulp/packed"));
+        });
+        main.getResources().srcDir(packAssets.flatMap(PackAssets::getOutputDirectory));
+
+        Provider<Directory> keysDir = project.getLayout().getBuildDirectory().dir("generated/sources/gulp-keys");
+        TaskProvider<GenerateAssetKeys> keys = project.getTasks()
+                .register("generateAssetKeys", GenerateAssetKeys.class, task -> {
+                    task.setGroup(GROUP);
+                    task.setDescription("Generates the GameAssets class with a constant for every asset.");
+                    task.getResourceDirectories().from(project.file("src/main/resources"));
+                    task.getResourceDirectories().from(packAssets.flatMap(PackAssets::getOutputDirectory));
+                    task.getPackageName().set(gulp.getAssetKeysPackage());
+                    task.getOutputDirectory().set(keysDir);
+                });
+        main.getJava().srcDir(keys.flatMap(GenerateAssetKeys::getOutputDirectory));
+
         // Asset manifest, on the classpath next to the assets so desktop and web read it the same way.
         TaskProvider<GenerateAssetManifest> manifest = project.getTasks()
                 .register("generateAssetManifest", GenerateAssetManifest.class, task -> {
                     task.setGroup(GROUP);
                     task.setDescription("Lists the game's assets in assets/assets.manifest.json.");
                     task.getResourceDirectories().from(project.file("src/main/resources"));
+                    task.getResourceDirectories().from(packAssets.flatMap(PackAssets::getOutputDirectory));
+                    task.getClasspath().from(webRuntime);
                     task.getOutputDirectory()
                             .set(project.getLayout().getBuildDirectory().dir("generated/gulp/manifest"));
                 });
@@ -122,6 +158,14 @@ public final class GulpGamePlugin implements Plugin<Project> {
         teavm.getJs().getTargetFileName().set(WEB_NAME + ".js");
         teavm.getWasmGC().getAddedToWebApp().set(false);
         teavm.getWasmGC().getTargetFileName().set(WEB_NAME + ".wasm");
+        // Rebuild the web output whenever any class on the TeaVM classpath changes, and never restore it from the build
+        // cache: a stale game.js once survived a change of the engine.
+        for (String name : List.of("generateJavaScript", "generateWasmGC")) {
+            project.getTasks().named(name, task -> {
+                task.getInputs().files(teavmSources.getRuntimeClasspath()).withPropertyName("gulpClasspath");
+                task.getOutputs().cacheIf("TeaVM output is cheap to rebuild and was seen stale", t -> false);
+            });
+        }
 
         project.getTasks().register("runDesktop", JavaExec.class, task -> {
             task.setGroup(GROUP);
@@ -129,6 +173,9 @@ public final class GulpGamePlugin implements Plugin<Project> {
             task.setClasspath(main.getRuntimeClasspath().plus(desktopRuntime));
             task.getMainClass().set(gulp.getMainClass());
             task.setWorkingDir(project.getProjectDir());
+            // Assets are read from the sources, so edits show up at once (hot reload).
+            task.systemProperty(
+                    "gulp.assetsDir", project.file("src/main/resources/assets").getAbsolutePath());
             task.jvmArgs("--enable-native-access=ALL-UNNAMED", "-Dstdout.encoding=UTF-8", "-Dstderr.encoding=UTF-8");
             // -Pgulp.exitAfterFrames=120 closes the window by itself (CI smoke tests).
             String exitAfter = project.getProviders()
@@ -149,7 +196,20 @@ public final class GulpGamePlugin implements Plugin<Project> {
         Provider<String> targets = wasm.zip(js, (w, j) -> (w ? "wasm" : "") + (w && j ? "," : "") + (j ? "js" : ""));
         Provider<String> title = gulp.getTitle();
 
+        TaskProvider<BundleResourcePacks> packs = project.getTasks()
+                .register("bundleResourcePacks", BundleResourcePacks.class, task -> {
+                    task.setGroup(GROUP);
+                    task.setDescription("Bundles the resourcepacks/ folder for the web.");
+                    java.io.File folder = project.file("resourcepacks");
+                    if (folder.isDirectory()) {
+                        task.getPacksDirectory().set(folder);
+                    }
+                    task.getOutputDirectory()
+                            .set(project.getLayout().getBuildDirectory().dir("generated/gulp/packs"));
+                });
+
         TaskProvider<Sync> buildWeb = project.getTasks().register("buildWeb", Sync.class, task -> {
+            task.from(packs.flatMap(BundleResourcePacks::getOutputDirectory));
             task.setGroup(GROUP);
             task.setDescription("Builds the game for browsers into build/web.");
             task.setDuplicatesStrategy(DuplicatesStrategy.EXCLUDE);
@@ -168,8 +228,12 @@ public final class GulpGamePlugin implements Plugin<Project> {
             task.from(main.getOutput().getResourcesDir(), spec -> spec.include("assets/**"));
             task.dependsOn(project.getTasks().named(main.getProcessResourcesTaskName()));
             task.from(project.provider(() -> templates(project, webRuntime)), spec -> {
-                spec.include(TEMPLATE + "**");
-                spec.eachFile(file -> file.setRelativePath(new RelativePath(true, file.getName())));
+                spec.include(TEMPLATE + "**", "assets/**");
+                spec.eachFile(file -> {
+                    if (!file.getPath().startsWith("assets/")) {
+                        file.setRelativePath(new RelativePath(true, file.getName()));
+                    }
+                });
                 spec.setIncludeEmptyDirs(false);
                 spec.filesMatching(
                         "**/index.html",

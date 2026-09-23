@@ -2,6 +2,7 @@ package dev.gulp.backend.headless;
 
 import dev.gulp.platform.PlatformCallback;
 import dev.gulp.platform.PlatformFiles;
+import dev.gulp.platform.ResourcePackInfo;
 import java.io.FileNotFoundException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
@@ -54,7 +55,37 @@ public final class HeadlessFiles implements PlatformFiles {
 
     @Override
     public void readAsset(String path, PlatformCallback<ByteBuffer> callback) {
+        if (classpathAssets && !assets.containsKey(path)) {
+            // Assets of the libraries on the classpath, such as the engine's built-in font.
+            byte[] bundled = classpathAsset(path);
+            if (bundled != null) {
+                mainQueue.accept(() -> callback.success(direct(bundled)));
+                return;
+            }
+        }
         read(assets, "asset", path, callback);
+    }
+
+    private boolean classpathAssets;
+
+    /**
+     * Also serves assets from the classpath (the engine's built-in font), for tests that draw text.
+     *
+     * @param on whether to read classpath assets
+     */
+    public void useClasspathAssets(boolean on) {
+        this.classpathAssets = on;
+    }
+
+    private static byte @Nullable [] classpathAsset(String path) {
+        if (path.equals("assets.manifest.json")) {
+            return null;
+        }
+        try (java.io.InputStream in = HeadlessFiles.class.getClassLoader().getResourceAsStream("assets/" + path)) {
+            return in == null ? null : in.readAllBytes();
+        } catch (java.io.IOException e) {
+            return null;
+        }
     }
 
     @Override
@@ -96,6 +127,61 @@ public final class HeadlessFiles implements PlatformFiles {
             }
         }
         mainQueue.accept(() -> callback.success(List.copyOf(names)));
+    }
+
+    // ------------------------------------------------------------------ resource packs and watching
+
+    private final Map<String, ResourcePackInfo> packs = new java.util.LinkedHashMap<>();
+    private final Map<String, Map<String, byte[]>> packFiles = new TreeMap<>();
+    private @Nullable Consumer<String> watcher;
+
+    /**
+     * Adds a resource pack.
+     *
+     * @param id the pack id
+     * @param description the description
+     * @param files file contents by asset path
+     */
+    public void putResourcePack(String id, String description, Map<String, byte[]> files) {
+        packs.put(id, new ResourcePackInfo(id, description, List.copyOf(new TreeMap<>(files).keySet())));
+        packFiles.put(id, new TreeMap<>(files));
+    }
+
+    /**
+     * Reports a changed asset to the watcher, as a desktop file watcher would.
+     *
+     * @param path the asset path
+     */
+    public void simulateAssetChange(String path) {
+        Consumer<String> current = watcher;
+        if (current != null) {
+            mainQueue.accept(() -> current.accept(path));
+        }
+    }
+
+    /**
+     * Returns whether someone watches the assets.
+     *
+     * @return {@code true} while a watcher is set
+     */
+    public boolean isWatched() {
+        return watcher != null;
+    }
+
+    @Override
+    public void listResourcePacks(PlatformCallback<List<ResourcePackInfo>> callback) {
+        List<ResourcePackInfo> list = List.copyOf(packs.values());
+        mainQueue.accept(() -> callback.success(list));
+    }
+
+    @Override
+    public void readResourcePackFile(String packId, String path, PlatformCallback<ByteBuffer> callback) {
+        read(packFiles.getOrDefault(packId, Map.of()), "resource pack file", path, callback);
+    }
+
+    @Override
+    public void watchAssets(@Nullable Consumer<String> listener) {
+        this.watcher = listener;
     }
 
     @Override

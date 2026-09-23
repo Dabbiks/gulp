@@ -6,7 +6,6 @@ import dev.gulp.api.command.Command;
 import dev.gulp.api.event.lifecycle.TickStartEvent;
 import dev.gulp.api.graphics.Color;
 import dev.gulp.api.graphics.Pixmap;
-import dev.gulp.api.graphics.Texture;
 import dev.gulp.api.graphics.TextureFilter;
 import dev.gulp.api.graphics.TextureRegion;
 import dev.gulp.api.math.Mathf;
@@ -20,7 +19,7 @@ import dev.gulp.api.render.RenderStats;
 import java.time.Duration;
 
 /**
- * Stages 2 and 3 demo: many bouncing coins (a PNG from the startup asset group) and balls (drawn into a {@code Pixmap}),
+ * Stages 2 and 3 demo: many bouncing coins (a region of the sprites atlas, loaded in the startup group) and balls (drawn into a {@code Pixmap}),
  * with interpolation, shapes on the UI layer, and render statistics in the
  * log.
  *
@@ -30,7 +29,7 @@ import java.time.Duration;
 final class SpritesDemoModule extends GameModule {
 
     private static final int DEFAULT_COUNT = 10_000;
-    private static final AssetKey<Texture> COIN = AssetKey.texture("showcase:sprites/coin");
+    private static final AssetKey<TextureRegion> COIN = GameAssets.Sprites.COIN;
 
     private final Rng rng = new Rng(42);
     private TextureRegion[] sprites = new TextureRegion[0];
@@ -51,10 +50,10 @@ final class SpritesDemoModule extends GameModule {
 
     @Override
     public void onEnable() {
-        Texture coin = assets().get(COIN);
-        coin.setFilter(TextureFilter.NEAREST);
+        TextureRegion coin = assets().get(COIN);
+        coin.texture().setFilter(TextureFilter.NEAREST);
         sprites = new TextureRegion[] {
-            coin.region(), graphics().texture(ball(), TextureFilter.NEAREST).region()
+            coin, graphics().texture(ball(), TextureFilter.NEAREST).region()
         };
         spawn(DEFAULT_COUNT);
         on(TickStartEvent.class, e -> update(1f / engine().targetTps()));

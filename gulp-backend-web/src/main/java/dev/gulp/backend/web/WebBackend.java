@@ -1,7 +1,10 @@
 package dev.gulp.backend.web;
 
+import dev.gulp.api.data.JsonObject;
+import dev.gulp.api.data.JsonValue;
 import dev.gulp.core.GeneratedModules;
 import dev.gulp.core.MainQueue;
+import dev.gulp.core.data.JsonReader;
 import dev.gulp.platform.CursorMode;
 import dev.gulp.platform.DecodedAudio;
 import dev.gulp.platform.DecodedImage;
@@ -22,11 +25,13 @@ import dev.gulp.platform.PlatformLog;
 import dev.gulp.platform.PlatformLoop;
 import dev.gulp.platform.PlatformNet;
 import dev.gulp.platform.PlatformWindow;
+import dev.gulp.platform.ResourcePackInfo;
 import dev.gulp.platform.WindowListener;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -473,7 +478,7 @@ public final class WebBackend implements PlatformBackend {
                 return;
             }
             Set<String> known = manifest;
-            if (known != null && !known.contains(path)) {
+            if (known != null && !known.contains(path) && !path.equals("assets.manifest.json")) {
                 mainQueue.post(() -> callback.failure(new FileNotFoundException("No asset '" + path + "'")));
                 return;
             }
@@ -528,6 +533,55 @@ public final class WebBackend implements PlatformBackend {
                     message -> mainQueue.post(() -> callback.failure(new IllegalStateException(message))));
         }
 
+        /** Packs bundled by the build are listed in {@code resourcepacks/index.json}. */
+        @Override
+        public void listResourcePacks(PlatformCallback<List<ResourcePackInfo>> callback) {
+            Js.fetchBytes(
+                    "resourcepacks/index.json",
+                    bytes -> mainQueue.post(() -> {
+                        List<ResourcePackInfo> packs = new ArrayList<>();
+                        try {
+                            String text = new String(Js.bytes(bytes).copyToJavaArray(), StandardCharsets.UTF_8);
+                            for (JsonValue value : JsonReader.parse(text)
+                                    .asObject()
+                                    .getOrThrow("packs")
+                                    .asArray()) {
+                                JsonObject pack = value.asObject();
+                                List<String> files = new ArrayList<>();
+                                for (JsonValue file : pack.getOrThrow("files").asArray()) {
+                                    files.add(file.asString());
+                                }
+                                JsonValue description = pack.get("description");
+                                packs.add(new ResourcePackInfo(
+                                        pack.getOrThrow("id").asString(),
+                                        description == null ? "" : description.asString(),
+                                        files));
+                            }
+                        } catch (RuntimeException e) {
+                            callback.failure(e);
+                            return;
+                        }
+                        callback.success(packs);
+                    }),
+                    () -> mainQueue.post(() -> callback.success(List.of())),
+                    message -> mainQueue.post(() -> callback.success(List.of())));
+        }
+
+        @Override
+        public void readResourcePackFile(String packId, String path, PlatformCallback<ByteBuffer> callback) {
+            Js.fetchBytes(
+                    "resourcepacks/" + packId + "/" + path,
+                    bytes -> mainQueue.post(() -> callback.success(toBuffer(bytes))),
+                    () -> mainQueue.post(() -> callback.failure(
+                            new FileNotFoundException("No '" + path + "' in resource pack '" + packId + "'"))),
+                    message -> mainQueue.post(() -> callback.failure(new IOException(message))));
+        }
+
+        @Override
+        public void watchAssets(@Nullable Consumer<String> listener) {
+            // The runWeb server reloads the whole page after a rebuild instead.
+        }
+
         @Override
         public String userDataLocation() {
             return "IndexedDB";
@@ -564,8 +618,12 @@ public final class WebBackend implements PlatformBackend {
         }
 
         @Override
-        public PlatformFontFace openFont(ByteBuffer fontFile) {
-            throw new UnsupportedOperationException("Font loading arrives in stage 4");
+        public void openFont(ByteBuffer fontFile, PlatformCallback<PlatformFontFace> callback) {
+            Js.openFont(
+                    toJs(fontFile),
+                    family -> mainQueue.post(() -> callback.success(new WebFontFace(family))),
+                    message -> mainQueue.post(
+                            () -> callback.failure(new IllegalArgumentException("Cannot load font: " + message))));
         }
     }
 

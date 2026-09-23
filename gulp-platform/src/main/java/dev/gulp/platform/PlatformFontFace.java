@@ -4,7 +4,7 @@ package dev.gulp.platform;
  * A font file opened for rasterising glyphs at runtime (FreeType on desktop, Canvas2D on the web).
  *
  * <pre>{@code
- * PlatformFontFace face = decoders.openFont(ttfBytes);
+ * decoders.openFont(ttfBytes, callback); // later, in the callback:
  * GlyphBitmap a = face.rasterize(face.glyphIndex('A'), 24f);
  * }</pre>
  */

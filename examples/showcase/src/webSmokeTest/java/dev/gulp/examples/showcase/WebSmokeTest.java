@@ -141,6 +141,11 @@ class WebSmokeTest {
             page.evaluate("gulp.command('/tps')");
             waitFor(page, logs, "TPS", 5_000);
 
+            Object sized = page.evaluate("(() => { const c = document.getElementById('gulp-canvas');"
+                    + " return c.width === Math.round(c.clientWidth * devicePixelRatio)"
+                    + " && c.height === Math.round(c.clientHeight * devicePixelRatio); })()");
+            assertThat(sized).as("canvas buffer follows its CSS size").isEqualTo(true);
+
             BufferedImage image = ImageIO.read(new ByteArrayInputStream(page.screenshot()));
             Set<Integer> colors = new HashSet<>();
             for (int y = 0; y < image.getHeight(); y += 7) {

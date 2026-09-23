@@ -45,6 +45,14 @@ public abstract class GenerateAssetManifest extends DefaultTask {
     public abstract ConfigurableFileCollection getResourceDirectories();
 
     /**
+     * Returns libraries whose {@code assets} are listed too, such as the engine's built-in font.
+     *
+     * @return jars and folders
+     */
+    @org.gradle.api.tasks.Classpath
+    public abstract ConfigurableFileCollection getClasspath();
+
+    /**
      * Returns the directory that receives {@code assets/assets.manifest.json}.
      *
      * @return the output directory
@@ -74,6 +82,30 @@ public abstract class GenerateAssetManifest extends DefaultTask {
                 }
             }
         }
+        for (File library : getClasspath().getFiles()) {
+            if (library.isFile() && library.getName().endsWith(".jar")) {
+                try (java.util.zip.ZipFile jar = new java.util.zip.ZipFile(library)) {
+                    for (java.util.zip.ZipEntry entry : java.util.Collections.list(jar.entries())) {
+                        String name = entry.getName();
+                        if (!entry.isDirectory() && name.startsWith("assets/") && !name.endsWith(MANIFEST)) {
+                            entries.add("{\"path\":\"" + escape(name.substring(7)) + "\",\"size\":" + entry.getSize()
+                                    + "}");
+                        }
+                    }
+                }
+            } else if (library.isDirectory() && new File(library, "assets").isDirectory()) {
+                Path assets = new File(library, "assets").toPath();
+                try (Stream<Path> files = Files.walk(assets)) {
+                    for (Path file : (Iterable<Path>) files.filter(Files::isRegularFile)::iterator) {
+                        String path = assets.relativize(file).toString().replace(File.separatorChar, '/');
+                        if (!path.equals(MANIFEST)) {
+                            entries.add("{\"path\":\"" + escape(path) + "\",\"size\":" + Files.size(file) + "}");
+                        }
+                    }
+                }
+            }
+        }
+        entries = new ArrayList<>(new java.util.TreeSet<>(entries));
         entries.sort(null);
         File output = new File(getOutputDirectory().get().getAsFile(), "assets/" + MANIFEST);
         Files.createDirectories(output.getParentFile().toPath());

@@ -2,7 +2,10 @@ package dev.gulp.api.asset;
 
 import dev.gulp.api.graphics.Pixmap;
 import dev.gulp.api.graphics.Texture;
+import dev.gulp.api.graphics.TextureAtlas;
+import dev.gulp.api.graphics.TextureRegion;
 import dev.gulp.api.registry.Key;
+import dev.gulp.api.text.Font;
 
 /**
  * Typed key of an asset: {@code namespace:path} plus the {@link AssetType}. The key {@code coins:sprites/player} names
@@ -69,6 +72,36 @@ public record AssetKey<T>(Key key, AssetType<T> type) {
      */
     public static AssetKey<byte[]> bytes(String key) {
         return of(AssetType.BYTES, key);
+    }
+
+    /**
+     * Creates a font key.
+     *
+     * @param key {@code namespace:path}
+     * @return the key
+     */
+    public static AssetKey<Font> font(String key) {
+        return of(AssetType.FONT, key);
+    }
+
+    /**
+     * Creates an atlas key.
+     *
+     * @param key {@code namespace:path} of the atlas, for example {@code coins:sprites}
+     * @return the key
+     */
+    public static AssetKey<TextureAtlas> atlas(String key) {
+        return of(AssetType.ATLAS, key);
+    }
+
+    /**
+     * Creates a key for one atlas region.
+     *
+     * @param key {@code namespace:atlas/region}, for example {@code coins:sprites/player/idle_0}
+     * @return the key
+     */
+    public static AssetKey<TextureRegion> region(String key) {
+        return of(AssetType.REGION, key);
     }
 
     @Override

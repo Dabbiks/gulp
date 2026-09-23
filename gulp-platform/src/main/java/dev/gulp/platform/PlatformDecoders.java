@@ -32,11 +32,10 @@ public interface PlatformDecoders {
     void decodeAudio(ByteBuffer encoded, PlatformCallback<DecodedAudio> callback);
 
     /**
-     * Opens a font file for runtime glyph rasterisation.
+     * Opens a font file for runtime glyph rasterisation. Asynchronous because browsers load fonts in the background.
      *
-     * @param fontFile TTF or OTF bytes; the buffer must stay alive until the face is disposed
-     * @return the opened face
-     * @throws IllegalArgumentException if the bytes are not a supported font
+     * @param fontFile TTF or OTF bytes; the backend copies what it needs
+     * @param callback receives the opened face, or {@link IllegalArgumentException} if the bytes are not a font
      */
-    PlatformFontFace openFont(ByteBuffer fontFile);
+    void openFont(ByteBuffer fontFile, PlatformCallback<PlatformFontFace> callback);
 }

@@ -21,6 +21,7 @@ import org.gradle.api.provider.Property;
 public abstract class GulpExtension {
 
     private final Web web;
+    private final GulpAssets assets = new GulpAssets();
 
     /**
      * Creates the extension; instantiated by Gradle.
@@ -49,6 +50,31 @@ public abstract class GulpExtension {
      * @return the title property
      */
     public abstract Property<String> getTitle();
+
+    /**
+     * Returns the package of the generated {@code GameAssets} class.
+     *
+     * @return the package, by default the package of {@link #getMainClass()}
+     */
+    public abstract Property<String> getAssetKeysPackage();
+
+    /**
+     * Returns the asset build settings.
+     *
+     * @return the assets block
+     */
+    public GulpAssets getAssets() {
+        return assets;
+    }
+
+    /**
+     * Configures the asset build.
+     *
+     * @param action the configuration
+     */
+    public void assets(Action<? super GulpAssets> action) {
+        action.execute(assets);
+    }
 
     /**
      * Returns the web settings.

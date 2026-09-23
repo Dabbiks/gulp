@@ -14,12 +14,12 @@ public final class TextureImpl implements Texture {
 
     private final Gl gl;
     private final int handle;
-    private final int width;
-    private final int height;
+    private int width;
+    private int height;
     private TextureFilter filter;
     private TextureWrap wrap = TextureWrap.CLAMP;
     private boolean disposed;
-    private final TextureRegion whole;
+    private TextureRegion whole;
 
     TextureImpl(Gl gl, int width, int height, TextureFilter filter, @org.jspecify.annotations.Nullable Pixmap pixels) {
         this.gl = gl;
@@ -155,6 +155,24 @@ public final class TextureImpl implements Texture {
         if (filter == TextureFilter.MIPMAP_NEAREST || filter == TextureFilter.MIPMAP_LINEAR) {
             gl.generateMipmap(Gl.TEXTURE_2D);
         }
+    }
+
+    /**
+     * Replaces the pixels, possibly with another size, keeping the same GL texture: hot reload swaps images in place.
+     *
+     * @param pixmap the new image
+     */
+    public void replace(Pixmap pixmap) {
+        if (disposed) {
+            return;
+        }
+        width = pixmap.width();
+        height = pixmap.height();
+        gl.bindTexture(Gl.TEXTURE_2D, handle);
+        gl.pixelStorei(Gl.UNPACK_ALIGNMENT, 1);
+        gl.texImage2D(Gl.TEXTURE_2D, 0, Gl.RGBA8, width, height, Gl.RGBA, Gl.UNSIGNED_BYTE, premultiplied(pixmap));
+        applyParameters();
+        whole = new TextureRegion(this, 0, 0, width, height);
     }
 
     @Override

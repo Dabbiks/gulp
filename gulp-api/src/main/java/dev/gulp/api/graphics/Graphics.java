@@ -1,6 +1,12 @@
 package dev.gulp.api.graphics;
 
 import dev.gulp.api.scheduler.Promise;
+import dev.gulp.api.text.Font;
+import dev.gulp.api.text.FontFamily;
+import dev.gulp.api.text.Text;
+import dev.gulp.api.text.TextBox;
+import dev.gulp.api.text.TextLayout;
+import dev.gulp.api.text.TextStyle;
 
 /**
  * Creates GPU resources: textures, shaders and frame buffers. Asset loading with reference counting arrives in stage 3;
@@ -97,4 +103,37 @@ public interface Graphics {
      * @return pixels
      */
     int maxTextureSize();
+
+    /**
+     * Lays out text once for drawing many times.
+     *
+     * @param text the text
+     * @param style the base style
+     * @param box width, wrapping, line limit and alignment
+     * @return the layout
+     */
+    TextLayout layout(Text text, TextStyle style, TextBox box);
+
+    /**
+     * Returns the engine's built-in font (Fira Sans, SIL Open Font License), used when a style names no font.
+     *
+     * @return the default font family
+     * @throws IllegalStateException before the font finished loading, which happens before {@code Game.onStart}
+     */
+    FontFamily defaultFont();
+
+    /**
+     * Creates a bitmap font from a sheet of equal cells, one character per cell, row by row.
+     *
+     * <pre>{@code
+     * Font pixel = graphics().gridFont(sheet.region(), " !\"#$%&'()*+,-./0123456789", 8, 8);
+     * }</pre>
+     *
+     * @param sheet the image with the characters
+     * @param characters the characters in cell order
+     * @param cellWidth cell width in pixels
+     * @param cellHeight cell height in pixels
+     * @return the font; its size is the cell height
+     */
+    Font gridFont(TextureRegion sheet, String characters, int cellWidth, int cellHeight);
 }

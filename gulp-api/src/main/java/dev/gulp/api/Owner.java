@@ -10,6 +10,7 @@ import dev.gulp.api.event.Events;
 import dev.gulp.api.event.Listener;
 import dev.gulp.api.event.Subscription;
 import dev.gulp.api.graphics.Graphics;
+import dev.gulp.api.i18n.Translations;
 import dev.gulp.api.module.ModuleManager;
 import dev.gulp.api.registry.Key;
 import dev.gulp.api.registry.Registries;
@@ -155,6 +156,30 @@ public interface Owner {
      */
     default Assets assets() {
         return engine().assets();
+    }
+
+    /**
+     * Returns translated strings.
+     *
+     * @return the translations
+     */
+    default Translations translations() {
+        return engine().translations();
+    }
+
+    /**
+     * Translates a key in the current language.
+     *
+     * <pre>{@code
+     * String label = tr("hud.coins", coins);
+     * }</pre>
+     *
+     * @param key the key, for example {@code menu.play}
+     * @param arguments values for {@code {0}}, {@code {1}}, and so on
+     * @return the translation, or the key if none exists
+     */
+    default String tr(String key, Object... arguments) {
+        return engine().translations().tr(key, arguments);
     }
 
     /**

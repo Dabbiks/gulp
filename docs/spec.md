@@ -2056,14 +2056,14 @@ Trzynaście etapów od pustego repozytorium do wersji 1.0, wykonywanych po kolei
 
 ### Etap 4 — Zasoby, tekst i fonty
 
-- [ ] Packer atlasów (narzędzie + pakowanie w locie w trybie deweloperskim), regiony po ścieżce.
-- [ ] `generateAssetKeys`.
-- [ ] Generowanie MSDF w buildzie, shader `MsdfFont` z obrysem i cieniem.
-- [ ] `BitmapFont`, `DynamicFont` (FreeType na desktopie, Canvas2D na webie), cache glifów, fallbacki.
-- [ ] `TextStyle`, `TextLayout`, `Text`, parser markupu z efektami, `Draw.text`.
-- [ ] Podstawowe `tr()` i pliki językowe (pełna lokalizacja w etapie 10).
-- [ ] Hot reload na desktopie, `AssetReloadEvent`; resource packi; własne `AssetLoader`.
-- [ ] **Kamień milowy:** ekran tekstu z polskimi znakami we wszystkich typach fontów i efektami markupu; zmiana tekstury i tekstu widoczna bez restartu.
+- [x] Packer atlasów (narzędzie + pakowanie w locie w trybie deweloperskim), regiony po ścieżce.
+- [x] `generateAssetKeys`.
+- [x] Generowanie MSDF w buildzie, shader `MsdfFont` z obrysem i cieniem.
+- [x] `BitmapFont`, `DynamicFont` (FreeType na desktopie, Canvas2D na webie), cache glifów, fallbacki.
+- [x] `TextStyle`, `TextLayout`, `Text`, parser markupu z efektami, `Draw.text`.
+- [x] Podstawowe `tr()` i pliki językowe (pełna lokalizacja w etapie 10).
+- [x] Hot reload na desktopie, `AssetReloadEvent`; resource packi; własne `AssetLoader`.
+- [x] **Kamień milowy:** ekran tekstu z polskimi znakami we wszystkich typach fontów i efektami markupu; zmiana tekstury i tekstu widoczna bez restartu.
 
 ### Etap 5 — Input i audio
 

@@ -6,6 +6,7 @@ import org.teavm.jso.JSFunctor;
 import org.teavm.jso.JSObject;
 import org.teavm.jso.typedarrays.ArrayBuffer;
 import org.teavm.jso.typedarrays.ArrayBufferView;
+import org.teavm.jso.typedarrays.Float32Array;
 import org.teavm.jso.typedarrays.Int8Array;
 import org.teavm.jso.webgl.WebGL2RenderingContext;
 
@@ -237,4 +238,30 @@ final class Js {
 
     @JSBody(params = "view", script = "return new Uint8Array(view.buffer, view.byteOffset, view.byteLength);")
     static native ArrayBufferView unsigned(ArrayBufferView view);
+
+    @JSBody(
+            params = {"bytes", "ok", "fail"},
+            script = "window.gulp.openFont(bytes, ok, fail);")
+    static native void openFont(Int8Array bytes, StringCallback ok, StringCallback fail);
+
+    @JSBody(
+            params = {"family", "size"},
+            script = "return window.gulp.fontMetrics(family, size);")
+    static native Float32Array fontMetrics(String family, float size);
+
+    @JSBody(
+            params = {"family", "size", "text"},
+            script = "return window.gulp.measureText(family, size, text);")
+    static native double measure(String family, float size, String text);
+
+    @JSBody(
+            params = {"family", "codePoint", "size"},
+            script = "window.gulp.rasterize(family, codePoint, size);")
+    static native void rasterize(String family, int codePoint, float size);
+
+    @JSBody(script = "return window.gulp.lastGlyph.header;")
+    static native Float32Array lastGlyphHeader();
+
+    @JSBody(script = "return window.gulp.lastGlyph.data;")
+    static native Int8Array lastGlyphData();
 }
