@@ -2,7 +2,7 @@
 
 Framework gier 2D w Javie 25 dla desktopu (Windows, macOS, Linux) i przeglądarki. Pisanie gry ma przypominać pisanie pluginu serwerowego: klasa główna z cyklem życia, moduły, listenery eventów, zadania w schedulerze i rejestry z kluczami. Sceny i UI buduje się wyłącznie kodem.
 
-> Status: **etap 1 z 12 ukończony** — rdzeń: silnik z pętlą o stałym kroku, moduły, eventy, scheduler, rejestry, usługi, konfiguracja YAML, komendy. Grafika od etapu 2. API nie jest jeszcze stabilne. Plan: [`docs/spec.md`](docs/spec.md), sekcja 22.
+> Status: **etap 2 z 12 ukończony** — rdzeń (pętla o stałym kroku, moduły, eventy, scheduler, rejestry, usługi, konfiguracja YAML, komendy) oraz matematyka i grafika 2D (batcher, `Draw`, kamera, tryby wyświetlania). API nie jest jeszcze stabilne. Plan: [`docs/spec.md`](docs/spec.md), sekcja 22.
 
 ## Minimalna gra
 

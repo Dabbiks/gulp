@@ -25,6 +25,127 @@ public record Color(float r, float g, float b, float a) {
     /** Fully transparent black. */
     public static final Color CLEAR = new Color(0f, 0f, 0f, 0f);
 
+    /** Opaque red. */
+    public static final Color RED = new Color(1f, 0f, 0f, 1f);
+    /** Opaque green. */
+    public static final Color GREEN = new Color(0f, 1f, 0f, 1f);
+    /** Opaque blue. */
+    public static final Color BLUE = new Color(0f, 0f, 1f, 1f);
+    /** Opaque yellow. */
+    public static final Color YELLOW = new Color(1f, 1f, 0f, 1f);
+    /** Opaque cyan. */
+    public static final Color CYAN = new Color(0f, 1f, 1f, 1f);
+    /** Opaque magenta. */
+    public static final Color MAGENTA = new Color(1f, 0f, 1f, 1f);
+    /** Opaque orange. */
+    public static final Color ORANGE = new Color(1f, 0.5f, 0f, 1f);
+    /** Opaque 50% gray. */
+    public static final Color GRAY = new Color(0.5f, 0.5f, 0.5f, 1f);
+
+    /**
+     * Parses {@code #rgb}, {@code #rrggbb} or {@code #rrggbbaa} (the {@code #} is optional).
+     *
+     * @param text the hex text
+     * @return the color
+     * @throws IllegalArgumentException if the text is not a hex color
+     */
+    public static Color hex(String text) {
+        String hex = text.startsWith("#") ? text.substring(1) : text;
+        try {
+            return switch (hex.length()) {
+                case 3 ->
+                    rgb(Integer.parseInt(
+                            "" + hex.charAt(0) + hex.charAt(0) + hex.charAt(1) + hex.charAt(1) + hex.charAt(2)
+                                    + hex.charAt(2),
+                            16));
+                case 6 -> rgb(Integer.parseInt(hex, 16));
+                case 8 -> rgba((int) Long.parseLong(hex, 16));
+                default -> throw new IllegalArgumentException("Not a hex color: '" + text + "'");
+            };
+        } catch (NumberFormatException e) {
+            throw new IllegalArgumentException("Not a hex color: '" + text + "'", e);
+        }
+    }
+
+    /**
+     * Creates an opaque color from hue, saturation and value.
+     *
+     * @param hue degrees, any value (wrapped to {@code 0..360})
+     * @param saturation {@code 0..1}
+     * @param value {@code 0..1}
+     * @return the color
+     */
+    public static Color hsv(float hue, float saturation, float value) {
+        float h = ((hue % 360f) + 360f) % 360f / 60f;
+        float c = value * saturation;
+        float x = c * (1f - Math.abs(h % 2f - 1f));
+        float m = value - c;
+        float r;
+        float g;
+        float b;
+        if (h < 1f) {
+            r = c;
+            g = x;
+            b = 0f;
+        } else if (h < 2f) {
+            r = x;
+            g = c;
+            b = 0f;
+        } else if (h < 3f) {
+            r = 0f;
+            g = c;
+            b = x;
+        } else if (h < 4f) {
+            r = 0f;
+            g = x;
+            b = c;
+        } else if (h < 5f) {
+            r = x;
+            g = 0f;
+            b = c;
+        } else {
+            r = c;
+            g = 0f;
+            b = x;
+        }
+        return new Color(clamp(r + m), clamp(g + m), clamp(b + m), 1f);
+    }
+
+    /**
+     * Interpolates towards another color, component by component.
+     *
+     * @param to the target
+     * @param t the factor, {@code 0..1}
+     * @return the interpolated color
+     */
+    public Color lerp(Color to, float t) {
+        float f = clamp(t);
+        return new Color(r + (to.r - r) * f, g + (to.g - g) * f, b + (to.b - b) * f, a + (to.a - a) * f);
+    }
+
+    /**
+     * Multiplies component by component (tinting).
+     *
+     * @param other the other color
+     * @return the product
+     */
+    public Color mul(Color other) {
+        return new Color(r * other.r, g * other.g, b * other.b, a * other.a);
+    }
+
+    /**
+     * Packs premultiplied color into {@code 0xAABBGGRR}, the byte order of GPU vertex colors.
+     *
+     * @return the packed premultiplied color
+     */
+    public int toPremultipliedAbgr() {
+        return (to8(a) << 24) | (to8(b * a) << 16) | (to8(g * a) << 8) | to8(r * a);
+    }
+
+    private static float clamp(float value) {
+        return value < 0f ? 0f : (value > 1f ? 1f : value);
+    }
+
     /**
      * Validates the components.
      *

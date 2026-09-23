@@ -2,6 +2,8 @@ package dev.gulp.api;
 
 import dev.gulp.api.graphics.Color;
 import dev.gulp.api.module.GameModule;
+import dev.gulp.api.render.AspectMode;
+import dev.gulp.api.render.StretchMode;
 import java.util.ArrayList;
 import java.util.List;
 import org.jspecify.annotations.Nullable;
@@ -34,6 +36,14 @@ public final class GameSettings {
     private Color clearColor = Color.BLACK;
     private final List<GameModule> modules = new ArrayList<>();
     private @Nullable Boolean developerConsole;
+    private int baseWidth;
+    private int baseHeight;
+    private StretchMode stretchMode = StretchMode.DISABLED;
+    private AspectMode aspectMode = AspectMode.KEEP;
+    private boolean integerScaling;
+    private boolean pixelSnap;
+    private Color letterboxColor = Color.BLACK;
+    private int pixelsPerUnit = 16;
 
     /** Creates settings with default values: 1280x720 resizable window, VSync on, 60 ticks per second. */
     public GameSettings() {}
@@ -220,6 +230,169 @@ public final class GameSettings {
      */
     public GameSettings clearColor(Color clearColor) {
         this.clearColor = clearColor;
+        return this;
+    }
+
+    /**
+     * Returns the base resolution width.
+     *
+     * @return pixels, {@code 0} when stretching is disabled
+     */
+    public int baseWidth() {
+        return baseWidth;
+    }
+
+    /**
+     * Returns the base resolution height.
+     *
+     * @return pixels, {@code 0} when stretching is disabled
+     */
+    public int baseHeight() {
+        return baseHeight;
+    }
+
+    /**
+     * Sets the resolution the game and its UI are designed for. If the stretch mode is still
+     * {@link StretchMode#DISABLED}, it becomes {@link StretchMode#CANVAS}.
+     *
+     * @param width width in pixels, positive
+     * @param height height in pixels, positive
+     * @return this settings object
+     * @throws IllegalArgumentException if a size is not positive
+     */
+    public GameSettings baseResolution(int width, int height) {
+        if (width < 1 || height < 1) {
+            throw new IllegalArgumentException("Base resolution must be positive, got " + width + "x" + height);
+        }
+        this.baseWidth = width;
+        this.baseHeight = height;
+        if (stretchMode == StretchMode.DISABLED) {
+            stretchMode = StretchMode.CANVAS;
+        }
+        return this;
+    }
+
+    /**
+     * Returns the stretch mode.
+     *
+     * @return {@link StretchMode#DISABLED} by default
+     */
+    public StretchMode stretchMode() {
+        return stretchMode;
+    }
+
+    /**
+     * Sets how the base resolution maps to the window.
+     *
+     * @param stretchMode the mode
+     * @return this settings object
+     */
+    public GameSettings stretchMode(StretchMode stretchMode) {
+        this.stretchMode = stretchMode;
+        return this;
+    }
+
+    /**
+     * Returns the aspect mode.
+     *
+     * @return {@link AspectMode#KEEP} by default
+     */
+    public AspectMode aspectMode() {
+        return aspectMode;
+    }
+
+    /**
+     * Sets how other aspect ratios are handled.
+     *
+     * @param aspectMode the mode
+     * @return this settings object
+     */
+    public GameSettings aspectMode(AspectMode aspectMode) {
+        this.aspectMode = aspectMode;
+        return this;
+    }
+
+    /**
+     * Returns whether scaling uses whole multiples.
+     *
+     * @return {@code false} by default
+     */
+    public boolean isIntegerScaling() {
+        return integerScaling;
+    }
+
+    /**
+     * Scales only by whole multiples, for pixel art without blur.
+     *
+     * @param integerScaling whether to use integer scaling
+     * @return this settings object
+     */
+    public GameSettings integerScaling(boolean integerScaling) {
+        this.integerScaling = integerScaling;
+        return this;
+    }
+
+    /**
+     * Returns whether world positions snap to base pixels.
+     *
+     * @return {@code false} by default
+     */
+    public boolean isPixelSnap() {
+        return pixelSnap;
+    }
+
+    /**
+     * Rounds world drawing positions to base pixels.
+     *
+     * @param pixelSnap whether to snap
+     * @return this settings object
+     */
+    public GameSettings pixelSnap(boolean pixelSnap) {
+        this.pixelSnap = pixelSnap;
+        return this;
+    }
+
+    /**
+     * Returns the color of bars around the game area.
+     *
+     * @return black by default
+     */
+    public Color letterboxColor() {
+        return letterboxColor;
+    }
+
+    /**
+     * Sets the color of bars around the game area.
+     *
+     * @param letterboxColor the color
+     * @return this settings object
+     */
+    public GameSettings letterboxColor(Color letterboxColor) {
+        this.letterboxColor = letterboxColor;
+        return this;
+    }
+
+    /**
+     * Returns how many base pixels one world unit (one tile) covers at camera zoom 1.
+     *
+     * @return pixels per unit, {@code 16} by default
+     */
+    public int pixelsPerUnit() {
+        return pixelsPerUnit;
+    }
+
+    /**
+     * Sets how many base pixels one world unit covers, usually the tile size of the art.
+     *
+     * @param pixelsPerUnit pixels, positive
+     * @return this settings object
+     * @throws IllegalArgumentException if not positive
+     */
+    public GameSettings pixelsPerUnit(int pixelsPerUnit) {
+        if (pixelsPerUnit < 1) {
+            throw new IllegalArgumentException("pixelsPerUnit must be positive, got " + pixelsPerUnit);
+        }
+        this.pixelsPerUnit = pixelsPerUnit;
         return this;
     }
 

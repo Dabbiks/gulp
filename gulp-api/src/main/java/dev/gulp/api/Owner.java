@@ -8,9 +8,11 @@ import dev.gulp.api.event.EventPriority;
 import dev.gulp.api.event.Events;
 import dev.gulp.api.event.Listener;
 import dev.gulp.api.event.Subscription;
+import dev.gulp.api.graphics.Graphics;
 import dev.gulp.api.module.ModuleManager;
 import dev.gulp.api.registry.Key;
 import dev.gulp.api.registry.Registries;
+import dev.gulp.api.render.Display;
 import dev.gulp.api.scheduler.Scheduler;
 import dev.gulp.api.scheduler.Task;
 import dev.gulp.api.service.Services;
@@ -125,6 +127,24 @@ public interface Owner {
      */
     default Commands commands() {
         return engine().commands();
+    }
+
+    /**
+     * Returns the GPU resource factory.
+     *
+     * @return the graphics
+     */
+    default Graphics graphics() {
+        return engine().graphics();
+    }
+
+    /**
+     * Returns screen scaling, the camera and render layers.
+     *
+     * @return the display
+     */
+    default Display display() {
+        return engine().display();
     }
 
     /**

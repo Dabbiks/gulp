@@ -19,11 +19,12 @@ import dev.gulp.api.event.lifecycle.ResumeEvent;
 import dev.gulp.api.event.lifecycle.TickEndEvent;
 import dev.gulp.api.event.lifecycle.TickStartEvent;
 import dev.gulp.api.event.lifecycle.WindowResizeEvent;
-import dev.gulp.api.graphics.Color;
+import dev.gulp.api.graphics.Graphics;
 import dev.gulp.api.module.GameModule;
 import dev.gulp.api.module.ModuleManager;
 import dev.gulp.api.registry.Key;
 import dev.gulp.api.registry.Registries;
+import dev.gulp.api.render.Display;
 import dev.gulp.api.scheduler.Scheduler;
 import dev.gulp.api.service.Services;
 import dev.gulp.api.spi.EngineBinding;
@@ -32,13 +33,16 @@ import dev.gulp.core.command.CommandsImpl;
 import dev.gulp.core.command.ConsoleImpl;
 import dev.gulp.core.data.ConfigImpl;
 import dev.gulp.core.event.EventBus;
+import dev.gulp.core.graphics.DisplayImpl;
+import dev.gulp.core.graphics.GraphicsImpl;
+import dev.gulp.core.graphics.Renderer;
 import dev.gulp.core.log.LoggerImpl;
 import dev.gulp.core.module.ModuleManagerImpl;
 import dev.gulp.core.registry.RegistriesImpl;
+import dev.gulp.core.scheduler.PromiseImpl;
 import dev.gulp.core.scheduler.SchedulerImpl;
 import dev.gulp.core.service.ServicesImpl;
 import dev.gulp.platform.FrameHandler;
-import dev.gulp.platform.Gl;
 import dev.gulp.platform.PlatformBackend;
 import dev.gulp.platform.PlatformModules;
 import dev.gulp.platform.PlatformWindow;
@@ -103,6 +107,9 @@ public final class GulpEngine implements Engine, FrameHandler, CoreContext {
     private final ConfigImpl gameConfig;
     private final ModuleManagerImpl modules;
     private final Platform platform;
+    private final GraphicsImpl graphics;
+    private final DisplayImpl display;
+    private final Renderer renderer;
     private final long tickNanos;
 
     private @Nullable Thread mainThread;
@@ -162,6 +169,13 @@ public final class GulpEngine implements Engine, FrameHandler, CoreContext {
         this.console = new ConsoleImpl(commands, backend.console(), consoleAvailable);
         commands.setConsole(console);
         this.gameConfig = config("game", game);
+        this.graphics = new GraphicsImpl(backend.gl(), backend.decoders(), this, mainQueue, game, engineLogger);
+        this.display = new DisplayImpl(settings, () -> new PromiseImpl<>(game, this, mainQueue));
+        this.renderer = new Renderer(graphics, display, events);
+        // Size and camera bounds are valid before the first frame, so onLoad and onEnable can use them.
+        PlatformWindow window = backend.window();
+        display.update(
+                Math.max(1, window.framebufferWidth()), Math.max(1, window.framebufferHeight()), window.contentScale());
         this.modules = new ModuleManagerImpl(
                 game,
                 logger(id),
@@ -268,7 +282,7 @@ public final class GulpEngine implements Engine, FrameHandler, CoreContext {
         if (phase == Phase.RUNNING && !stopRequested) {
             advance(nanoTime);
         }
-        render();
+        render(nanoTime);
         return !stopRequested && !backend.window().shouldClose();
     }
 
@@ -340,13 +354,16 @@ public final class GulpEngine implements Engine, FrameHandler, CoreContext {
         }
     }
 
-    private void render() {
+    private void render(long nanoTime) {
         PlatformWindow window = backend.window();
-        Gl gl = backend.gl();
-        Color clear = settings.clearColor();
-        gl.viewport(0, 0, window.framebufferWidth(), window.framebufferHeight());
-        gl.clearColor(clear.r(), clear.g(), clear.b(), clear.a());
-        gl.clear(Gl.COLOR_BUFFER_BIT);
+        renderer.render(
+                window.framebufferWidth(),
+                window.framebufferHeight(),
+                window.contentScale(),
+                settings.clearColor(),
+                alpha(),
+                phase == Phase.RUNNING && !stopRequested,
+                nanoTime);
     }
 
     @Override
@@ -369,6 +386,12 @@ public final class GulpEngine implements Engine, FrameHandler, CoreContext {
             }
             cleanup(engineOwner);
         } finally {
+            try {
+                renderer.dispose();
+                graphics.disposeAll();
+            } catch (Throwable error) {
+                engineLogger.error("Freeing GPU resources failed", error);
+            }
             phase = Phase.STOPPED;
             backend.window().setListener(null);
             backend.console().setInputListener(null);
@@ -453,6 +476,16 @@ public final class GulpEngine implements Engine, FrameHandler, CoreContext {
     @Override
     public Commands commands() {
         return commands;
+    }
+
+    @Override
+    public Graphics graphics() {
+        return graphics;
+    }
+
+    @Override
+    public Display display() {
+        return display;
     }
 
     @Override

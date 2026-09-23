@@ -35,6 +35,7 @@
 ./gradlew spotlessApply               # formatowanie (palantir-java-format)
 ./gradlew :examples:showcase:run      # showcase na desktopie
 ./gradlew :examples:showcase:run -Pgulp.exitAfterFrames=120   # zamyka okno samo (CI)
+./gradlew :gulp-backend-desktop:visualTest   # testy wizualne w oknie GL (-Pgulp.updateReferences odświeża wzorce)
 ./gradlew :gulp-core:test --tests "dev.gulp.core.milestone.MilestoneTest"
 ```
 

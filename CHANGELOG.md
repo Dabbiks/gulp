@@ -4,6 +4,30 @@ Format oparty na [Keep a Changelog](https://keepachangelog.com/pl/1.1.0/); wersj
 
 ## [Unreleased]
 
+### Etap 2 — Matematyka i grafika
+
+#### Dodane
+
+- `dev.gulp.api.math`: `Mathf`, `Vec2`, `MutableVec2`, `Rect`, `Circle`, `Segment`, `Capsule`, `Polygon`, `Affine2`, `Mat3`, `Transform2D`, `Interpolation` i `Ease` (41 krzywych, `cubicBezier`), krzywe `Bezier` / `CatmullRom` / `BSpline` z parametryzacją długością łuku, `Intersect` (w tym SAT), `Geometry` (triangulacja, otoczka wypukła, upraszczanie, dekompozycja), `Rng` (xoshiro256**), `Noise` (Perlin, simplex, fBm, warping), `Grid`, `GridPos`.
+- `dev.gulp.api.graphics`: `Texture`, `TextureRegion` (przycięcie i obrót z atlasu, flip), `Pixmap` (rysowanie, skalowanie, zapis PNG), `Shader` z include'ami (`gulp:common.glsl`) i fallbackiem na shader domyślny, `Material`, `BlendMode`, `FrameBuffer`, `Mesh2D`, `NinePatch`, `Graphics`; nowe stałe i operacje `Color`.
+- `dev.gulp.api.render`: `Draw` (obrazy, nine-patch, kafelkowanie, siatki, kształty z antyaliasingiem, stos transformacji, kolor i alfa, materiały, `clip`, `into(fbo)`), `Camera`, `Display` (rozdzielczość bazowa, `StretchMode`, `AspectMode`, skalowanie całkowite, HiDPI, pasy, zrzut ekranu, FPS, `RenderStats`), `RenderLayer` z domyślnymi warstwami, eventy `PreRender`, `RenderLayer`, `PostRender`.
+- `Engine.graphics()`, `Engine.display()`; ustawienia `baseResolution`, `stretchMode`, `aspectMode`, `integerScaling`, `pixelSnap`, `letterboxColor`, `pixelsPerUnit`.
+- `gulp-core`: batcher (16 384 quady na wywołanie, podwójne bufory, bez alokacji), renderer z warstwami i trybem `VIEWPORT`, zwalnianie zasobów GPU przy zatrzymaniu.
+- Desktop: dekodowanie obrazów przez stb_image (`lwjgl-stb`).
+- Testy wizualne z obrazami wzorcowymi (`./gradlew :gulp-backend-desktop:visualTest`, w CI pod Xvfb + Mesa): kształty, obrazy, transformacje, clip, bufory pozaekranowe, kamera, tryb `VIEWPORT`.
+- Showcase: moduł `sprites` z 10 000 odbijających się sprite'ami, interpolacją i kształtami UI (`/sprites <n>`, `/zoom <x>`); na desktopie 2 wywołania rysowania na klatkę przy 144 FPS (vsync).
+- ADR 0007 (konwencje grafiki).
+
+#### Zmienione
+
+- Renderowanie w `GulpEngine` przeszło z samego czyszczenia ekranu na `Renderer`; headless liczy dwa czyszczenia na klatkę (pasy i obszar gry).
+
+#### Naprawione
+
+- `PreRenderEvent` jest wysyłany przed wyliczeniem układu ekranu, więc zmiany `Display` i kamery w tym evencie działają w tej samej klatce (wykryte testem wizualnym).
+- Dekodowanie obrazów na desktopie zwalniało pamięć stb pod złym adresem (uszkodzenie sterty); wykryte testem wizualnym.
+
+
 ### Etap 1 — Rdzeń
 
 #### Dodane

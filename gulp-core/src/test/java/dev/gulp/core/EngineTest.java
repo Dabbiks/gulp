@@ -82,7 +82,8 @@ class EngineTest {
         assertThat(engine.realTick()).isEqualTo(10);
         assertThat(engine.targetTps()).isEqualTo(60);
         assertThat(engine.frameCount()).isEqualTo(11);
-        assertThat(runner.backend().gl().clearCount()).isEqualTo(11);
+        // Two clears a frame: the letterbox, then the game area.
+        assertThat(runner.backend().gl().clearCount()).isEqualTo(22);
     }
 
     @Test

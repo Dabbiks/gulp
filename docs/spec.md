@@ -2033,15 +2033,15 @@ Trzynaście etapów od pustego repozytorium do wersji 1.0, wykonywanych po kolei
 
 ### Etap 2 — Matematyka i grafika
 
-- [ ] Pakiet `math` w całości z sekcji 11, testy właściwości.
-- [ ] `Gl` i implementacja desktop; `Texture`, `TextureRegion`, `Pixmap`, dekodowanie stb_image.
-- [ ] `Shader` z include'ami i tłumaczeniem nagłówka, `Material`, `BlendMode`.
-- [ ] Batcher i `Draw`: obrazy, kształty z antyaliasingiem, transformacje, `clip`, `into(fbo)`; statystyki.
-- [ ] `FrameBuffer`, `Mesh2D`, zrzut ekranu.
-- [ ] `Camera` (pozycja, zoom, rotacja, konwersje współrzędnych).
-- [ ] `Display`: rozdzielczość bazowa, `StretchMode`, `AspectMode`, skalowanie całkowite, HiDPI, pasy.
-- [ ] `RenderLayer`, eventy renderowania.
-- [ ] **Kamień milowy:** scena z 10 000 ruchomych sprite'ów przy 60 FPS; zmiana rozmiaru okna zachowuje układ według trybów; testy wizualne z obrazami wzorcowymi.
+- [x] Pakiet `math` w całości z sekcji 11, testy właściwości.
+- [x] `Gl` i implementacja desktop; `Texture`, `TextureRegion`, `Pixmap`, dekodowanie stb_image.
+- [x] `Shader` z include'ami i tłumaczeniem nagłówka, `Material`, `BlendMode`.
+- [x] Batcher i `Draw`: obrazy, kształty z antyaliasingiem, transformacje, `clip`, `into(fbo)`; statystyki.
+- [x] `FrameBuffer`, `Mesh2D`, zrzut ekranu.
+- [x] `Camera` (pozycja, zoom, rotacja, konwersje współrzędnych).
+- [x] `Display`: rozdzielczość bazowa, `StretchMode`, `AspectMode`, skalowanie całkowite, HiDPI, pasy.
+- [x] `RenderLayer`, eventy renderowania.
+- [x] **Kamień milowy:** scena z 10 000 ruchomych sprite'ów przy 60 FPS; zmiana rozmiaru okna zachowuje układ według trybów; testy wizualne z obrazami wzorcowymi.
 
 ### Etap 3 — Web
 
