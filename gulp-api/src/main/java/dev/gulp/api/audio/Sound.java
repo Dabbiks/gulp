@@ -1,5 +1,6 @@
 package dev.gulp.api.audio;
 
+import dev.gulp.api.PauseMode;
 import dev.gulp.api.asset.AssetKey;
 import dev.gulp.api.registry.Key;
 import dev.gulp.api.registry.Keyed;

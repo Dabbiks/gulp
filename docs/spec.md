@@ -2077,15 +2077,15 @@ Trzynaście etapów od pustego repozytorium do wersji 1.0, wykonywanych po kolei
 
 ### Etap 6 — Świat i encje
 
-- [ ] `Worlds`, `World`, `WorldSettings`, `Location`, przejścia.
-- [ ] `Entity`, `EntityType`, `Component` z cyklem życia, hierarchia, tagi, dane, interpolacja pozycji, `PauseMode`.
-- [ ] Przechowywanie komponentów, `EntityQuery`, siatka przestrzenna, eventy encji (w tym klik, hover, ekran).
-- [ ] Komponenty: `SpriteComponent`, `Lifetime`, `Follow`, `WorldText`, `Interactable`.
-- [ ] `TileMap`: orientacje, warstwy, `TileType`, kształty kolizji, animowane kafelki, ticki kafelków, `TileState`.
-- [ ] Chunki: ładowanie wokół kamer i obszarów, `ChunkGenerator` poza tickiem, cache siatek renderowania.
-- [ ] `Terrain` (16 i 47 kafelków), importy Tiled i LDtk, `ObjectSpawner`, `Parallax`.
-- [ ] Kamera: podążanie, wygładzanie, granice, martwa strefa, wstrząsy, `zoomTo`, `panTo`, wiele kamer.
-- [ ] **Kamień milowy:** `examples/topdown` z nieskończonym światem z szumu i poziom platformówki z LDtk renderowany poprawnie.
+- [x] `Worlds`, `World`, `WorldSettings`, `Location`, przejścia.
+- [x] `Entity`, `EntityType`, `Component` z cyklem życia, hierarchia, tagi, dane, interpolacja pozycji, `PauseMode`.
+- [x] Przechowywanie komponentów, `EntityQuery`, siatka przestrzenna, eventy encji (w tym klik, hover, ekran).
+- [x] Komponenty: `SpriteComponent`, `Lifetime`, `Follow`, `WorldText`, `Interactable`.
+- [x] `TileMap`: orientacje, warstwy, `TileType`, kształty kolizji, animowane kafelki, ticki kafelków, `TileState`.
+- [x] Chunki: ładowanie wokół kamer i obszarów, `ChunkGenerator` poza tickiem, cache siatek renderowania.
+- [x] `Terrain` (16 i 47 kafelków), importy Tiled i LDtk, `ObjectSpawner`, `Parallax`.
+- [x] Kamera: podążanie, wygładzanie, granice, martwa strefa, wstrząsy, `zoomTo`, `panTo`, wiele kamer.
+- [x] **Kamień milowy:** `examples/topdown` z nieskończonym światem z szumu i poziom platformówki z LDtk renderowany poprawnie.
 
 ### Etap 7 — Fizyka, nawigacja i AI
 

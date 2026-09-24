@@ -2,7 +2,7 @@
 
 Framework gier 2D w Javie 25 dla desktopu (Windows, macOS, Linux) i przeglądarki. Pisanie gry ma przypominać pisanie pluginu serwerowego: klasa główna z cyklem życia, moduły, listenery eventów, zadania w schedulerze i rejestry z kluczami. Sceny i UI buduje się wyłącznie kodem.
 
-> Status: **etap 5 z 12** (kamienie milowe etapów 3 i 5 czekają na sprawdzenie w Firefoksie i z fizycznym padem) — rdzeń (pętla o stałym kroku, moduły, eventy, scheduler, rejestry, usługi, konfiguracja YAML, komendy), matematyka i grafika 2D (batcher, `Draw`, kamera, tryby wyświetlania), web (TeaVM Wasm GC + JS, plugin Gradle) zasoby i tekst (atlasy, fonty MSDF, bitmapowe i dynamiczne, markup z efektami, tłumaczenia, hot reload, resource packi) oraz wejście i dźwięk (akcje ze zmianą przypisań, gamepady, dotyk, OpenAL i WebAudio z szynami i muzyką). API nie jest jeszcze stabilne. Plan: [`docs/spec.md`](docs/spec.md), sekcja 22.
+> Status: **etap 6 z 12** (kamienie milowe etapów 3 i 5 czekają na sprawdzenie w Firefoksie i z fizycznym padem) — rdzeń (pętla o stałym kroku, moduły, eventy, scheduler, rejestry, usługi, konfiguracja YAML, komendy), matematyka i grafika 2D (batcher, `Draw`, kamera, tryby wyświetlania), web (TeaVM Wasm GC + JS, plugin Gradle) zasoby i tekst (atlasy, fonty MSDF, bitmapowe i dynamiczne, markup z efektami, tłumaczenia, hot reload, resource packi), wejście i dźwięk (akcje ze zmianą przypisań, gamepady, dotyk, OpenAL i WebAudio z szynami i muzyką) oraz świat i encje (komponenty, mapy kafelków z chunkami i importem Tiled/LDtk, kamera, przejścia). API nie jest jeszcze stabilne. Plan: [`docs/spec.md`](docs/spec.md), sekcja 22.
 
 ## Minimalna gra
 
@@ -49,6 +49,8 @@ Wymagany JDK 25 (Gradle znajdzie go przez `JAVA_HOME` lub w standardowych lokali
 ./gradlew :examples:showcase:runDesktop          # okno na desktopie
 ./gradlew :examples:showcase:runWeb --continuous  # http://localhost:8080, przeładowanie po zmianach
 ./gradlew :examples:showcase:buildWeb            # statyczna strona w build/web
+./gradlew :examples:topdown:runDesktop           # nieskończony świat z szumu
+./gradlew :examples:platformer:runDesktop        # poziomy z LDtk
 ```
 
 ## Moduły

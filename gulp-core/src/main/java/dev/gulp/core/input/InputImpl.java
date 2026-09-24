@@ -130,6 +130,7 @@ public final class InputImpl implements Input, InputListener {
     private boolean textInput;
     private boolean running;
     private float now;
+    private @Nullable PointMapper pointMapper;
 
     /**
      * Creates the input and starts listening to the platform.
@@ -572,7 +573,49 @@ public final class InputImpl implements Input, InputListener {
 
     @Override
     public Vec2 mouseWorld(Camera camera) {
-        return camera.screenToWorld(new Vec2(mouseX, mouseY));
+        PointMapper mapper = pointMapper;
+        if (mapper == null) {
+            return camera.screenToWorld(new Vec2(mouseX, mouseY));
+        }
+        Vec2 logical = mapper.toLogical(mouseX, mouseY);
+        Rect area = camera.viewport();
+        return camera.screenToWorld(
+                new Vec2(logical.x() - area.x() * mapper.width(), logical.y() - area.y() * mapper.height()));
+    }
+
+    /**
+     * Converts window points to the logical game area, so that {@link #mouseWorld} matches what is drawn.
+     *
+     * @param mapper the display
+     */
+    public void setPointMapper(PointMapper mapper) {
+        this.pointMapper = mapper;
+    }
+
+    /** Maps window points to logical game coordinates. */
+    public interface PointMapper {
+        /**
+         * Converts a window point.
+         *
+         * @param windowX window x
+         * @param windowY window y
+         * @return logical coordinates
+         */
+        Vec2 toLogical(float windowX, float windowY);
+
+        /**
+         * Returns the logical width.
+         *
+         * @return logical points
+         */
+        float width();
+
+        /**
+         * Returns the logical height.
+         *
+         * @return logical points
+         */
+        float height();
     }
 
     @Override

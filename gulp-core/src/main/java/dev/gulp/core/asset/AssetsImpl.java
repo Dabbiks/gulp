@@ -248,19 +248,48 @@ public final class AssetsImpl implements Assets {
         begin(entry, resolve(key));
     }
 
+    /**
+     * Reads every candidate at once and reports the first one, in candidate order, that exists; one frame instead of
+     * one frame per extension.
+     */
     private void probe(List<String> candidates, int index, java.util.function.Consumer<@Nullable String> found) {
-        if (index >= candidates.size()) {
+        int count = candidates.size() - index;
+        if (count <= 0) {
             found.accept(null);
             return;
         }
-        String candidate = candidates.get(index);
-        readBytes(candidate).thenSync(bytes -> found.accept(candidate)).onFailure(error -> {
-            if (error instanceof FileNotFoundException) {
-                probe(candidates, index + 1, found);
-            } else {
-                found.accept(candidate);
+        int[] states = new int[count];
+        boolean[] reported = {false};
+        Runnable decide = () -> {
+            if (reported[0]) {
+                return;
             }
-        });
+            for (int i = 0; i < count; i++) {
+                if (states[i] == 0) {
+                    return;
+                }
+                if (states[i] == 1) {
+                    reported[0] = true;
+                    found.accept(candidates.get(index + i));
+                    return;
+                }
+            }
+            reported[0] = true;
+            found.accept(null);
+        };
+        for (int i = 0; i < count; i++) {
+            int slot = i;
+            readBytes(candidates.get(index + i))
+                    .thenSync(bytes -> {
+                        states[slot] = 1;
+                        decide.run();
+                    })
+                    .onFailure(error -> {
+                        // A read error other than a missing file still selects the candidate, so the error surfaces.
+                        states[slot] = error instanceof FileNotFoundException ? 2 : 1;
+                        decide.run();
+                    });
+        }
     }
 
     private <T> void begin(Entry<T> entry, @Nullable String path) {
@@ -435,7 +464,7 @@ public final class AssetsImpl implements Assets {
      * @param promises the promises
      * @return the combined promise
      */
-    <T> Promise<List<T>> all(List<Promise<T>> promises) {
+    public <T> Promise<List<T>> all(List<Promise<T>> promises) {
         PromiseImpl<List<T>> result = newPromise();
         if (promises.isEmpty()) {
             result.complete(List.of());

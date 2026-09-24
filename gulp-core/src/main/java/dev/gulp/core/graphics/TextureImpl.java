@@ -157,6 +157,11 @@ public final class TextureImpl implements Texture {
         }
     }
 
+    @Override
+    public void upload(Pixmap pixmap) {
+        replace(pixmap);
+    }
+
     /**
      * Replaces the pixels, possibly with another size, keeping the same GL texture: hot reload swaps images in place.
      *

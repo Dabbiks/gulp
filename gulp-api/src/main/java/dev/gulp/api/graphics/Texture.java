@@ -65,6 +65,19 @@ public interface Texture {
     void update(Pixmap pixmap, int x, int y);
 
     /**
+     * Replaces the whole texture with a pixmap, which may have another size. Regions made earlier keep their pixel
+     * rectangles.
+     *
+     * <pre>{@code
+     * Pixmap minimap = renderMinimap();
+     * minimapTexture.upload(minimap);
+     * }</pre>
+     *
+     * @param pixmap the new image
+     */
+    void upload(Pixmap pixmap);
+
+    /**
      * The whole texture as a region.
      *
      * @return the region

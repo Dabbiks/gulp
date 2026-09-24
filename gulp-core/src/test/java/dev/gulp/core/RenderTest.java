@@ -74,7 +74,9 @@ class RenderTest {
     void spritesSharingATextureBatchIntoOneDrawCall() {
         DrawingGame game = new DrawingGame();
         HeadlessRunner r = run(game);
-        Texture texture = game.graphics().texture(new Pixmap(16, 16));
+        Texture texture = game.graphics().texture(new Pixmap(8, 8));
+        texture.upload(new Pixmap(16, 16));
+        assertThat(texture.width()).isEqualTo(16);
         TextureRegion region = texture.region();
         game.world = d -> {
             for (int i = 0; i < 20_000; i++) {

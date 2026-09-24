@@ -21,6 +21,21 @@ public final class RegistriesImpl implements Registries {
     private final CoreContext context;
     private final Map<Key, RegistryImpl<?>> registries = new LinkedHashMap<>();
     private boolean frozen;
+    private boolean engineRegistering;
+
+    /**
+     * Runs registrations in the engine's reserved namespace.
+     *
+     * @param registrations the registrations
+     */
+    public void asEngine(Runnable registrations) {
+        engineRegistering = true;
+        try {
+            registrations.run();
+        } finally {
+            engineRegistering = false;
+        }
+    }
 
     /**
      * Creates the registries with every built-in one.
@@ -121,7 +136,7 @@ public final class RegistriesImpl implements Registries {
                 throw new IllegalStateException(
                         "Registry " + key + " is frozen; register " + valueKey + " in onLoad()");
             }
-            if (valueKey.isReserved()) {
+            if (valueKey.isReserved() && !engineRegistering) {
                 throw new IllegalArgumentException(
                         "Namespace '" + Key.RESERVED + "' is reserved for the engine: " + valueKey);
             }

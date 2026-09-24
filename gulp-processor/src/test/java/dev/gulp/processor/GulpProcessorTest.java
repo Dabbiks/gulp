@@ -121,6 +121,25 @@ class GulpProcessorTest {
     }
 
     @Test
+    void writesIndexForModuleWithoutListeners() throws IOException {
+        // A lone @ModuleInfo generates no other source, so javac starts no second round for the index to wait for.
+        Result result = compile(Map.of("solo.LevelModule", """
+                package solo;
+
+                import dev.gulp.api.module.*;
+
+                @ModuleInfo(id = "level")
+                final class LevelModule extends GameModule {}
+                """));
+
+        assertThat(result.errors()).isEmpty();
+        assertThat(result.success()).isTrue();
+        String services = result.generated("META-INF/services/dev.gulp.api.spi.GeneratedIndex");
+        assertThat(result.generated(services.trim().replace('.', '/') + ".java"))
+                .contains("sink.module(solo.LevelModule.class");
+    }
+
+    @Test
     void rejectsInvalidListeners() throws IOException {
         Result result = compile(Map.of("demo.Bad", """
                 package demo;

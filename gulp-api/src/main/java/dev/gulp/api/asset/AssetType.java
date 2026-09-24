@@ -31,8 +31,11 @@ public final class AssetType<T> {
     public static final AssetType<Pixmap> PIXMAP = new AssetType<>("pixmap", List.of("png", "jpg", "jpeg", "webp"));
 
     /** UTF-8 text. */
-    public static final AssetType<String> TEXT =
-            new AssetType<>("text", List.of("txt", "json", "yml", "yaml", "md", "csv", "glsl", "frag", "vert"));
+    public static final AssetType<String> TEXT = new AssetType<>(
+            "text",
+            List.of(
+                    "txt", "json", "yml", "yaml", "md", "csv", "glsl", "frag", "vert", "tmj", "tsj", "tmx", "tsx",
+                    "ldtk"));
 
     /** File contents as bytes. */
     public static final AssetType<byte[]> BYTES = new AssetType<>("bytes", List.of("bin"));

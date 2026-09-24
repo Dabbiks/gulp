@@ -13,6 +13,7 @@ import dev.gulp.api.registry.Registries;
 import dev.gulp.api.render.Display;
 import dev.gulp.api.scheduler.Scheduler;
 import dev.gulp.api.service.Services;
+import dev.gulp.api.world.Worlds;
 
 /**
  * The running engine: access to every service, the tick counter and time control. There is one engine per process,
@@ -128,6 +129,13 @@ public interface Engine {
      * @return the preferences
      */
     Preferences preferences();
+
+    /**
+     * Returns the worlds.
+     *
+     * @return the worlds
+     */
+    Worlds worlds();
 
     /**
      * Returns platform information.

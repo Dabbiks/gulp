@@ -40,6 +40,8 @@ import dev.gulp.api.service.Services;
 import dev.gulp.api.spi.EngineBinding;
 import dev.gulp.api.text.Font;
 import dev.gulp.api.text.FontFamily;
+import dev.gulp.api.ui.Transitions;
+import dev.gulp.api.world.Worlds;
 import dev.gulp.core.asset.AssetsImpl;
 import dev.gulp.core.audio.AudioImpl;
 import dev.gulp.core.command.BuiltinCommands;
@@ -60,6 +62,7 @@ import dev.gulp.core.scheduler.PromiseImpl;
 import dev.gulp.core.scheduler.SchedulerImpl;
 import dev.gulp.core.service.ServicesImpl;
 import dev.gulp.core.text.TextSystem;
+import dev.gulp.core.world.WorldsImpl;
 import dev.gulp.platform.FrameHandler;
 import dev.gulp.platform.PlatformBackend;
 import dev.gulp.platform.PlatformModules;
@@ -137,6 +140,7 @@ public final class GulpEngine implements Engine, FrameHandler, CoreContext {
     private final PreferencesImpl preferences;
     private final InputImpl input;
     private final AudioImpl audio;
+    private final WorldsImpl worlds;
     private final long tickNanos;
 
     private @Nullable Thread mainThread;
@@ -259,6 +263,21 @@ public final class GulpEngine implements Engine, FrameHandler, CoreContext {
                 () -> display.camera().position(),
                 engineLogger);
         audio.registerLoaders(backend.decoders());
+        input.setPointMapper(display);
+        this.worlds = new WorldsImpl(
+                this,
+                this,
+                events,
+                scheduler,
+                assets,
+                audio,
+                display,
+                input,
+                backend.executor(),
+                mainQueue,
+                engineLogger,
+                () -> new PromiseImpl<>(game, this, mainQueue));
+        renderer.setWorldView(worlds);
         // Size and camera bounds are valid before the first frame, so onLoad and onEnable can use them.
         PlatformWindow window = backend.window();
         display.update(
@@ -336,6 +355,7 @@ public final class GulpEngine implements Engine, FrameHandler, CoreContext {
         mainThread = Thread.currentThread();
         phase = Phase.LOADING;
         BuiltinCommands.register(this, commands, engineOwner);
+        worlds.start(engineOwner);
         backend.window().setListener(new EngineWindowListener());
         if (console.isAvailable()) {
             backend.console().setInputListener(console::submit);
@@ -406,7 +426,11 @@ public final class GulpEngine implements Engine, FrameHandler, CoreContext {
         }
         float audioSeconds = lastAudioNanos == 0L ? 0f : (nanoTime - lastAudioNanos) / 1e9f;
         lastAudioNanos = nanoTime;
-        audio.update(Math.max(0f, Math.min(audioSeconds, 0.25f)), paused);
+        float frameSeconds = Math.max(0f, Math.min(audioSeconds, 0.25f));
+        audio.update(frameSeconds, paused);
+        if (phase == Phase.RUNNING) {
+            worlds.frame(frameSeconds, alpha());
+        }
         preferences.update(nanoTime);
         render(nanoTime);
         return !stopRequested && !backend.window().shouldClose();
@@ -414,6 +438,12 @@ public final class GulpEngine implements Engine, FrameHandler, CoreContext {
 
     private void loadGame() {
         gameLoaded = true;
+        registries.asEngine(() -> {
+            registries.register(Registries.TRANSITION, Transitions.fade(0.5f));
+            registries.register(Registries.TRANSITION, Transitions.slide(dev.gulp.api.math.Vec2.LEFT, 0.5f));
+            registries.register(Registries.TRANSITION, Transitions.circleWipe(0.6f));
+            registries.register(Registries.TRANSITION, Transitions.pixelate(0.5f));
+        });
         game.onLoad();
         modules.loadAll();
         registries.freeze();
@@ -456,6 +486,7 @@ public final class GulpEngine implements Engine, FrameHandler, CoreContext {
             realTick++;
             if (paused) {
                 input.tick();
+                worlds.tick(true);
             }
             scheduler.tickRealtime();
             ran++;
@@ -494,6 +525,7 @@ public final class GulpEngine implements Engine, FrameHandler, CoreContext {
             events.call(new TickStartEvent(tick));
         }
         scheduler.tickGame();
+        worlds.tick(false);
         if (events.hasListeners(TickEndEvent.class)) {
             events.call(new TickEndEvent(tick));
         }
@@ -542,6 +574,7 @@ public final class GulpEngine implements Engine, FrameHandler, CoreContext {
         } finally {
             input.setRunning(false);
             input.dispose();
+            worlds.dispose();
             audio.dispose();
             preferences.flush();
             assets.clear();
@@ -583,11 +616,17 @@ public final class GulpEngine implements Engine, FrameHandler, CoreContext {
         if (owner == game || owner == engineOwner) {
             return true;
         }
+        if (owner instanceof ScopedOwner scoped) {
+            return scoped.isEnabled();
+        }
         return owner instanceof GameModule module && modules.isActive(module);
     }
 
     @Override
     public Logger loggerOf(Owner owner) {
+        if (owner instanceof ScopedOwner) {
+            return engineLogger;
+        }
         return owner == engineOwner ? engineLogger : modules.logger(owner);
     }
 
@@ -671,6 +710,11 @@ public final class GulpEngine implements Engine, FrameHandler, CoreContext {
     @Override
     public Preferences preferences() {
         return preferences;
+    }
+
+    @Override
+    public Worlds worlds() {
+        return worlds;
     }
 
     /** Hot reload: assets, configs and translations whose files changed. */

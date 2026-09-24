@@ -3,10 +3,10 @@ package dev.gulp.api.input;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import dev.gulp.api.PauseMode;
 import dev.gulp.api.asset.AssetKey;
 import dev.gulp.api.asset.AssetType;
 import dev.gulp.api.audio.Audio;
-import dev.gulp.api.audio.PauseMode;
 import dev.gulp.api.audio.Sound;
 import dev.gulp.api.registry.Key;
 import java.util.ArrayList;

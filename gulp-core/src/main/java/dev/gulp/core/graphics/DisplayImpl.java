@@ -21,9 +21,9 @@ import org.jspecify.annotations.Nullable;
 
 /**
  * {@link Display}: layout settings, layers, the camera and frame statistics. The {@link Renderer} reads it every
- * frame. Until worlds arrive in stage 6 the display owns the default layers.
+ * frame. The display owns the default layers, used while no world is active; an active world brings its own world layers and cameras.
  */
-public final class DisplayImpl implements Display {
+public final class DisplayImpl implements Display, dev.gulp.core.input.InputImpl.PointMapper {
 
     /** Default world layers, back to front. */
     public static final List<String> WORLD_LAYERS = List.of("background", "tiles", "entities", "foreground", "effects");
@@ -34,6 +34,7 @@ public final class DisplayImpl implements Display {
     private static final Comparator<RenderLayer> ORDER = Comparator.comparingInt(RenderLayer::zOrder);
 
     private final CameraImpl camera;
+    private @org.jspecify.annotations.Nullable CameraImpl worldCamera;
     private final Supplier<PromiseImpl<Pixmap>> promises;
     private final List<RenderLayer> layers = new ArrayList<>();
     private final List<RenderLayer> layersView = Collections.unmodifiableList(layers);
@@ -105,6 +106,10 @@ public final class DisplayImpl implements Display {
             layout = DisplayLayout.compute(
                     width, height, scale, baseWidth, baseHeight, stretchMode, aspectMode, integerScaling);
             camera.resize(layout.logicalWidth(), layout.logicalHeight());
+            CameraImpl current = worldCamera;
+            if (current != null) {
+                current.resize(layout.logicalWidth(), layout.logicalHeight());
+            }
             dirty = false;
         }
         return layout;
@@ -125,7 +130,8 @@ public final class DisplayImpl implements Display {
      * @return the camera
      */
     public CameraImpl cameraImpl() {
-        return camera;
+        CameraImpl current = worldCamera;
+        return current != null ? current : camera;
     }
 
     /**
@@ -277,9 +283,37 @@ public final class DisplayImpl implements Display {
         return Math.max(0, framebufferHeight);
     }
 
+    /**
+     * Converts a window point (logical window points, as input reports them) to the logical game area.
+     *
+     * @param windowX points from the left edge of the window
+     * @param windowY points from the top edge of the window
+     * @return logical game coordinates
+     */
+    public dev.gulp.api.math.Vec2 toLogical(float windowX, float windowY) {
+        DisplayLayout current = layout;
+        float px = windowX * contentScale - current.viewportX();
+        float py = windowY * contentScale - current.viewportY();
+        return new dev.gulp.api.math.Vec2(
+                px / Math.max(1, current.viewportWidth()) * current.logicalWidth(),
+                py / Math.max(1, current.viewportHeight()) * current.logicalHeight());
+    }
+
     @Override
     public Camera camera() {
-        return camera;
+        return cameraImpl();
+    }
+
+    /**
+     * Makes {@link #camera()} return the main camera of the active world.
+     *
+     * @param value the camera, or {@code null} for the display's own camera
+     */
+    public void setWorldCamera(@org.jspecify.annotations.Nullable CameraImpl value) {
+        this.worldCamera = value;
+        if (value != null) {
+            value.resize(layout.logicalWidth(), layout.logicalHeight());
+        }
     }
 
     @Override

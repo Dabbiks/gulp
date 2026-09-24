@@ -1,6 +1,7 @@
 package dev.gulp.core.audio;
 
 import dev.gulp.api.Logger;
+import dev.gulp.api.PauseMode;
 import dev.gulp.api.asset.AssetKey;
 import dev.gulp.api.asset.AssetLoader;
 import dev.gulp.api.asset.AssetType;
@@ -9,7 +10,6 @@ import dev.gulp.api.audio.AudioClip;
 import dev.gulp.api.audio.Bus;
 import dev.gulp.api.audio.Music;
 import dev.gulp.api.audio.MusicPlayer;
-import dev.gulp.api.audio.PauseMode;
 import dev.gulp.api.audio.PcmSource;
 import dev.gulp.api.audio.Playback;
 import dev.gulp.api.audio.Sound;

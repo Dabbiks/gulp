@@ -1,6 +1,6 @@
 package dev.gulp.core.audio;
 
-import dev.gulp.api.audio.PauseMode;
+import dev.gulp.api.PauseMode;
 import dev.gulp.api.audio.PcmSource;
 import dev.gulp.api.audio.Playback;
 import dev.gulp.platform.PlatformAudio;

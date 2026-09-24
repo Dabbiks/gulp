@@ -16,6 +16,8 @@ Sekcja 13 opisuje fonty, tekst sformatowany, atlasy, hot reload i resource packi
 
 **Shader MSDF.** Mediana trzech kanałów, antyaliasing liczony z `fwidth` w pikselach ekranu, obrys i sztuczne pogrubienie przez przesunięcie progu. Szerokość obrysu jest ograniczona do połowy zakresu pola. Bez tego szersze obrysy wypełniały cały czworokąt glifu (znalezione na zrzucie ekranu). Cień to druga warstwa glifów z przesunięciem.
 
+**Jeden typ fontu.** Sekcja 13.1 nazywa rodzaje fontów `MsdfFont`, `BitmapFont` i `DynamicFont`. W API jest jeden interfejs `Font` z `kind()` (`FontKind.MSDF`, `BITMAP`, `DYNAMIC`). Łańcuch fallbacków, `TextStyle` i `Draw.text` działają tak samo dla każdego rodzaju, a gra, która musi je rozróżnić (np. obrys tylko dla MSDF), sprawdza `kind()`. Osobne typy wymuszałyby rzutowania w kodzie gry bez żadnego zysku.
+
 **Fonty bitmapowe i dynamiczne.** Fonty bitmapowe mają format BMFont (tekstowy `.fnt`) albo siatkę komórek (`graphics().gridFont`). Fonty dynamiczne są rasteryzowane przez FreeType na desktopie i przez Canvas2D z FontFace API na webie. Glify trafiają do stron 1024×1024 osobno dla każdego rozmiaru w pikselach ekranu, a metryki są mierzone przy 64 px. `PlatformDecoders.openFont` stało się asynchroniczne, bo przeglądarka ładuje fonty w tle. Przeglądarka nie mówi, których znaków font nie ma, więc na webie brakujące znaki dorysowuje jej własny font zapasowy. Nie ma wtedy naszego łańcucha fallbacków.
 
 **Brakujące warianty.** Brak wariantu bold lub italic w `FontFamily` jest udawany: pogrubienie przez próg MSDF albo podwójne rysowanie, kursywa przez pochylenie czworokątów o 0,21.

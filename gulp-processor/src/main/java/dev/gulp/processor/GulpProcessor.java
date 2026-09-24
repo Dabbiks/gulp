@@ -68,6 +68,7 @@ public final class GulpProcessor extends AbstractProcessor {
     private final Map<String, ModuleEntry> modulesById = new LinkedHashMap<>();
     private final Set<String> generatedTypes = new HashSet<>();
     private boolean indexWritten;
+    private int sourcesWritten;
 
     /** Creates the processor; instantiated by javac. */
     public GulpProcessor() {}
@@ -93,7 +94,7 @@ public final class GulpProcessor extends AbstractProcessor {
 
     @Override
     public boolean process(Set<? extends TypeElement> annotations, RoundEnvironment round) {
-        boolean foundNew = false;
+        int sourcesBefore = sourcesWritten;
         TypeElement handlerAnnotation = elements.getTypeElement(EVENT_HANDLER);
         TypeElement moduleAnnotation = elements.getTypeElement(MODULE_INFO);
         TypeElement serializableAnnotation = elements.getTypeElement(SERIALIZABLE);
@@ -110,24 +111,28 @@ public final class GulpProcessor extends AbstractProcessor {
                         .add(method);
             }
             for (Map.Entry<TypeElement, List<ExecutableElement>> entry : byListener.entrySet()) {
-                foundNew |= generateHandlers(entry.getKey(), entry.getValue());
+                generateHandlers(entry.getKey(), entry.getValue());
             }
         }
         if (moduleAnnotation != null) {
             for (Element element : round.getElementsAnnotatedWith(moduleAnnotation)) {
-                foundNew |= registerModule((TypeElement) element);
+                registerModule((TypeElement) element);
             }
             validateModuleGraph();
         }
         if (serializableAnnotation != null) {
             for (Element element : round.getElementsAnnotatedWith(serializableAnnotation)) {
-                foundNew |= generateCodec((TypeElement) element);
+                generateCodec((TypeElement) element);
             }
         }
 
-        // Write the indexes in the first round without new work; generating sources in the last round would make
-        // javac warn, and that breaks -Werror builds.
-        if (!foundNew && !round.processingOver() && !indexWritten && !pendingByPackage.isEmpty()) {
+        // Write the indexes in the first round that generated no other sources (registrations alone do not start
+        // another round, so waiting for an idle round would lose a module-only index); generating sources in the
+        // last round would make javac warn, and that breaks -Werror builds.
+        if (sourcesWritten == sourcesBefore
+                && !round.processingOver()
+                && !indexWritten
+                && !pendingByPackage.isEmpty()) {
             writeIndexes();
             indexWritten = true;
         }
@@ -590,6 +595,7 @@ public final class GulpProcessor extends AbstractProcessor {
             try (Writer writer = file.openWriter()) {
                 writer.write(source.toString());
             }
+            sourcesWritten++;
         } catch (IOException e) {
             messager.printMessage(Diagnostic.Kind.ERROR, "Could not write " + qualifiedName + ": " + e, origin);
         }

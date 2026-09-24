@@ -43,8 +43,9 @@ jacoco {
 
 spotless {
     java {
-        // Generated sources (GameAssets, dispatchers) are not formatted.
-        targetExclude("build/**")
+        // Only hand-written sources: generated ones (GameAssets, dispatchers) are not formatted, and walking build/
+        // while a parallel compile writes there fails the task.
+        target("src/**/*.java")
         palantirJavaFormat(libs.findVersion("palantir-java-format").get().requiredVersion)
         formatAnnotations()
         trimTrailingWhitespace()

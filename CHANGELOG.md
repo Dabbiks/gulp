@@ -4,6 +4,56 @@ Format oparty na [Keep a Changelog](https://keepachangelog.com/pl/1.1.0/); wersj
 
 ## [Unreleased]
 
+### Etap 6 — Świat i encje
+
+#### Dodane
+
+- `dev.gulp.api.world`:
+  - `Worlds` (`load`, `register`, `switchTo` z przejściem, `unload`, `active`) i `World` (warstwy, kamery, encje, zapytania, `tileMap`, `parallax`);
+  - `WorldSettings`, `Location`;
+  - źródła `WorldSource`: pusty, generator, Tiled, LDtk; do tego `spawn`, `tile`, `spawner` i `onLoad`;
+  - eventy `WorldLoad`, `WorldUnload`, `WorldSwitch`.
+- `dev.gulp.api.entity`:
+  - `Entity` z hierarchią (`attach`), tagami, danymi, interpolacją pozycji i `PauseMode`;
+  - `EntityType` z dziedziczeniem, `Component` z cyklem życia i `tickOrder`, `EntityQuery` na siatce przestrzennej;
+  - eventy `EntitySpawn`, `EntityRemove`, `EntityTeleport`, `EntityClick`, `EntityHoverEnter/Exit`, `EntityScreenEnter/Exit`, także celowane na jedną encję.
+- Komponenty: `SpriteComponent`, `Lifetime`, `Follow`, `WorldText`, `Interactable`.
+- `TileMap`:
+  - orientacje ortogonalna, izometryczna, izometryczna przesunięta i heksagonalne;
+  - warstwy, `TileType` z kształtami kolizji, animacjami i tickami, `TileState`, `TileSet`;
+  - flagi obrotu, event `TileChange`.
+- Chunki 32×32:
+  - ładowanie wokół kamer i biletów `keepLoaded`, `ChunkGenerator` poza tickiem;
+  - cache siatek renderowania, eventy `ChunkLoad` i `ChunkUnload`.
+- `Terrain.sixteen` i `Terrain.blob` (47 kafelków), `ObjectSpawner`, `MapObject`, `Parallax`.
+- Importy map:
+  - Tiled w XML (`.tmx`, `.tsx`) i JSON (`.tmj`, `.tsj`), z warstwami w CSV, XML i Base64, także skompresowanymi zlib, gzip i zstd;
+  - LDtk (`.ldtk`, `.ldtkl`, IntGrid z auto-layerami).
+- Własne dekodery DEFLATE (zlib, gzip) i Zstandard w `gulp-core`, działające pod TeaVM.
+- `Texture.upload(Pixmap)`: podmiana całej tekstury, także na inny rozmiar (sekcja 12.2).
+- `Camera`:
+  - podążanie z wygładzaniem, martwą strefą i wyprzedzeniem;
+  - granice, wstrząsy (`trauma`), `zoomTo`, `panTo`;
+  - viewport dla wielu kamer.
+- Przejścia `Transitions`: `fade`, `fadeColor`, `slide`, `circleWipe`, `pixelate`, `shader`. Silnik rejestruje `gulp:fade`, `gulp:slide`, `gulp:circle_wipe` i `gulp:pixelate`.
+- `GameAssets.Maps` z plików `maps/` (mapy jako klucze tekstowe, obrazy kafelków jako tekstury).
+- Przykłady:
+  - `examples/topdown`: nieskończony świat z szumu, brzegi z `Terrain`, drzewa do ścięcia kliknięciem, zoom;
+  - `examples/platformer`: dwa poziomy LDtk z paralaksą i monetami.
+- ADR 0011.
+
+#### Zmienione
+
+- `PauseMode` przeniesiono z `dev.gulp.api.audio` do `dev.gulp.api`.
+- `display().camera()` zwraca główną kamerę aktywnego świata; `mouseWorld` uwzględnia viewport kamery.
+- Spotless formatuje tylko `src/**/*.java`.
+
+#### Naprawione
+
+- Procesor adnotacji nie zapisywał indeksu, gdy w module był sam `@ModuleInfo` bez listenerów. Silnik zgłaszał wtedy brak deskryptora modułu.
+- Spotless przeglądał `build/` w trakcie równoległej kompilacji i losowo przerywał `check`.
+- `circleWipe` zostawiał szwy między trójkątami maski.
+
 ### Etap 5 — Input i audio
 
 #### Dodane

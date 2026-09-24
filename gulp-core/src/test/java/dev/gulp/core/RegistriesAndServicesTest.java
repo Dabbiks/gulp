@@ -25,7 +25,7 @@ class RegistriesAndServicesTest {
 
     record Item(Key key, int price) implements Keyed {}
 
-    record Enemy(Key key) implements EntityType {}
+    record Enemy(Key key) implements dev.gulp.api.registry.Keyed {}
 
     private HeadlessRunner runner;
 
@@ -44,7 +44,10 @@ class RegistriesAndServicesTest {
             Registry<Item> items = game.registries().create(game.key("items"), Item.class);
             items.register(game.key("sword"), new Item(game.key("sword"), 100));
             items.register(new Item(game.key("shield"), 50));
-            game.registries().register(Registries.ENTITY_TYPE, new Enemy(game.key("slime")));
+            game.registries()
+                    .register(
+                            Registries.ENTITY_TYPE,
+                            EntityType.builder(game.key("slime")).build());
             created.add(items);
         };
         runner = started(game);

@@ -2,14 +2,18 @@ package dev.gulp.core.graphics;
 
 import dev.gulp.api.asset.LoadingScreen;
 import dev.gulp.api.graphics.Color;
+import dev.gulp.api.graphics.Material;
 import dev.gulp.api.graphics.Pixmap;
 import dev.gulp.api.graphics.TextureFilter;
 import dev.gulp.api.math.Affine2;
+import dev.gulp.api.math.Rect;
 import dev.gulp.api.render.PostRenderEvent;
 import dev.gulp.api.render.PreRenderEvent;
 import dev.gulp.api.render.RenderLayer;
 import dev.gulp.api.render.RenderLayerEvent;
 import dev.gulp.api.render.StretchMode;
+import dev.gulp.api.ui.Transition;
+import dev.gulp.api.ui.TransitionFrame;
 import dev.gulp.core.asset.AssetsImpl;
 import dev.gulp.core.event.EventBus;
 import dev.gulp.core.scheduler.PromiseImpl;
@@ -34,6 +38,9 @@ public final class Renderer {
     private final DrawImpl draw;
     private final Affine2 projection = new Affine2();
     private @Nullable FrameBufferImpl offscreen;
+    private @Nullable FrameBufferImpl captureBuffer;
+    private @Nullable WorldView worldView;
+    private boolean transitionErrorLogged;
     private @Nullable LoadingScreen loadingScreen;
     private float loadingProgress;
 
@@ -158,14 +165,92 @@ public final class Renderer {
         gl.disable(Gl.SCISSOR_TEST);
 
         float screenPixel = lw / tw;
-        CameraImpl camera = display.cameraImpl();
-        float unitScale = camera.unitScale();
         boolean snap = display.isPixelSnap();
         boolean layerListeners = running && events.hasListeners(RenderLayerEvent.class);
+        WorldView view = running ? worldView : null;
+        Transition transition = view != null ? view.transition() : null;
+        int drawFramebuffer = targetFramebuffer;
+        int drawHeight = targetHeight;
+        int dx = tx;
+        int dy = ty;
+        FrameBufferImpl captured = null;
+        if (transition != null && transition.needsFrame()) {
+            captured = capture(tw, th);
+            drawFramebuffer = captured.handle();
+            drawHeight = th;
+            dx = 0;
+            dy = 0;
+            gl.bindFramebuffer(Gl.FRAMEBUFFER, drawFramebuffer);
+            gl.viewport(0, 0, tw, th);
+            gl.clearColor(
+                    clearColor.r() * clearColor.a(),
+                    clearColor.g() * clearColor.a(),
+                    clearColor.b() * clearColor.a(),
+                    clearColor.a());
+            gl.clear(Gl.COLOR_BUFFER_BIT);
+        }
+        List<RenderLayer> worldLayers = view != null ? view.worldLayers() : null;
+        if (worldLayers != null) {
+            List<CameraImpl> cameras = view.cameras();
+            for (int c = 0; c < cameras.size(); c++) {
+                CameraImpl camera = cameras.get(c);
+                Rect area = camera.viewport();
+                int sx = dx + Math.round(area.x() * tw);
+                int sy = dy + Math.round(area.y() * th);
+                int sw = Math.max(1, Math.round(area.width() * tw));
+                int sh = Math.max(1, Math.round(area.height() * th));
+                float cw = lw * area.width();
+                float ch = lh * area.height();
+                camera.resize(cw, ch);
+                float cameraPixel = cw / sw;
+                float worldPixel = cameraPixel / camera.unitScale();
+                for (int i = 0; i < worldLayers.size(); i++) {
+                    RenderLayer layer = worldLayers.get(i);
+                    if (!layer.isVisible()) {
+                        continue;
+                    }
+                    camera.projection(
+                            projection, layer.parallax().x(), layer.parallax().y());
+                    draw.begin(
+                            projection,
+                            worldPixel,
+                            1f / display.pixelsPerUnit(),
+                            snap ? worldPixel : 0f,
+                            sx,
+                            sy,
+                            sw,
+                            sh,
+                            drawHeight,
+                            drawFramebuffer);
+                    draw.material(layer.material());
+                    view.drawLayer(draw, layer, camera, alpha);
+                    if (layerListeners) {
+                        events.call(new RenderLayerEvent(draw, layer, alpha));
+                    }
+                    draw.flush();
+                }
+                screenProjection(cw, ch);
+                draw.begin(
+                        projection,
+                        cameraPixel,
+                        1f,
+                        snap ? cameraPixel : 0f,
+                        sx,
+                        sy,
+                        sw,
+                        sh,
+                        drawHeight,
+                        drawFramebuffer);
+                view.drawOverlay(draw, camera, alpha);
+                draw.flush();
+            }
+        }
+        CameraImpl camera = display.cameraImpl();
+        float unitScale = camera.unitScale();
         List<RenderLayer> layers = display.layers();
         for (int i = 0; i < layers.size(); i++) {
             RenderLayer layer = layers.get(i);
-            if (!layer.isVisible() || !layerListeners) {
+            if (!layer.isVisible() || !layerListeners || (worldLayers != null && !layer.isScreenSpace())) {
                 continue;
             }
             if (layer.isScreenSpace()) {
@@ -175,12 +260,12 @@ public final class Renderer {
                         screenPixel,
                         1f,
                         snap ? screenPixel : 0f,
-                        tx,
-                        ty,
+                        dx,
+                        dy,
                         tw,
                         th,
-                        targetHeight,
-                        targetFramebuffer);
+                        drawHeight,
+                        drawFramebuffer);
             } else {
                 camera.projection(
                         projection, layer.parallax().x(), layer.parallax().y());
@@ -190,12 +275,12 @@ public final class Renderer {
                         worldPixel,
                         1f / display.pixelsPerUnit(),
                         snap ? worldPixel : 0f,
-                        tx,
-                        ty,
+                        dx,
+                        dy,
                         tw,
                         th,
-                        targetHeight,
-                        targetFramebuffer);
+                        drawHeight,
+                        drawFramebuffer);
             }
             draw.material(layer.material());
             events.call(new RenderLayerEvent(draw, layer, alpha));
@@ -204,17 +289,29 @@ public final class Renderer {
         if (running && events.hasListeners(PostRenderEvent.class)) {
             screenProjection(lw, lh);
             draw.begin(
-                    projection,
-                    screenPixel,
-                    1f,
-                    snap ? screenPixel : 0f,
-                    tx,
-                    ty,
-                    tw,
-                    th,
-                    targetHeight,
-                    targetFramebuffer);
+                    projection, screenPixel, 1f, snap ? screenPixel : 0f, dx, dy, tw, th, drawHeight, drawFramebuffer);
             events.call(new PostRenderEvent(draw));
+            draw.flush();
+        }
+        if (transition != null && view != null) {
+            screenProjection(lw, lh);
+            if (captured != null) {
+                gl.bindFramebuffer(Gl.FRAMEBUFFER, targetFramebuffer);
+                gl.viewport(tx, targetHeight - ty - th, tw, th);
+                draw.begin(projection, screenPixel, 1f, 0f, tx, ty, tw, th, targetHeight, targetFramebuffer);
+                draw.image(captured.region(), 0, 0, lw, lh);
+            } else {
+                draw.begin(projection, screenPixel, 1f, 0f, tx, ty, tw, th, targetHeight, targetFramebuffer);
+            }
+            try {
+                transition.draw(
+                        draw,
+                        new TransitionFrame(
+                                lw, lh, view.coverage(), view.entering(), captured != null ? captured.region() : null));
+            } catch (RuntimeException error) {
+                transitionFailed(error);
+            }
+            draw.material(Material.DEFAULT);
             draw.flush();
         }
 
@@ -246,6 +343,34 @@ public final class Renderer {
 
     private void screenProjection(float lw, float lh) {
         projection.identity().scale(2f / lw, -2f / lh).translate(-lw / 2f, -lh / 2f);
+    }
+
+    private FrameBufferImpl capture(int width, int height) {
+        FrameBufferImpl buffer = captureBuffer;
+        if (buffer == null || buffer.width() != width || buffer.height() != height) {
+            if (buffer != null) {
+                buffer.dispose();
+            }
+            buffer = new FrameBufferImpl(gl, width, height, false, TextureFilter.LINEAR);
+            captureBuffer = buffer;
+        }
+        return buffer;
+    }
+
+    private void transitionFailed(RuntimeException error) {
+        if (!transitionErrorLogged) {
+            transitionErrorLogged = true;
+            System.err.println("A transition failed to draw: " + error);
+        }
+    }
+
+    /**
+     * Connects the worlds, whose active world is drawn through its own layers and cameras.
+     *
+     * @param view the worlds, or {@code null}
+     */
+    public void setWorldView(@Nullable WorldView view) {
+        this.worldView = view;
     }
 
     private FrameBufferImpl offscreen(int width, int height) {
@@ -309,6 +434,10 @@ public final class Renderer {
         if (offscreen != null) {
             offscreen.dispose();
             offscreen = null;
+        }
+        if (captureBuffer != null) {
+            captureBuffer.dispose();
+            captureBuffer = null;
         }
     }
 }
