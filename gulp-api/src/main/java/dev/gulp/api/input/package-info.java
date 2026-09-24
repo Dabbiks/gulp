@@ -1,8 +1,11 @@
 /**
- * Input: actions, bindings and devices (stage 5).
+ * Input: device-independent actions with rebindable bindings, and direct access to the keyboard, mouse, touch,
+ * gamepads, cursor and clipboard.
  *
  * <pre>{@code
- * InputAction jump = registries().get(Registries.INPUT_ACTION).getOrThrow(key("jump"));
+ * JUMP = registries().register(Registries.INPUT_ACTION, InputAction.builder(key("jump"))
+ *         .bind(Keys.SPACE, GamepadButton.SOUTH).build());
+ * if (input().justPressed(JUMP)) { jump(); }
  * }</pre>
  */
 @NullMarked

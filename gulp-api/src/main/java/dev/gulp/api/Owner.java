@@ -1,9 +1,11 @@
 package dev.gulp.api;
 
 import dev.gulp.api.asset.Assets;
+import dev.gulp.api.audio.Audio;
 import dev.gulp.api.command.CommandExecutor;
 import dev.gulp.api.command.Commands;
 import dev.gulp.api.data.Config;
+import dev.gulp.api.data.Preferences;
 import dev.gulp.api.event.Event;
 import dev.gulp.api.event.EventPriority;
 import dev.gulp.api.event.Events;
@@ -11,6 +13,7 @@ import dev.gulp.api.event.Listener;
 import dev.gulp.api.event.Subscription;
 import dev.gulp.api.graphics.Graphics;
 import dev.gulp.api.i18n.Translations;
+import dev.gulp.api.input.Input;
 import dev.gulp.api.module.ModuleManager;
 import dev.gulp.api.registry.Key;
 import dev.gulp.api.registry.Registries;
@@ -165,6 +168,33 @@ public interface Owner {
      */
     default Translations translations() {
         return engine().translations();
+    }
+
+    /**
+     * Returns player input.
+     *
+     * @return the input
+     */
+    default Input input() {
+        return engine().input();
+    }
+
+    /**
+     * Returns sound and music.
+     *
+     * @return the audio
+     */
+    default Audio audio() {
+        return engine().audio();
+    }
+
+    /**
+     * Returns the settings store.
+     *
+     * @return the preferences
+     */
+    default Preferences preferences() {
+        return engine().preferences();
     }
 
     /**

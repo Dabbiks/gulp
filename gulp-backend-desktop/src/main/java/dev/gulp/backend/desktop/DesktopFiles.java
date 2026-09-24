@@ -171,19 +171,32 @@ public final class DesktopFiles implements PlatformFiles {
         });
     }
 
+    private final java.util.Map<String, Object> writeLocks = new java.util.concurrent.ConcurrentHashMap<>();
+    private final java.util.Map<String, Long> writtenSequence = new java.util.concurrent.ConcurrentHashMap<>();
+    private final java.util.concurrent.atomic.AtomicLong writeSequence = new java.util.concurrent.atomic.AtomicLong();
+
     @Override
     public void writeUserData(String name, ByteBuffer data, PlatformCallback<Void> callback) {
         byte[] bytes = new byte[data.remaining()];
         data.duplicate().get(bytes);
+        // Writes run on parallel virtual threads: writes of one file are serialised, and a write that was requested
+        // earlier than the one already on disk is dropped, so the last requested contents always win.
+        long sequence = writeSequence.incrementAndGet();
         async(callback, () -> {
-            Path file = dataDirectory.resolve(requireRelative(name));
-            Files.createDirectories(file.getParent());
-            Path temporary = file.resolveSibling(file.getFileName() + ".tmp");
-            Files.write(temporary, bytes);
-            try {
-                Files.move(temporary, file, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
-            } catch (AtomicMoveNotSupportedException e) {
-                Files.move(temporary, file, StandardCopyOption.REPLACE_EXISTING);
+            synchronized (writeLocks.computeIfAbsent(name, n -> new Object())) {
+                if (writtenSequence.getOrDefault(name, 0L) > sequence) {
+                    return null;
+                }
+                Path file = dataDirectory.resolve(requireRelative(name));
+                Files.createDirectories(file.getParent());
+                Path temporary = file.resolveSibling(file.getFileName() + ".tmp");
+                Files.write(temporary, bytes);
+                try {
+                    Files.move(temporary, file, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
+                } catch (AtomicMoveNotSupportedException e) {
+                    Files.move(temporary, file, StandardCopyOption.REPLACE_EXISTING);
+                }
+                writtenSequence.put(name, sequence);
             }
             return null;
         });

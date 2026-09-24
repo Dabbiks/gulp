@@ -42,7 +42,7 @@ final class TextDemoModule extends GameModule {
         pixel = assets().get(GameAssets.Fonts.PIXEL);
         dynamic = assets().get(GameAssets.Fonts.FIRA_BOLD);
         on(RenderLayerEvent.class, e -> {
-            if (e.layer().name().equals("overlay")) {
+            if (e.layer().name().equals("overlay") && ShowcaseGame.screen() == 0) {
                 draw(e.draw());
             }
         });

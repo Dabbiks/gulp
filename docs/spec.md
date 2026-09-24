@@ -2067,12 +2067,12 @@ Trzynaście etapów od pustego repozytorium do wersji 1.0, wykonywanych po kolei
 
 ### Etap 5 — Input i audio
 
-- [ ] Stany per tick, eventy wejścia, rejestr akcji, `ActionSet`, `axis`, `vector`, martwe strefy.
-- [ ] Zmiana przypisań, przechwytywanie, podstawowe `Preferences` do ich zapisu, ikony przypisań.
-- [ ] Kursory i tryby, schowek, tekst z IME, dotyk i gesty (web).
-- [ ] Gamepady: desktop (GLFW + mapowania), web (Gamepad API), podłączanie w locie, wibracje gdzie możliwe.
-- [ ] Audio desktop (OpenAL): głosy, szyny, warianty i limity dźwięków, dźwięk pozycyjny, muzyka strumieniowana z punktami pętli, crossfade, filtry.
-- [ ] Audio web (WebAudio) z tym samym zakresem i odblokowaniem po geście; strumień PCM.
+- [x] Stany per tick, eventy wejścia, rejestr akcji, `ActionSet`, `axis`, `vector`, martwe strefy.
+- [x] Zmiana przypisań, przechwytywanie, podstawowe `Preferences` do ich zapisu, ikony przypisań.
+- [x] Kursory i tryby, schowek, tekst z IME, dotyk i gesty (web).
+- [x] Gamepady: desktop (GLFW + mapowania), web (Gamepad API), podłączanie w locie, wibracje gdzie możliwe.
+- [x] Audio desktop (OpenAL): głosy, szyny, warianty i limity dźwięków, dźwięk pozycyjny, muzyka strumieniowana z punktami pętli, crossfade, filtry.
+- [x] Audio web (WebAudio) z tym samym zakresem i odblokowaniem po geście; strumień PCM.
 - [ ] **Kamień milowy:** ekran input/audio w showcase działa z klawiaturą, myszą i padem na obu platformach; zmienione przypisania przetrwają restart.
 
 ### Etap 6 — Świat i encje

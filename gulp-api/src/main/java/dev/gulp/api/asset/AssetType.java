@@ -1,5 +1,7 @@
 package dev.gulp.api.asset;
 
+import dev.gulp.api.audio.AudioClip;
+import dev.gulp.api.audio.Music;
 import dev.gulp.api.graphics.Pixmap;
 import dev.gulp.api.graphics.Texture;
 import dev.gulp.api.graphics.TextureAtlas;
@@ -49,6 +51,12 @@ public final class AssetType<T> {
      * {@code player/idle_0} of atlas {@code coins:sprites}, which is loaded with it.
      */
     public static final AssetType<TextureRegion> REGION = new AssetType<>("region", List.of());
+
+    /** A short sound decoded into memory: OGG Vorbis or WAV. */
+    public static final AssetType<AudioClip> AUDIO = new AssetType<>("audio", List.of("ogg", "wav"));
+
+    /** A music track streamed while it plays: OGG Vorbis or WAV. */
+    public static final AssetType<Music> MUSIC = new AssetType<>("music", List.of("ogg", "wav"));
 
     private final String name;
     private final List<String> extensions;

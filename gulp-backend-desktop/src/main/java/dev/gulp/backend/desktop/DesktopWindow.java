@@ -7,9 +7,11 @@ import dev.gulp.platform.CursorMode;
 import dev.gulp.platform.DecodedImage;
 import dev.gulp.platform.PlatformWindow;
 import dev.gulp.platform.WindowListener;
+import java.nio.ByteBuffer;
 import org.jspecify.annotations.Nullable;
 import org.lwjgl.glfw.GLFWImage;
 import org.lwjgl.glfw.GLFWVidMode;
+import org.lwjgl.system.MemoryStack;
 
 /**
  * GLFW window. Logical size is the framebuffer size divided by the content scale, which gives points on macOS and
@@ -21,7 +23,21 @@ import org.lwjgl.glfw.GLFWVidMode;
  */
 public final class DesktopWindow implements PlatformWindow {
 
+    /** Platform cursor shape number -> GLFW standard cursor. */
+    private static final int[] SHAPES = {
+        GLFW_ARROW_CURSOR,
+        GLFW_POINTING_HAND_CURSOR,
+        GLFW_IBEAM_CURSOR,
+        GLFW_CROSSHAIR_CURSOR,
+        GLFW_RESIZE_EW_CURSOR,
+        GLFW_RESIZE_NS_CURSOR,
+        GLFW_RESIZE_ALL_CURSOR,
+        GLFW_NOT_ALLOWED_CURSOR
+    };
+
     private final long handle;
+    private final long[] systemCursors = new long[SHAPES.length];
+    private long customCursor = NULL;
     private final int[] intA = new int[1];
     private final int[] intB = new int[1];
     private final float[] floatA = new float[1];
@@ -184,6 +200,42 @@ public final class DesktopWindow implements PlatformWindow {
                     case CAPTURED -> GLFW_CURSOR_DISABLED;
                 };
         glfwSetInputMode(handle, GLFW_CURSOR, value);
+    }
+
+    @Override
+    public void setSystemCursor(int shape) {
+        if (shape < 0 || shape >= SHAPES.length) {
+            return;
+        }
+        if (systemCursors[shape] == NULL) {
+            systemCursors[shape] = glfwCreateStandardCursor(SHAPES[shape]);
+        }
+        glfwSetCursor(handle, systemCursors[shape]);
+        destroyCustomCursor();
+    }
+
+    @Override
+    public void setCustomCursor(DecodedImage image, int hotX, int hotY) {
+        try (MemoryStack stack = MemoryStack.stackPush()) {
+            ByteBuffer pixels = image.pixels();
+            if (!pixels.isDirect()) {
+                ByteBuffer copy = stack.malloc(pixels.remaining());
+                copy.put(pixels.duplicate()).flip();
+                pixels = copy;
+            }
+            GLFWImage glfwImage = GLFWImage.malloc(stack).set(image.width(), image.height(), pixels);
+            long cursor = glfwCreateCursor(glfwImage, hotX, hotY);
+            glfwSetCursor(handle, cursor);
+            destroyCustomCursor();
+            customCursor = cursor;
+        }
+    }
+
+    private void destroyCustomCursor() {
+        if (customCursor != NULL) {
+            glfwDestroyCursor(customCursor);
+            customCursor = NULL;
+        }
     }
 
     @Override

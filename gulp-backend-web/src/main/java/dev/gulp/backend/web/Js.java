@@ -7,6 +7,7 @@ import org.teavm.jso.JSObject;
 import org.teavm.jso.typedarrays.ArrayBuffer;
 import org.teavm.jso.typedarrays.ArrayBufferView;
 import org.teavm.jso.typedarrays.Float32Array;
+import org.teavm.jso.typedarrays.Int16Array;
 import org.teavm.jso.typedarrays.Int8Array;
 import org.teavm.jso.webgl.WebGL2RenderingContext;
 
@@ -264,4 +265,156 @@ final class Js {
 
     @JSBody(script = "return window.gulp.lastGlyph.data;")
     static native Int8Array lastGlyphData();
+
+    /** Decoded audio: channels, rate and interleaved samples. */
+    @JSFunctor
+    interface AudioCallback extends JSObject {
+        void call(int channels, int sampleRate, Int16Array samples);
+    }
+
+    /** An opened stream: id, channels, rate and length in frames. */
+    @JSFunctor
+    interface StreamCallback extends JSObject {
+        void call(int id, int channels, int sampleRate, double frames);
+    }
+
+    @JSBody(params = "shape", script = "window.gulp.setSystemCursor(shape);")
+    static native void setSystemCursor(int shape);
+
+    @JSBody(
+            params = {"width", "height", "rgba", "hotX", "hotY"},
+            script = "window.gulp.setCustomCursor(width, height, rgba, hotX, hotY);")
+    static native void setCustomCursor(int width, int height, Int8Array rgba, int hotX, int hotY);
+
+    @JSBody(
+            params = {"active", "x", "y", "width", "height"},
+            script = "window.gulp.setTextInput(active, x, y, width, height);")
+    static native void setTextInput(boolean active, float x, float y, float width, float height);
+
+    @JSBody(script = "window.gulp.pollPads();")
+    static native void pollPads();
+
+    @JSBody(params = "i", script = "return window.gulp.padConnected(i);")
+    static native boolean padConnected(int i);
+
+    @JSBody(params = "i", script = "return window.gulp.padName(i);")
+    static native String padName(int i);
+
+    @JSBody(
+            params = {"i", "axis"},
+            script = "return window.gulp.padAxis(i, axis);")
+    static native double padAxis(int i, int axis);
+
+    @JSBody(
+            params = {"i", "button"},
+            script = "return window.gulp.padButton(i, button);")
+    static native boolean padButton(int i, int button);
+
+    @JSBody(params = "i", script = "return window.gulp.padRumbles(i);")
+    static native boolean padRumbles(int i);
+
+    @JSBody(
+            params = {"i", "weak", "strong", "millis"},
+            script = "return window.gulp.padRumble(i, weak, strong, millis);")
+    static native boolean padRumble(int i, float weak, float strong, int millis);
+
+    @JSBody(params = "ok", script = "window.gulp.readClipboard(ok);")
+    static native void readClipboard(StringCallback ok);
+
+    @JSBody(params = "text", script = "window.gulp.writeClipboard(text);")
+    static native void writeClipboard(String text);
+
+    @JSBody(params = "count", script = "return window.gulp.audioInit(count);")
+    static native boolean audioInit(int count);
+
+    @JSBody(script = "return window.gulp.audioUnlocked();")
+    static native boolean audioUnlocked();
+
+    @JSBody(
+            params = {"samples", "channels", "rate"},
+            script = "return window.gulp.audioBuffer(samples, channels, rate);")
+    static native int audioBuffer(Int16Array samples, int channels, int rate);
+
+    @JSBody(params = "id", script = "window.gulp.deleteAudioBuffer(id);")
+    static native void deleteAudioBuffer(int id);
+
+    @JSBody(
+            params = {"i", "id", "loop"},
+            script = "window.gulp.voicePlay(i, id, loop);")
+    static native void voicePlay(int voice, int buffer, boolean loop);
+
+    @JSBody(
+            params = {"i", "id"},
+            script = "window.gulp.voiceQueue(i, id);")
+    static native void voiceQueue(int voice, int buffer);
+
+    @JSBody(params = "i", script = "return window.gulp.voiceUnqueue(i);")
+    static native int voiceUnqueue(int voice);
+
+    @JSBody(
+            params = {"i", "paused"},
+            script = "window.gulp.voicePause(i, paused);")
+    static native void voicePause(int voice, boolean paused);
+
+    @JSBody(
+            params = {"i", "loop"},
+            script = "window.gulp.voiceLooping(i, loop);")
+    static native void voiceLooping(int voice, boolean loop);
+
+    @JSBody(params = "i", script = "window.gulp.voiceStop(i);")
+    static native void voiceStop(int voice);
+
+    @JSBody(params = "i", script = "return window.gulp.voicePlaying(i);")
+    static native boolean voicePlaying(int voice);
+
+    @JSBody(
+            params = {"i", "value"},
+            script = "window.gulp.voiceGain(i, value);")
+    static native void voiceGain(int voice, float value);
+
+    @JSBody(
+            params = {"i", "value"},
+            script = "window.gulp.voicePitch(i, value);")
+    static native void voicePitch(int voice, float value);
+
+    @JSBody(
+            params = {"i", "value"},
+            script = "window.gulp.voicePan(i, value);")
+    static native void voicePan(int voice, float value);
+
+    @JSBody(
+            params = {"i", "low", "high"},
+            script = "window.gulp.voiceFilter(i, low, high);")
+    static native void voiceFilter(int voice, float low, float high);
+
+    @JSBody(
+            params = {"i", "value"},
+            script = "window.gulp.voiceReverb(i, value);")
+    static native void voiceReverb(int voice, float value);
+
+    @JSBody(params = "value", script = "window.gulp.masterGain(value);")
+    static native void masterGain(float value);
+
+    @JSBody(
+            params = {"bytes", "ok", "fail"},
+            script = "window.gulp.decodeAudio(bytes, ok, fail);")
+    static native void decodeAudio(Int8Array bytes, AudioCallback ok, StringCallback fail);
+
+    @JSBody(
+            params = {"bytes", "ok", "fail"},
+            script = "window.gulp.openStream(bytes, ok, fail);")
+    static native void openStream(Int8Array bytes, StreamCallback ok, StringCallback fail);
+
+    @JSBody(
+            params = {"id", "frames"},
+            script = "return window.gulp.streamRead(id, frames);")
+    static native Int16Array streamRead(int id, int frames);
+
+    @JSBody(
+            params = {"id", "frame"},
+            script = "window.gulp.streamSeek(id, frame);")
+    static native void streamSeek(int id, double frame);
+
+    @JSBody(params = "id", script = "window.gulp.streamClose(id);")
+    static native void streamClose(int id);
 }

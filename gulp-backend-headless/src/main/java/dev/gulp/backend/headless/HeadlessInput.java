@@ -30,6 +30,7 @@ public final class HeadlessInput implements PlatformInput {
     private @Nullable InputListener listener;
     private String clipboard = "";
     private int rumbleCount;
+    private boolean textInput;
 
     HeadlessInput() {}
 
@@ -138,6 +139,25 @@ public final class HeadlessInput implements PlatformInput {
         }
         rumbleCount++;
         return true;
+    }
+
+    @Override
+    public boolean supportsRumble(int index) {
+        return isGamepadConnected(index);
+    }
+
+    @Override
+    public void setTextInput(boolean active, float x, float y, float width, float height) {
+        textInput = active;
+    }
+
+    /**
+     * Returns whether text entry is active, as the on-screen keyboard would show.
+     *
+     * @return {@code true} while active
+     */
+    public boolean isTextInputActive() {
+        return textInput;
     }
 
     @Override

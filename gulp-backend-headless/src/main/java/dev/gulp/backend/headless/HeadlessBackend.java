@@ -48,6 +48,7 @@ public final class HeadlessBackend implements PlatformBackend {
         for (int pending = mainQueue.size(); pending > 0; pending--) {
             mainQueue.removeFirst().run();
         }
+        audio.advance(loop.frameNanos() / 1e9);
         input.deliverQueued();
         console.deliverTyped();
     }

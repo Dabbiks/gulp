@@ -1,5 +1,7 @@
 package dev.gulp.api.asset;
 
+import dev.gulp.api.audio.AudioClip;
+import dev.gulp.api.audio.Music;
 import dev.gulp.api.graphics.Pixmap;
 import dev.gulp.api.graphics.Texture;
 import dev.gulp.api.graphics.TextureAtlas;
@@ -102,6 +104,26 @@ public record AssetKey<T>(Key key, AssetType<T> type) {
      */
     public static AssetKey<TextureRegion> region(String key) {
         return of(AssetType.REGION, key);
+    }
+
+    /**
+     * Creates a key for a short sound decoded into memory.
+     *
+     * @param key {@code namespace:path}, for example {@code coins:sounds/pickup}
+     * @return the key
+     */
+    public static AssetKey<AudioClip> audio(String key) {
+        return of(AssetType.AUDIO, key);
+    }
+
+    /**
+     * Creates a key for a streamed music track.
+     *
+     * @param key {@code namespace:path}, for example {@code coins:music/theme}
+     * @return the key
+     */
+    public static AssetKey<Music> music(String key) {
+        return of(AssetType.MUSIC, key);
     }
 
     @Override

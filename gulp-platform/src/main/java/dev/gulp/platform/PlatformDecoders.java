@@ -32,6 +32,14 @@ public interface PlatformDecoders {
     void decodeAudio(ByteBuffer encoded, PlatformCallback<DecodedAudio> callback);
 
     /**
+     * Opens OGG Vorbis or WAV data for decoding in pieces, for music.
+     *
+     * @param encoded the file contents; the stream keeps a reference until closed
+     * @param callback receives the stream on the main thread
+     */
+    void openAudioStream(ByteBuffer encoded, PlatformCallback<PlatformAudioStream> callback);
+
+    /**
      * Opens a font file for runtime glyph rasterisation. Asynchronous because browsers load fonts in the background.
      *
      * @param fontFile TTF or OTF bytes; the backend copies what it needs

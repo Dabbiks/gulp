@@ -1,8 +1,9 @@
 /**
- * Audio: sounds, music and buses (stage 5).
+ * Audio: sound effects from the {@code SOUND} registry, streamed music, volume buses and procedural PCM.
  *
  * <pre>{@code
- * Sound pickup = registries().get(Registries.SOUND).getOrThrow(key("pickup"));
+ * audio().play(PICKUP);
+ * audio().music().play(GameAssets.Music.THEME, 2f);
  * }</pre>
  */
 @NullMarked

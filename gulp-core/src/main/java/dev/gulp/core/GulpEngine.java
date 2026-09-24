@@ -7,10 +7,14 @@ import dev.gulp.api.LogLevel;
 import dev.gulp.api.Logger;
 import dev.gulp.api.Owner;
 import dev.gulp.api.Platform;
+import dev.gulp.api.asset.AssetGroup;
 import dev.gulp.api.asset.AssetKey;
 import dev.gulp.api.asset.Assets;
+import dev.gulp.api.audio.Audio;
+import dev.gulp.api.audio.AudioClip;
 import dev.gulp.api.command.Commands;
 import dev.gulp.api.data.Config;
+import dev.gulp.api.data.Preferences;
 import dev.gulp.api.event.Events;
 import dev.gulp.api.event.lifecycle.FocusGainedEvent;
 import dev.gulp.api.event.lifecycle.FocusLostEvent;
@@ -24,6 +28,7 @@ import dev.gulp.api.event.lifecycle.WindowResizeEvent;
 import dev.gulp.api.graphics.Graphics;
 import dev.gulp.api.graphics.TextureRegion;
 import dev.gulp.api.i18n.Translations;
+import dev.gulp.api.input.Input;
 import dev.gulp.api.module.GameModule;
 import dev.gulp.api.module.ModuleManager;
 import dev.gulp.api.registry.Key;
@@ -36,15 +41,18 @@ import dev.gulp.api.spi.EngineBinding;
 import dev.gulp.api.text.Font;
 import dev.gulp.api.text.FontFamily;
 import dev.gulp.core.asset.AssetsImpl;
+import dev.gulp.core.audio.AudioImpl;
 import dev.gulp.core.command.BuiltinCommands;
 import dev.gulp.core.command.CommandsImpl;
 import dev.gulp.core.command.ConsoleImpl;
 import dev.gulp.core.data.ConfigImpl;
+import dev.gulp.core.data.PreferencesImpl;
 import dev.gulp.core.event.EventBus;
 import dev.gulp.core.graphics.DisplayImpl;
 import dev.gulp.core.graphics.GraphicsImpl;
 import dev.gulp.core.graphics.Renderer;
 import dev.gulp.core.i18n.TranslationsImpl;
+import dev.gulp.core.input.InputImpl;
 import dev.gulp.core.log.LoggerImpl;
 import dev.gulp.core.module.ModuleManagerImpl;
 import dev.gulp.core.registry.RegistriesImpl;
@@ -126,6 +134,9 @@ public final class GulpEngine implements Engine, FrameHandler, CoreContext {
     private final AssetsImpl assets;
     private final TranslationsImpl translations;
     private final TextSystem textSystem;
+    private final PreferencesImpl preferences;
+    private final InputImpl input;
+    private final AudioImpl audio;
     private final long tickNanos;
 
     private @Nullable Thread mainThread;
@@ -137,6 +148,7 @@ public final class GulpEngine implements Engine, FrameHandler, CoreContext {
     private @Nullable Promise<Void> startup;
     private @Nullable Throwable startupError;
     private long firstFrameNanos;
+    private long lastAudioNanos;
 
     private boolean paused;
     private float timeScale = 1f;
@@ -231,6 +243,22 @@ public final class GulpEngine implements Engine, FrameHandler, CoreContext {
         renderer.draw().setTextSystem(textSystem);
         assets.setReloadListener(textSystem::invalidate);
         assets.setPackFolders(development && !backend.info().isWeb());
+        this.preferences = new PreferencesImpl(backend.files(), engineLogger);
+        this.input = new InputImpl(
+                backend.input(),
+                backend.window(),
+                events,
+                preferences,
+                graphics::readRegion,
+                () -> new PromiseImpl<>(game, this, mainQueue));
+        this.audio = new AudioImpl(
+                backend.audio(),
+                assets,
+                events,
+                preferences,
+                () -> display.camera().position(),
+                engineLogger);
+        audio.registerLoaders(backend.decoders());
         // Size and camera bounds are valid before the first frame, so onLoad and onEnable can use them.
         PlatformWindow window = backend.window();
         display.update(
@@ -322,6 +350,11 @@ public final class GulpEngine implements Engine, FrameHandler, CoreContext {
         assets.loadManifest(() -> pendingConfigs--);
         assets.loadResourcePacks(() -> pendingConfigs--);
         translations.load(() -> pendingConfigs--);
+        pendingConfigs++;
+        preferences.load(() -> {
+            audio.loadSettings();
+            pendingConfigs--;
+        });
         // The built-in font loads with the configs; without it (tests without assets) text is skipped with a warning.
         pendingConfigs++;
         assets.load(AssetKey.font(DEFAULT_FONT))
@@ -346,6 +379,7 @@ public final class GulpEngine implements Engine, FrameHandler, CoreContext {
     public boolean frame(long nanoTime) {
         frameCount++;
         mainQueue.drain(error -> engineLogger.error("Unhandled exception in main-thread work", error));
+        input.frame(nanoTime);
         if (phase == Phase.LOADING && pendingConfigs == 0 && !stopRequested) {
             try {
                 if (!gameLoaded) {
@@ -370,6 +404,10 @@ public final class GulpEngine implements Engine, FrameHandler, CoreContext {
         if (phase == Phase.RUNNING && !stopRequested) {
             advance(nanoTime);
         }
+        float audioSeconds = lastAudioNanos == 0L ? 0f : (nanoTime - lastAudioNanos) / 1e9f;
+        lastAudioNanos = nanoTime;
+        audio.update(Math.max(0f, Math.min(audioSeconds, 0.25f)), paused);
+        preferences.update(nanoTime);
         render(nanoTime);
         return !stopRequested && !backend.window().shouldClose();
     }
@@ -379,6 +417,12 @@ public final class GulpEngine implements Engine, FrameHandler, CoreContext {
         game.onLoad();
         modules.loadAll();
         registries.freeze();
+        input.registerActions(registries.get(Registries.INPUT_ACTION).values());
+        AssetGroup startupGroup = assets.startup();
+        for (AssetKey<AudioClip> file :
+                AudioImpl.filesOf(registries.get(Registries.SOUND).values())) {
+            startupGroup.add(file);
+        }
         // onStart waits for the startup group; the renderer shows the loading screen meanwhile.
         Promise<Void> startupAssets = assets.loadGroup(Assets.STARTUP);
         startupAssets.onFailure(error -> startupError = error);
@@ -389,6 +433,7 @@ public final class GulpEngine implements Engine, FrameHandler, CoreContext {
         startup = null;
         game.onStart();
         phase = Phase.RUNNING;
+        input.setRunning(true);
         modules.enableDefaults();
         lastFrameNanos = nanoTime;
         tpsWindowStart = nanoTime;
@@ -409,6 +454,9 @@ public final class GulpEngine implements Engine, FrameHandler, CoreContext {
         while (realAccumulator >= tickNanos && ran < MAX_CATCH_UP_TICKS) {
             realAccumulator -= tickNanos;
             realTick++;
+            if (paused) {
+                input.tick();
+            }
             scheduler.tickRealtime();
             ran++;
         }
@@ -441,6 +489,7 @@ public final class GulpEngine implements Engine, FrameHandler, CoreContext {
     private void gameTick() {
         tick++;
         tpsTicks++;
+        input.tick();
         if (events.hasListeners(TickStartEvent.class)) {
             events.call(new TickStartEvent(tick));
         }
@@ -491,6 +540,10 @@ public final class GulpEngine implements Engine, FrameHandler, CoreContext {
             }
             cleanup(engineOwner);
         } finally {
+            input.setRunning(false);
+            input.dispose();
+            audio.dispose();
+            preferences.flush();
             assets.clear();
             try {
                 renderer.dispose();
@@ -603,6 +656,21 @@ public final class GulpEngine implements Engine, FrameHandler, CoreContext {
     @Override
     public Translations translations() {
         return translations;
+    }
+
+    @Override
+    public Input input() {
+        return input;
+    }
+
+    @Override
+    public Audio audio() {
+        return audio;
+    }
+
+    @Override
+    public Preferences preferences() {
+        return preferences;
     }
 
     /** Hot reload: assets, configs and translations whose files changed. */
@@ -820,6 +888,9 @@ public final class GulpEngine implements Engine, FrameHandler, CoreContext {
 
         @Override
         public void focusChanged(boolean focused) {
+            if (!focused) {
+                input.releaseAll();
+            }
             if (phase == Phase.RUNNING) {
                 events.call(focused ? new FocusGainedEvent() : new FocusLostEvent());
             }

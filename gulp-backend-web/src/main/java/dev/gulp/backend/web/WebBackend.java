@@ -4,6 +4,7 @@ import dev.gulp.api.data.JsonObject;
 import dev.gulp.api.data.JsonValue;
 import dev.gulp.core.GeneratedModules;
 import dev.gulp.core.MainQueue;
+import dev.gulp.core.audio.WavDecoder;
 import dev.gulp.core.data.JsonReader;
 import dev.gulp.platform.CursorMode;
 import dev.gulp.platform.DecodedAudio;
@@ -12,6 +13,7 @@ import dev.gulp.platform.FrameHandler;
 import dev.gulp.platform.Gl;
 import dev.gulp.platform.InputListener;
 import dev.gulp.platform.PlatformAudio;
+import dev.gulp.platform.PlatformAudioStream;
 import dev.gulp.platform.PlatformBackend;
 import dev.gulp.platform.PlatformCallback;
 import dev.gulp.platform.PlatformConsole;
@@ -31,6 +33,7 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.nio.ShortBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -65,6 +68,7 @@ public final class WebBackend implements PlatformBackend {
     private final Input input = new Input();
     private final Files files = new Files();
     private final Decoders decoders = new Decoders();
+    private @Nullable WebAudio audio;
     private final Executor executor = new Executor();
     private final Log log = new Log();
     private final Console console = new Console();
@@ -124,7 +128,12 @@ public final class WebBackend implements PlatformBackend {
 
     @Override
     public PlatformAudio audio() {
-        throw new UnsupportedOperationException("PlatformAudio is not implemented on the web yet (roadmap stage 5)");
+        WebAudio current = audio;
+        if (current == null) {
+            current = new WebAudio();
+            audio = current;
+        }
+        return current;
     }
 
     @Override
@@ -183,6 +192,18 @@ public final class WebBackend implements PlatformBackend {
         ByteBuffer buffer = ByteBuffer.allocateDirect(array.length).order(ByteOrder.nativeOrder());
         buffer.put(array).flip();
         return buffer;
+    }
+
+    /** One second of silence as a WAV file, for music when the browser has no WebAudio. */
+    private static ByteBuffer silentWav() {
+        int length = 44_100 * 2;
+        ByteBuffer wav = ByteBuffer.allocate(44 + length).order(ByteOrder.LITTLE_ENDIAN);
+        wav.put(new byte[] {'R', 'I', 'F', 'F'}).putInt(36 + length).put(new byte[] {'W', 'A', 'V', 'E'});
+        wav.put(new byte[] {'f', 'm', 't', ' '}).putInt(16).putShort((short) 1).putShort((short) 1);
+        wav.putInt(44_100).putInt(44_100 * 2).putShort((short) 2).putShort((short) 16);
+        wav.put(new byte[] {'d', 'a', 't', 'a'}).putInt(length);
+        wav.clear();
+        return wav;
     }
 
     private static Int8Array toJs(ByteBuffer data) {
@@ -332,6 +353,16 @@ public final class WebBackend implements PlatformBackend {
         }
 
         @Override
+        public void setSystemCursor(int shape) {
+            Js.setSystemCursor(shape);
+        }
+
+        @Override
+        public void setCustomCursor(DecodedImage image, int hotX, int hotY) {
+            Js.setCustomCursor(image.width(), image.height(), toJs(image.pixels()), hotX, hotY);
+        }
+
+        @Override
         public boolean isFocused() {
             return focused;
         }
@@ -355,6 +386,8 @@ public final class WebBackend implements PlatformBackend {
     // ------------------------------------------------------------------ input
 
     private final class Input implements PlatformInput {
+        private static final int PADS = 4;
+        private final boolean[] padConnected = new boolean[PADS];
         private @Nullable InputListener listener;
         private float lastX;
         private float lastY;
@@ -405,42 +438,62 @@ public final class WebBackend implements PlatformBackend {
 
         @Override
         public void pollGamepads() {
-            // Gamepads arrive in stage 5.
+            Js.pollPads();
+            for (int i = 0; i < PADS; i++) {
+                boolean now = Js.padConnected(i);
+                if (now != padConnected[i]) {
+                    padConnected[i] = now;
+                    InputListener current = listener;
+                    if (current != null) {
+                        current.gamepadConnection(i, now);
+                    }
+                }
+            }
         }
 
         @Override
         public boolean isGamepadConnected(int index) {
-            return false;
+            return index >= 0 && index < PADS && padConnected[index];
         }
 
         @Override
         public @Nullable String gamepadName(int index) {
-            return null;
+            return isGamepadConnected(index) ? Js.padName(index) : null;
         }
 
         @Override
         public float gamepadAxis(int index, int axis) {
-            return 0f;
+            return isGamepadConnected(index) ? (float) Js.padAxis(index, axis) : 0f;
         }
 
         @Override
         public boolean gamepadButton(int index, int button) {
-            return false;
+            return isGamepadConnected(index) && Js.padButton(index, button);
         }
 
         @Override
         public boolean rumble(int index, float weak, float strong, int durationMillis) {
-            return false;
+            return isGamepadConnected(index) && Js.padRumble(index, weak, strong, durationMillis);
+        }
+
+        @Override
+        public boolean supportsRumble(int index) {
+            return isGamepadConnected(index) && Js.padRumbles(index);
+        }
+
+        @Override
+        public void setTextInput(boolean active, float x, float y, float width, float height) {
+            Js.setTextInput(active, x, y, width, height);
         }
 
         @Override
         public void readClipboard(PlatformCallback<String> callback) {
-            mainQueue.post(() -> callback.failure(new UnsupportedOperationException("Clipboard arrives in stage 5")));
+            Js.readClipboard(text -> mainQueue.post(() -> callback.success(text)));
         }
 
         @Override
         public void writeClipboard(String text) {
-            // Clipboard arrives in stage 5.
+            Js.writeClipboard(text);
         }
     }
 
@@ -613,8 +666,40 @@ public final class WebBackend implements PlatformBackend {
 
         @Override
         public void decodeAudio(ByteBuffer encoded, PlatformCallback<DecodedAudio> callback) {
-            mainQueue.post(
-                    () -> callback.failure(new UnsupportedOperationException("Audio decoding arrives in stage 5")));
+            if (!((WebAudio) audio()).isAvailable()) {
+                // Without WebAudio the game runs silent: WAV is still decoded, anything else becomes silence.
+                mainQueue.post(() -> callback.success(
+                        WavDecoder.isWav(encoded)
+                                ? WavDecoder.decode(encoded)
+                                : new DecodedAudio(1, 44_100, ShortBuffer.allocate(1))));
+                return;
+            }
+            Js.decodeAudio(
+                    toJs(encoded),
+                    (channels, rate, samples) -> {
+                        DecodedAudio decoded =
+                                new DecodedAudio(channels, rate, ShortBuffer.wrap(samples.copyToJavaArray()));
+                        mainQueue.post(() -> callback.success(decoded));
+                    },
+                    message -> mainQueue.post(
+                            () -> callback.failure(new IllegalArgumentException("Cannot decode audio: " + message))));
+        }
+
+        @Override
+        public void openAudioStream(ByteBuffer encoded, PlatformCallback<PlatformAudioStream> callback) {
+            if (!((WebAudio) audio()).isAvailable()) {
+                ByteBuffer data = WavDecoder.isWav(encoded) ? encoded : silentWav();
+                mainQueue.post(() -> callback.success(WavDecoder.open(data)));
+                return;
+            }
+            Js.openStream(
+                    toJs(encoded),
+                    (id, channels, rate, frames) -> {
+                        WebAudio.Stream stream = new WebAudio.Stream(id, channels, rate, (long) frames);
+                        mainQueue.post(() -> callback.success(stream));
+                    },
+                    message -> mainQueue.post(
+                            () -> callback.failure(new IllegalArgumentException("Cannot decode music: " + message))));
         }
 
         @Override

@@ -1,10 +1,13 @@
 package dev.gulp.api;
 
 import dev.gulp.api.asset.Assets;
+import dev.gulp.api.audio.Audio;
 import dev.gulp.api.command.Commands;
+import dev.gulp.api.data.Preferences;
 import dev.gulp.api.event.Events;
 import dev.gulp.api.graphics.Graphics;
 import dev.gulp.api.i18n.Translations;
+import dev.gulp.api.input.Input;
 import dev.gulp.api.module.ModuleManager;
 import dev.gulp.api.registry.Registries;
 import dev.gulp.api.render.Display;
@@ -104,6 +107,27 @@ public interface Engine {
      * @return the translations
      */
     Translations translations();
+
+    /**
+     * Returns player input: actions, devices, cursor and clipboard.
+     *
+     * @return the input
+     */
+    Input input();
+
+    /**
+     * Returns sound and music.
+     *
+     * @return the audio
+     */
+    Audio audio();
+
+    /**
+     * Returns the settings store.
+     *
+     * @return the preferences
+     */
+    Preferences preferences();
 
     /**
      * Returns platform information.

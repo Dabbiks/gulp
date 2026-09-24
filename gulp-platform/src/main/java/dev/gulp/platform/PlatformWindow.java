@@ -98,6 +98,22 @@ public interface PlatformWindow {
     void setCursorMode(CursorMode mode);
 
     /**
+     * Shows a standard system cursor.
+     *
+     * @param shape 0 arrow, 1 hand, 2 text, 3 crosshair, 4 horizontal resize, 5 vertical resize, 6 move, 7 not allowed
+     */
+    void setSystemCursor(int shape);
+
+    /**
+     * Shows a custom cursor image.
+     *
+     * @param image RGBA image, at most 128 by 128 pixels
+     * @param hotX horizontal click point in the image
+     * @param hotY vertical click point in the image
+     */
+    void setCustomCursor(DecodedImage image, int hotX, int hotY);
+
+    /**
      * Returns whether the window has input focus.
      *
      * @return {@code true} if focused

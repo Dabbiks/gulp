@@ -2,7 +2,7 @@ plugins {
     id("gulp.java-conventions")
 }
 
-description = "Desktop backend on LWJGL 3: GLFW window, OpenGL 3.3 core."
+description = "Desktop backend on LWJGL 3: GLFW window, OpenGL 3.3 core, OpenAL Soft audio."
 
 val lwjglNatives = listOf(
     "natives-windows",
@@ -20,12 +20,14 @@ dependencies {
     implementation(libs.lwjgl.core)
     implementation(libs.lwjgl.glfw)
     implementation(libs.lwjgl.opengl)
+    implementation(libs.lwjgl.openal)
     implementation(libs.lwjgl.stb)
     implementation(libs.lwjgl.freetype)
     for (natives in lwjglNatives) {
         runtimeOnly(variantOf(libs.lwjgl.core) { classifier(natives) })
         runtimeOnly(variantOf(libs.lwjgl.glfw) { classifier(natives) })
         runtimeOnly(variantOf(libs.lwjgl.opengl) { classifier(natives) })
+        runtimeOnly(variantOf(libs.lwjgl.openal) { classifier(natives) })
         runtimeOnly(variantOf(libs.lwjgl.stb) { classifier(natives) })
         runtimeOnly(variantOf(libs.lwjgl.freetype) { classifier(natives) })
     }

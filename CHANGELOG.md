@@ -4,6 +4,53 @@ Format oparty na [Keep a Changelog](https://keepachangelog.com/pl/1.1.0/); wersj
 
 ## [Unreleased]
 
+### Etap 5 — Input i audio
+
+#### Dodane
+
+- `dev.gulp.api.input`:
+  - `Input` ze stanami akcji liczonymi per tick: `pressed`, `justPressed`, `justReleased`, `heldTicks`, `strength`, `axis`, `vector` (martwa strefa po promieniu);
+  - `InputAction` (sloty przypisań, zestaw, martwa strefa), `ActionSet` (`GAMEPLAY`, `MENU`, własne);
+  - przypisania `Binding`: `Keys` (kody USB HID według pozycji), `MouseButton`, `GamepadButton`, `GamepadAxis.positive()/negative()`, z identyfikatorami i `Binding.parse`;
+  - `InputBindings`: `rebind`, `unbind`, `reset`, `conflicts`, `captureNextInput`, z zapisem w preferencjach;
+  - `BindingGlyph` i `ControllerFamily`: etykiety i ścieżki ikon dla Xbox, PlayStation, Nintendo i klawiatury;
+  - urządzenia: klawiatura, mysz (`mouseWorld`), dotyk z gestami, `Gamepad` (martwe strefy, wibracje), kursory (`SystemCursor`, własne z `Pixmap` lub regionu, `CursorMode`), `Clipboard`, `startTextInput` dla IME i klawiatury ekranowej;
+  - eventy `KeyPress`, `KeyRelease`, `KeyRepeat`, `CharTyped`, `MouseButtonPress`, `MouseButtonRelease`, `MouseMove`, `MouseScroll`, `GamepadConnect`, `GamepadDisconnect`, `ActionPress`, `ActionRelease`, `Tap`, `DoubleTap`, `LongPress`, `Pan`, `Pinch`, `Swipe` z `isConsumedByUi()`.
+- `dev.gulp.api.audio`:
+  - `Audio`: `play`, `playAt` (tłumienie i panorama), `stream(PcmSource)`, szyny, słuchacz, pula 32 głosów z priorytetami;
+  - `Sound` (warianty, zakresy głośności i wysokości, `maxInstances`, `minInterval`, `PauseMode`);
+  - `Bus` (głośność, wyciszenie, low-pass, high-pass, pogłos, ściszanie innej szyny);
+  - `MusicPlayer` (fade, crossfade, playlisty, pauza, pozycja), `Music` z punktami pętli w ramkach, `AudioClip`, `Playback`, `MusicEndEvent`.
+- `Preferences` (`engine.preferences()`, `Owner.preferences()`) z automatycznym zapisem do `preferences.json` lub IndexedDB.
+- `AssetType.AUDIO` i `MUSIC`, `AssetKey.audio/music`, `GameAssets.Sounds` i `GameAssets.Music`; dźwięki z `Registries.SOUND` ładują się z grupą startową.
+- Desktop:
+  - gamepady przez GLFW z bazą mapowań SDL i podłączaniem w locie;
+  - kursory systemowe i własne, IME z GLFW 3.5, schowek;
+  - OpenAL Soft z filtrami i pogłosem EFX;
+  - dekodowanie OGG przez stb_vorbis i WAV, muzyka strumieniowana.
+- Web:
+  - Gamepad API z wibracjami, kursory CSS i własne, pointer lock ponawiany przy kliknięciu;
+  - ukryte pole tekstowe dla IME i klawiatury ekranowej, schowek;
+  - WebAudio z filtrami, panoramą i pogłosem, odblokowanie przy pierwszym geście, dekodowanie przez `decodeAudioData`;
+  - bez WebAudio gra działa bez dźwięku.
+- Headless: symulowany zegar audio, stany filtrów, pauzy, kursora i klawiatury ekranowej, prawdziwe dekodowanie WAV.
+- `WavDecoder` w `gulp-core` (PCM 8/16/24/32 bit, float).
+- Showcase: ekran „Wejście i dźwięk” (Tab przełącza ekrany):
+  - ruch, skok i strzał z klawiatury, myszy lub pada;
+  - zmiana przypisania skoku (R), która przetrwa restart;
+  - muzyka w pętli (M), ton proceduralny (T), filtr (L), głośność (1/2), kursory (C).
+- ADR 0010.
+
+#### Zmienione
+
+- Spotless nie sprawdza źródeł generowanych (`build/**`). `GameAssets` używa pełnych nazw typów, więc nie ma nieużywanych importów.
+
+#### Naprawione
+
+- Hot reload bez manifestu zasobów (np. uruchomienie z IDE) czytał plik o pierwszym rozszerzeniu typu zamiast pliku, z którego zasób wczytano, więc nie przeładowywał dźwięków WAV ani fontów TTF.
+- Desktop: równoległe zapisy tego samego pliku danych użytkownika (np. opóźniony zapis preferencji i zapis przy zamknięciu) mogły się ścigać o plik tymczasowy i zostawić starszą treść; teraz zapisy jednego pliku są szeregowane i wygrywa ostatni.
+- Test przekrojowy `CrossStageTest` łączy etapy 1–5 w jednej grze (moduły, usługi, konfiguracja, komendy, rysowanie, zasoby, tekst, przeładowanie, resource packi, akcje, dźwięk, pauza, zwolnione tempo, wyłączanie modułów, restart).
+
 ### Etap 4 — Zasoby, tekst i fonty
 
 #### Dodane

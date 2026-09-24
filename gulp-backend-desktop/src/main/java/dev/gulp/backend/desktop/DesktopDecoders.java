@@ -1,8 +1,10 @@
 package dev.gulp.backend.desktop;
 
 import dev.gulp.core.MainQueue;
+import dev.gulp.core.audio.WavDecoder;
 import dev.gulp.platform.DecodedAudio;
 import dev.gulp.platform.DecodedImage;
+import dev.gulp.platform.PlatformAudioStream;
 import dev.gulp.platform.PlatformCallback;
 import dev.gulp.platform.PlatformDecoders;
 import dev.gulp.platform.PlatformExecutor;
@@ -14,8 +16,8 @@ import org.lwjgl.stb.STBImage;
 import org.lwjgl.system.MemoryStack;
 
 /**
- * Image decoding with stb_image on the executor and font opening with FreeType; results arrive on the main thread.
- * Audio arrives in stage 5.
+ * Image and sound decoding (stb_image, stb_vorbis, WAV) on the executor, font opening with FreeType and music streams
+ * on the main thread; results arrive on the main thread.
  */
 final class DesktopDecoders implements PlatformDecoders {
 
@@ -69,7 +71,38 @@ final class DesktopDecoders implements PlatformDecoders {
 
     @Override
     public void decodeAudio(ByteBuffer encoded, PlatformCallback<DecodedAudio> callback) {
-        mainQueue.post(() -> callback.failure(new UnsupportedOperationException("Audio decoding arrives in stage 5")));
+        ByteBuffer copy = copy(encoded);
+        executor.execute(() -> {
+            DecodedAudio audio;
+            try {
+                audio = WavDecoder.isWav(copy) ? WavDecoder.decode(copy) : VorbisStream.decodeAll(copy);
+            } catch (Throwable error) {
+                mainQueue.post(() -> callback.failure(error));
+                return;
+            }
+            mainQueue.post(() -> callback.success(audio));
+        });
+    }
+
+    @Override
+    public void openAudioStream(ByteBuffer encoded, PlatformCallback<PlatformAudioStream> callback) {
+        ByteBuffer copy = copy(encoded);
+        mainQueue.post(() -> {
+            PlatformAudioStream stream;
+            try {
+                stream = WavDecoder.isWav(copy) ? WavDecoder.open(copy) : VorbisStream.open(copy);
+            } catch (RuntimeException error) {
+                callback.failure(error);
+                return;
+            }
+            callback.success(stream);
+        });
+    }
+
+    private static ByteBuffer copy(ByteBuffer data) {
+        ByteBuffer copy = ByteBuffer.allocateDirect(data.remaining()).order(ByteOrder.nativeOrder());
+        copy.put(data.duplicate()).flip();
+        return copy;
     }
 
     @Override

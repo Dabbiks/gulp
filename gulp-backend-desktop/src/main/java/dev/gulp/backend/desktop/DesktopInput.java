@@ -7,10 +7,12 @@ import dev.gulp.platform.InputListener;
 import dev.gulp.platform.PlatformCallback;
 import dev.gulp.platform.PlatformInput;
 import org.jspecify.annotations.Nullable;
+import org.lwjgl.glfw.GLFWGamepadState;
 
 /**
  * Raw keyboard and mouse input from GLFW callbacks, which run inside {@code glfwPollEvents} on the main thread before
- * each frame. Key codes are USB HID usage ids, the same on every backend. Gamepads arrive in stage 5.
+ * each frame. Key codes are USB HID usage ids, the same on every backend. Gamepads use GLFW's gamepad API with its
+ * built-in SDL mapping database, polled once per frame into the standard mapping.
  */
 final class DesktopInput implements PlatformInput {
 
@@ -84,8 +86,34 @@ final class DesktopInput implements PlatformInput {
         }
     }
 
+    /** Gamepad slots; GLFW joystick ids 0..3. */
+    private static final int SLOTS = 4;
+
+    /** Standard mapping button -> GLFW gamepad button; -1 for triggers, read from their axes. */
+    private static final int[] BUTTONS = {
+        GLFW_GAMEPAD_BUTTON_A,
+        GLFW_GAMEPAD_BUTTON_B,
+        GLFW_GAMEPAD_BUTTON_X,
+        GLFW_GAMEPAD_BUTTON_Y,
+        GLFW_GAMEPAD_BUTTON_LEFT_BUMPER,
+        GLFW_GAMEPAD_BUTTON_RIGHT_BUMPER,
+        -1,
+        -1,
+        GLFW_GAMEPAD_BUTTON_BACK,
+        GLFW_GAMEPAD_BUTTON_START,
+        GLFW_GAMEPAD_BUTTON_LEFT_THUMB,
+        GLFW_GAMEPAD_BUTTON_RIGHT_THUMB,
+        GLFW_GAMEPAD_BUTTON_DPAD_UP,
+        GLFW_GAMEPAD_BUTTON_DPAD_DOWN,
+        GLFW_GAMEPAD_BUTTON_DPAD_LEFT,
+        GLFW_GAMEPAD_BUTTON_DPAD_RIGHT,
+        GLFW_GAMEPAD_BUTTON_GUIDE
+    };
+
     private final long window;
     private final MainQueue mainQueue;
+    private final GLFWGamepadState[] states = new GLFWGamepadState[SLOTS];
+    private final boolean[] connected = new boolean[SLOTS];
     private @Nullable InputListener listener;
     private double lastX = Double.NaN;
     private double lastY;
@@ -93,6 +121,9 @@ final class DesktopInput implements PlatformInput {
     DesktopInput(long window, MainQueue mainQueue) {
         this.window = window;
         this.mainQueue = mainQueue;
+        for (int i = 0; i < SLOTS; i++) {
+            states[i] = GLFWGamepadState.create();
+        }
         glfwSetKeyCallback(window, (handle, key, scancode, action, mods) -> {
             InputListener current = listener;
             if (current == null) {
@@ -154,32 +185,67 @@ final class DesktopInput implements PlatformInput {
 
     @Override
     public void pollGamepads() {
-        // Gamepads arrive in stage 5.
+        for (int slot = 0; slot < SLOTS; slot++) {
+            boolean now = glfwJoystickIsGamepad(slot) && glfwGetGamepadState(slot, states[slot]);
+            if (now != connected[slot]) {
+                connected[slot] = now;
+                InputListener current = listener;
+                if (current != null) {
+                    current.gamepadConnection(slot, now);
+                }
+            }
+        }
     }
 
     @Override
     public boolean isGamepadConnected(int index) {
-        return false;
+        return index >= 0 && index < SLOTS && connected[index];
     }
 
     @Override
     public @Nullable String gamepadName(int index) {
-        return null;
+        return isGamepadConnected(index) ? glfwGetGamepadName(index) : null;
     }
 
     @Override
     public float gamepadAxis(int index, int axis) {
-        return 0f;
+        if (!isGamepadConnected(index) || axis < 0 || axis >= 6) {
+            return 0f;
+        }
+        float value = states[index].axes(axis);
+        // GLFW triggers rest at -1; the standard mapping uses 0..1.
+        return axis >= GLFW_GAMEPAD_AXIS_LEFT_TRIGGER ? (value + 1f) / 2f : value;
     }
 
     @Override
     public boolean gamepadButton(int index, int button) {
-        return false;
+        if (!isGamepadConnected(index) || button < 0 || button >= BUTTONS.length) {
+            return false;
+        }
+        int glfwButton = BUTTONS[button];
+        if (glfwButton < 0) {
+            return gamepadAxis(index, button == 6 ? 4 : 5) > 0.5f;
+        }
+        return states[index].buttons(glfwButton) == GLFW_PRESS;
     }
 
     @Override
     public boolean rumble(int index, float weak, float strong, int durationMillis) {
+        // GLFW has no rumble API.
         return false;
+    }
+
+    @Override
+    public boolean supportsRumble(int index) {
+        return false;
+    }
+
+    @Override
+    public void setTextInput(boolean active, float x, float y, float width, float height) {
+        glfwSetInputMode(window, GLFW_IME, active ? GLFW_TRUE : GLFW_FALSE);
+        if (active) {
+            glfwSetPreeditCursorRectangle(window, (int) x, (int) y, (int) width, (int) height);
+        }
     }
 
     @Override

@@ -89,6 +89,14 @@ public interface PlatformAudio {
     void setPaused(int voice, boolean paused);
 
     /**
+     * Changes whether a voice started with {@link #play} loops.
+     *
+     * @param voice the voice
+     * @param loop whether to loop
+     */
+    void setLooping(int voice, boolean loop);
+
+    /**
      * Stops a voice without releasing it.
      *
      * @param voice the voice
@@ -126,6 +134,23 @@ public interface PlatformAudio {
      * @param pan {@code -1} left, {@code 0} centre, {@code 1} right
      */
     void setPan(int voice, float pan);
+
+    /**
+     * Filters a voice. Backends approximate the cutoffs with what the audio API offers.
+     *
+     * @param voice the voice
+     * @param lowpassHertz frequencies above are cut, {@code 0} for no low-pass
+     * @param highpassHertz frequencies below are cut, {@code 0} for no high-pass
+     */
+    void setFilter(int voice, float lowpassHertz, float highpassHertz);
+
+    /**
+     * Sends part of a voice to the shared reverb.
+     *
+     * @param voice the voice
+     * @param send {@code 0} dry, {@code 1} fully wet
+     */
+    void setReverb(int voice, float send);
 
     /**
      * Sets the master volume.

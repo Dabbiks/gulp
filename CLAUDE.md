@@ -64,3 +64,5 @@ Moduły, listenery (`@EventHandler`) i `@Serializable` wymagają `gulp-processor
 Web: kod w `gulp-backend-web` rozmawia z przeglądarką tylko przez `@JSBody` wołające `gulp-runtime.js` (prymitywy, napisy, `ArrayBuffer`); `Int8Array.fromJavaArray` nie działa w Wasm GC — używaj `copyFromJavaArray`. Po zmianach w backendzie web uruchom `webSmokeTest`.
 
 Tekst i zasoby: font domyślny (`gulp:fonts/default.msdf.json`) ładuje się przed `onLoad`; w testach headless tekst wymaga `backend.files().useClasspathAssets(true)`. Klucze zasobów gry bierz z generowanej klasy `GameAssets`. Szczegóły formatów: ADR 0009.
+
+Wejście i dźwięk: kod gry czyta akcje (`input().justPressed(JUMP)`), nie klawisze; stany liczą się per tick. W testach headless wejście wstrzykuje `backend.input().inject(...)` / `setGamepad(...)`, a `HeadlessAudio` ma symulowany zegar i `setUnlocked(false)`. Dźwięki z `Registries.SOUND` ładują się z grupą startową. Przypisania i głośności szyn zapisują się w `preferences()`. Szczegóły: ADR 0010.

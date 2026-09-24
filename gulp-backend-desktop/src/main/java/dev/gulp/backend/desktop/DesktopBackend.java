@@ -20,8 +20,9 @@ import org.lwjgl.opengl.GL;
 /**
  * Desktop platform on LWJGL 3: GLFW window with an OpenGL 3.3 core context.
  *
- * <p>Implemented: loop, window, graphics, raw keyboard and mouse input, files, image decoding, log, terminal console, executor, system information and generated code.
- * Input and audio arrive in stage 5, decoders in stage 2, network in stage 10; until then their accessors throw
+ * <p>Implemented: loop, window, graphics, input (keyboard, mouse, gamepads through GLFW with its built-in SDL mapping
+ * database, cursors, clipboard, IME), OpenAL Soft audio, files, decoders, log, terminal console, executor, system
+ * information and generated code. Network arrives in stage 10; until then its accessor throws
  * {@link UnsupportedOperationException}.
  *
  * <pre>{@code
@@ -45,6 +46,7 @@ public final class DesktopBackend implements PlatformBackend {
     private final DesktopFiles files;
     private final DesktopDecoders decoders;
     private final DesktopInput input;
+    private final DesktopAudio audio;
     private boolean disposed;
 
     private DesktopBackend(GLFWErrorCallback errorCallback, DesktopWindow window, Path dataDirectory, DesktopLog log) {
@@ -56,6 +58,7 @@ public final class DesktopBackend implements PlatformBackend {
         this.info = new DesktopInfo(gl);
         this.decoders = new DesktopDecoders(executor, mainQueue);
         this.input = new DesktopInput(window.handle(), mainQueue);
+        this.audio = DesktopAudio.open(log);
     }
 
     /**
@@ -154,7 +157,7 @@ public final class DesktopBackend implements PlatformBackend {
 
     @Override
     public PlatformAudio audio() {
-        throw notYet("PlatformAudio", 5);
+        return audio;
     }
 
     @Override
@@ -217,6 +220,7 @@ public final class DesktopBackend implements PlatformBackend {
         disposed = true;
         executor.shutdown();
         files.closeWatcher();
+        audio.dispose();
         long handle = window.handle();
         Callbacks.glfwFreeCallbacks(handle);
         glfwDestroyWindow(handle);

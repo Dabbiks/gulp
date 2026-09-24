@@ -250,6 +250,30 @@ public final class GraphicsImpl implements Graphics {
         return gl.getInteger(Gl.MAX_TEXTURE_SIZE);
     }
 
+    /**
+     * Reads the pixels of a texture region back from the GPU, for example to make a cursor from an atlas sprite.
+     *
+     * @param region the region; rotation and trimming are ignored
+     * @return the image
+     */
+    public Pixmap readRegion(TextureRegion region) {
+        int width = region.width();
+        int height = region.height();
+        ByteBuffer buffer = ByteBuffer.allocateDirect(width * height * 4).order(ByteOrder.nativeOrder());
+        if (region.texture() instanceof TextureImpl texture) {
+            int framebuffer = gl.createFramebuffer();
+            gl.bindFramebuffer(Gl.FRAMEBUFFER, framebuffer);
+            gl.framebufferTexture2D(Gl.FRAMEBUFFER, Gl.COLOR_ATTACHMENT0, Gl.TEXTURE_2D, texture.handle(), 0);
+            gl.pixelStorei(Gl.PACK_ALIGNMENT, 1);
+            gl.readPixels(region.x(), region.y(), width, height, Gl.RGBA, Gl.UNSIGNED_BYTE, buffer);
+            gl.bindFramebuffer(Gl.FRAMEBUFFER, 0);
+            gl.deleteFramebuffer(framebuffer);
+        }
+        byte[] rgba = new byte[width * height * 4];
+        buffer.get(rgba);
+        return Pixmap.fromRgba(width, height, rgba);
+    }
+
     /** Frees every resource created through this factory. */
     public void disposeAll() {
         for (FrameBufferImpl buffer : frameBuffers) {

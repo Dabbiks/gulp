@@ -26,6 +26,8 @@ public final class HeadlessWindow implements PlatformWindow {
     private boolean focused = true;
     private boolean shouldClose;
     private CursorMode cursorMode = CursorMode.NORMAL;
+    private int cursorShape;
+    private @Nullable DecodedImage customCursor;
     private @Nullable DecodedImage icon;
     private @Nullable WindowListener listener;
 
@@ -131,6 +133,36 @@ public final class HeadlessWindow implements PlatformWindow {
     @Override
     public void setCursorMode(CursorMode mode) {
         this.cursorMode = mode;
+    }
+
+    @Override
+    public void setSystemCursor(int shape) {
+        cursorShape = shape;
+        customCursor = null;
+    }
+
+    @Override
+    public void setCustomCursor(DecodedImage image, int hotX, int hotY) {
+        customCursor = image;
+        cursorShape = -1;
+    }
+
+    /**
+     * Returns the system cursor shown.
+     *
+     * @return the shape number, {@code -1} while a custom cursor is shown
+     */
+    public int cursorShape() {
+        return cursorShape;
+    }
+
+    /**
+     * Returns the custom cursor shown.
+     *
+     * @return the image, or {@code null} while a system cursor is shown
+     */
+    public @Nullable DecodedImage customCursor() {
+        return customCursor;
     }
 
     @Override

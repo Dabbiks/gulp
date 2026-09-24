@@ -424,7 +424,7 @@ public final class AssetsImpl implements Assets {
      * @param <T> the value type
      * @return the promise
      */
-    <T> PromiseImpl<T> newPromise() {
+    public <T> PromiseImpl<T> newPromise() {
         return new PromiseImpl<>(owner, context, mainQueue);
     }
 
@@ -751,7 +751,8 @@ public final class AssetsImpl implements Assets {
         PromiseImpl<Object> done = newPromise();
         done.onFailure(error -> {});
         AssetLoader<T> loader = (AssetLoader<T>) loaders.get(entry.key.type());
-        String path = resolve(entry.key);
+        // The path the asset was loaded from: without a manifest resolve() only guesses the first extension.
+        String path = entry.path != null ? entry.path : resolve(entry.key);
         if (loader == null || path == null) {
             done.complete(entry.key);
             return done;

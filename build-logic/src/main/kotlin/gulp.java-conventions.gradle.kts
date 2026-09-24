@@ -43,6 +43,8 @@ jacoco {
 
 spotless {
     java {
+        // Generated sources (GameAssets, dispatchers) are not formatted.
+        targetExclude("build/**")
         palantirJavaFormat(libs.findVersion("palantir-java-format").get().requiredVersion)
         formatAnnotations()
         trimTrailingWhitespace()
