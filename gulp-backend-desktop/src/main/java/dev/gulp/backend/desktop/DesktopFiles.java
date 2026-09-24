@@ -374,6 +374,10 @@ public final class DesktopFiles implements PlatformFiles {
         if (listener == null || assetsDirectory == null || watchService != null) {
             return;
         }
+        if (!Files.isDirectory(assetsDirectory)) {
+            // A game without its own assets (only the built-in ones) has nothing to watch.
+            return;
+        }
         try {
             WatchService service = assetsDirectory.getFileSystem().newWatchService();
             try (Stream<Path> directories = Files.walk(assetsDirectory)) {

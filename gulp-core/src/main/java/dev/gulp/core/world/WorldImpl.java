@@ -16,10 +16,13 @@ import dev.gulp.api.event.Subscription;
 import dev.gulp.api.math.Rect;
 import dev.gulp.api.math.Rng;
 import dev.gulp.api.math.Vec2;
+import dev.gulp.api.nav.NavGrid;
+import dev.gulp.api.physics.Physics;
 import dev.gulp.api.render.Camera;
 import dev.gulp.api.render.RenderLayer;
 import dev.gulp.api.spi.ComponentAccess;
 import dev.gulp.api.world.Chunk;
+import dev.gulp.api.world.DebugView;
 import dev.gulp.api.world.Location;
 import dev.gulp.api.world.Parallax;
 import dev.gulp.api.world.TileMap;
@@ -28,9 +31,11 @@ import dev.gulp.api.world.WorldSettings;
 import dev.gulp.core.data.DataContainerImpl;
 import dev.gulp.core.graphics.CameraImpl;
 import dev.gulp.core.graphics.DisplayImpl;
+import dev.gulp.core.physics.PhysicsWorld;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.IdentityHashMap;
 import java.util.LinkedHashSet;
@@ -67,6 +72,9 @@ final class WorldImpl implements World {
     boolean loaded = true;
     final List<EntityImpl> onScreen = new ArrayList<>();
     int screenStamp;
+    final PhysicsWorld physics;
+    final NavGridImpl navGrid;
+    private final EnumSet<DebugView> debug = EnumSet.noneOf(DebugView.class);
 
     WorldImpl(WorldsImpl worlds, String name, WorldSettings settings) {
         this.worlds = worlds;
@@ -75,6 +83,8 @@ final class WorldImpl implements World {
         this.rng = new Rng(settings.seed());
         this.tileMap = new TileMapImpl(this, settings.orientation(), settings.tileSize(), settings.tileSize());
         this.parallax = new ParallaxImpl(this);
+        this.physics = new PhysicsWorld(new WorldPhysicsHost(this), settings.gravity());
+        this.navGrid = new NavGridImpl(this);
         CameraImpl main = new CameraImpl(worlds.display.pixelsPerUnit());
         cameras.add(main);
         for (int i = 0; i < DisplayImpl.WORLD_LAYERS.size(); i++) {
@@ -344,6 +354,10 @@ final class WorldImpl implements World {
                     }
                 }
             }
+            if (!paused) {
+                physics.step();
+                navGrid.tick();
+            }
         } finally {
             ticking = false;
         }
@@ -456,6 +470,34 @@ final class WorldImpl implements World {
     }
 
     @Override
+    public Physics physics() {
+        return physics;
+    }
+
+    @Override
+    public NavGrid navGrid() {
+        return navGrid;
+    }
+
+    @Override
+    public void showDebug(DebugView view, boolean shown) {
+        if (shown) {
+            debug.add(view);
+        } else {
+            debug.remove(view);
+        }
+    }
+
+    @Override
+    public boolean isDebugShown(DebugView view) {
+        return debug.contains(view);
+    }
+
+    boolean hasDebug() {
+        return !debug.isEmpty();
+    }
+
+    @Override
     public Rng rng() {
         return rng;
     }
@@ -521,6 +563,8 @@ final class WorldImpl implements World {
         flushRemovals();
         ticking = wasTicking;
         grid.clear();
+        physics.dispose();
+        navGrid.clear();
         tileMap.dispose();
         loaded = false;
     }

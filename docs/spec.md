@@ -2089,14 +2089,14 @@ Trzynaście etapów od pustego repozytorium do wersji 1.0, wykonywanych po kolei
 
 ### Etap 7 — Fizyka, nawigacja i AI
 
-- [ ] Warstwy kolizji, `Collider`, faza szeroka i SAT.
-- [ ] `Mover` w pełnym zakresie z sekcji 15.2; `Trigger`; `EntityLandEvent`.
-- [ ] Zapytania: `raycast`, `raycastAll`, `shapeCast`, `overlap*`.
-- [ ] Bryły sztywne: ciała, kształty, solver z podkrokami, usypianie, CCD, złącza, eventy kontaktów, `PreCollideEvent`.
-- [ ] `NavGrid`, A*, JPS, pola przepływu, A* na grafie, `NavAgent`, `Path`, `PathFollower`.
-- [ ] `StateMachine`, `BehaviorTree`, `Steering`.
-- [ ] Rysowanie debug wszystkich powyższych.
-- [ ] **Kamień milowy:** `examples/platformer` grywalny (kod z sekcji 21 działa); piaskownica fizyki (stosy skrzyń, łańcuchy ze złączami) stabilna; wrogowie w topdown znajdują drogę.
+- [x] Warstwy kolizji, `Collider`, faza szeroka i SAT.
+- [x] `Mover` w pełnym zakresie z sekcji 15.2; `Trigger`; `EntityLandEvent`.
+- [x] Zapytania: `raycast`, `raycastAll`, `shapeCast`, `overlap*`.
+- [x] Bryły sztywne: ciała, kształty, solver z podkrokami, usypianie, CCD, złącza, eventy kontaktów, `PreCollideEvent`.
+- [x] `NavGrid`, A*, JPS, pola przepływu, A* na grafie, `NavAgent`, `Path`, `PathFollower`.
+- [x] `StateMachine`, `BehaviorTree`, `Steering`.
+- [x] Rysowanie debug wszystkich powyższych.
+- [x] **Kamień milowy:** `examples/platformer` grywalny (kod z sekcji 21 działa); piaskownica fizyki (stosy skrzyń, łańcuchy ze złączami) stabilna; wrogowie w topdown znajdują drogę. — *Działa fizyczna część kodu z sekcji 21 (moduły, `Mover`, `Trigger`, warstwa `pickup`, dźwięk); `Animator`, `Tweens`, `ui()` i zapisy przyjdą w etapach 8–10 (ADR 0012). Piaskownica: `examples/sandbox`.*
 
 ### Etap 8 — Animacje, tweeny, cząsteczki, światło
 

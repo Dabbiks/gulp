@@ -155,6 +155,12 @@ final class TiledXml {
                     JsonArray.Builder objects = JsonArray.builder();
                     for (Element object : child.children("object")) {
                         Map<String, JsonValue> entry = attributes(object);
+                        for (String kind : new String[] {"polyline", "polygon"}) {
+                            Element outline = object.child(kind);
+                            if (outline != null) {
+                                entry.put(kind, points(outline.attributes.getOrDefault("points", "")));
+                            }
+                        }
                         putProperties(entry, object);
                         objects.add(new JsonObject(entry));
                     }
@@ -202,6 +208,21 @@ final class TiledXml {
             throw new IllegalArgumentException("Unsupported Tiled layer encoding: " + encoding);
         }
         return cells.build();
+    }
+
+    /** Tiled's {@code points="x,y x,y"} as the JSON form {@code [{"x":..,"y":..}]}. */
+    private static JsonArray points(String text) {
+        JsonArray.Builder list = JsonArray.builder();
+        for (String pair : text.trim().split("[ \t\r\n]+")) {
+            int comma = pair.indexOf(',');
+            if (comma > 0) {
+                list.add(JsonObject.builder()
+                        .put("x", Double.parseDouble(pair.substring(0, comma)))
+                        .put("y", Double.parseDouble(pair.substring(comma + 1)))
+                        .build());
+            }
+        }
+        return list.build();
     }
 
     private static void putImage(Map<String, JsonValue> target, @Nullable Element image) {

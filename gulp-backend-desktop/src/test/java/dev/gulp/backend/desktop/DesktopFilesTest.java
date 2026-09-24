@@ -15,6 +15,15 @@ import org.junit.jupiter.api.io.TempDir;
 class DesktopFilesTest {
 
     @Test
+    void aGameWithoutAnAssetsFolderStillStarts(@TempDir Path data) {
+        DesktopExecutor executor = new DesktopExecutor();
+        DesktopFiles files = new DesktopFiles(data.resolve("assets"), data, executor, new MainQueue());
+        files.watchAssets(path -> {});
+        files.watchAssets(null);
+        executor.shutdown();
+    }
+
+    @Test
     void theLastRequestedWriteOfAFileWins(@TempDir Path data) throws Exception {
         DesktopExecutor executor = new DesktopExecutor();
         DesktopFiles files = new DesktopFiles(null, data, executor, new MainQueue());

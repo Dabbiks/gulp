@@ -42,6 +42,22 @@ public interface WorldView {
     void drawOverlay(DrawImpl draw, CameraImpl camera, float alpha);
 
     /**
+     * Returns whether the active world shows any debug drawing.
+     *
+     * @return {@code true} to call {@link #drawDebug}
+     */
+    boolean hasDebug();
+
+    /**
+     * Draws debug shapes of the active world in world units, over its layers.
+     *
+     * @param draw drawing in world units through the camera
+     * @param camera the camera
+     * @param worldPixel size of one screen pixel in world units
+     */
+    void drawDebug(DrawImpl draw, CameraImpl camera, float worldPixel);
+
+    /**
      * Returns the running transition.
      *
      * @return the transition, or {@code null}

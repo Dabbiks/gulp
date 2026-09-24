@@ -129,6 +129,38 @@
     "pivotY": 1,
     "tags": [],
     "fieldDefs": []
+   },
+   {
+    "identifier": "Slime",
+    "uid": 22,
+    "width": 16,
+    "height": 12,
+    "color": "#50C878",
+    "pivotX": 0.5,
+    "pivotY": 1,
+    "tags": [],
+    "fieldDefs": []
+   },
+   {
+    "identifier": "Lift",
+    "uid": 23,
+    "width": 48,
+    "height": 8,
+    "color": "#AA7846",
+    "pivotX": 0.5,
+    "pivotY": 1,
+    "tags": [],
+    "fieldDefs": [
+     {
+      "identifier": "path",
+      "__type": "Array<Point>",
+      "uid": 31,
+      "type": "F_Point",
+      "isArray": true,
+      "canBeNull": false,
+      "defaultOverride": null
+     }
+    ]
    }
   ],
   "tilesets": [
@@ -435,6 +467,48 @@
        "__worldY": 144
       },
       {
+       "__identifier": "Lift",
+       "__grid": [
+        19,
+        8
+       ],
+       "__pivot": [
+        0.5,
+        1
+       ],
+       "__tags": [],
+       "__tile": null,
+       "__smartColor": "#50C878",
+       "iid": "e-0-19-8",
+       "width": 48,
+       "height": 8,
+       "defUid": 23,
+       "px": [
+        312,
+        144
+       ],
+       "fieldInstances": [
+        {
+         "__identifier": "path",
+         "__type": "Array<Point>",
+         "defUid": 31,
+         "realEditorValues": [],
+         "__value": [
+          {
+           "cx": 19,
+           "cy": 8
+          },
+          {
+           "cx": 19,
+           "cy": 3
+          }
+         ]
+        }
+       ],
+       "__worldX": 312,
+       "__worldY": 144
+      },
+      {
        "__identifier": "Player",
        "__grid": [
         3,
@@ -457,6 +531,31 @@
        ],
        "fieldInstances": [],
        "__worldX": 56,
+       "__worldY": 160
+      },
+      {
+       "__identifier": "Slime",
+       "__grid": [
+        25,
+        9
+       ],
+       "__pivot": [
+        0.5,
+        1
+       ],
+       "__tags": [],
+       "__tile": null,
+       "__smartColor": "#50C878",
+       "iid": "e-0-25-9",
+       "width": 16,
+       "height": 12,
+       "defUid": 22,
+       "px": [
+        408,
+        160
+       ],
+       "fieldInstances": [],
+       "__worldX": 408,
        "__worldY": 160
       }
      ]
@@ -4896,6 +4995,31 @@
        ],
        "__worldX": 1208,
        "__worldY": 96
+      },
+      {
+       "__identifier": "Slime",
+       "__grid": [
+        16,
+        6
+       ],
+       "__pivot": [
+        0.5,
+        1
+       ],
+       "__tags": [],
+       "__tile": null,
+       "__smartColor": "#50C878",
+       "iid": "e-1-16-6",
+       "width": 16,
+       "height": 12,
+       "defUid": 22,
+       "px": [
+        264,
+        112
+       ],
+       "fieldInstances": [],
+       "__worldX": 904,
+       "__worldY": 112
       }
      ]
     },

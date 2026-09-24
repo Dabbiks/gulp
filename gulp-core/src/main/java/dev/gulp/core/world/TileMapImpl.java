@@ -69,6 +69,9 @@ final class TileMapImpl implements TileMap {
     private final List<GeneratedChunk> ready = new ArrayList<>();
     private final List<Ticket> tickets = new ArrayList<>();
     private int frame;
+    /** Changes whenever a cell or the set of loaded chunks changes; navigation searches again when it does. */
+    long revision;
+
     private int[] tickScratch = new int[64];
     private int minX = Integer.MAX_VALUE;
     private int minY = Integer.MAX_VALUE;
@@ -151,6 +154,7 @@ final class TileMapImpl implements TileMap {
         chunks.put(LongObjectMap.pack(chunk.cx, chunk.cy), chunk);
         loaded.add(chunk);
         chunk.lastNeeded = frame;
+        revision++;
     }
 
     /**
@@ -168,6 +172,7 @@ final class TileMapImpl implements TileMap {
         }
         data[local] = value;
         chunk.version++;
+        revision++;
         if (modifies) {
             chunk.modified = true;
         }
@@ -693,6 +698,7 @@ final class TileMapImpl implements TileMap {
             entity.remove();
         }
         chunk.spawned.clear();
+        revision++;
         long key = LongObjectMap.pack(chunk.cx, chunk.cy);
         chunks.remove(key);
         loaded.remove(chunk);

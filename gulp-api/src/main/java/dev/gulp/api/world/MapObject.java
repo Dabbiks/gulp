@@ -1,5 +1,7 @@
 package dev.gulp.api.world;
 
+import dev.gulp.api.math.Vec2;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -18,6 +20,8 @@ import java.util.Map;
  * @param width world units
  * @param height world units
  * @param properties custom properties and fields, as text
+ * @param points the points of a polyline or polygon object (Tiled) or of a points field (LDtk), in world units; empty
+ *     for other objects
  */
 public record MapObject(
         String name,
@@ -27,10 +31,29 @@ public record MapObject(
         float y,
         float width,
         float height,
-        Map<String, String> properties) {
+        Map<String, String> properties,
+        List<Vec2> points) {
 
     /**
-     * Copies the properties.
+     * Copies the properties and points.
+     *
+     * @param name name
+     * @param type type
+     * @param layer layer
+     * @param x x
+     * @param y y
+     * @param width width
+     * @param height height
+     * @param properties properties
+     * @param points points
+     */
+    public MapObject {
+        properties = Map.copyOf(properties);
+        points = List.copyOf(points);
+    }
+
+    /**
+     * Creates an object without points.
      *
      * @param name name
      * @param type type
@@ -41,7 +64,15 @@ public record MapObject(
      * @param height height
      * @param properties properties
      */
-    public MapObject {
-        properties = Map.copyOf(properties);
+    public MapObject(
+            String name,
+            String type,
+            String layer,
+            float x,
+            float y,
+            float width,
+            float height,
+            Map<String, String> properties) {
+        this(name, type, layer, x, y, width, height, properties, List.of());
     }
 }

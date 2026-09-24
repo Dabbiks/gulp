@@ -610,6 +610,20 @@ public final class WorldsImpl implements Worlds, WorldView {
     }
 
     @Override
+    public boolean hasDebug() {
+        WorldImpl world = active;
+        return world != null && world.hasDebug();
+    }
+
+    @Override
+    public void drawDebug(DrawImpl draw, CameraImpl camera, float worldPixel) {
+        WorldImpl world = active;
+        if (world != null) {
+            renderer.drawDebug(world, draw, camera, worldPixel);
+        }
+    }
+
+    @Override
     public @Nullable Transition transition() {
         return transition;
     }

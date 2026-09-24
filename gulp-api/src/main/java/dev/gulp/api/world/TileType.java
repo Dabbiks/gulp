@@ -71,6 +71,8 @@ public final class TileType implements Keyed {
     private final int tickPeriod;
     private final @Nullable Behaviour periodicTick;
     private final boolean stateful;
+    private final @Nullable Boolean passable;
+    private final float navCost;
 
     private TileType(Builder builder) {
         this.key = builder.key;
@@ -89,6 +91,8 @@ public final class TileType implements Keyed {
         this.tickPeriod = builder.tickPeriod;
         this.periodicTick = builder.periodicTick;
         this.stateful = builder.stateful;
+        this.passable = builder.passable;
+        this.navCost = builder.navCost;
     }
 
     /**
@@ -176,6 +180,24 @@ public final class TileType implements Keyed {
      */
     public float friction() {
         return friction;
+    }
+
+    /**
+     * Returns whether navigation agents may walk through tiles of this type.
+     *
+     * @return the explicit setting, else {@code true} for tiles without a solid shape
+     */
+    public boolean isPassable() {
+        return passable != null ? passable : !shape.isSolid();
+    }
+
+    /**
+     * Returns the cost of walking through a tile of this type, for path finding.
+     *
+     * @return {@code 1} by default; higher costs make paths avoid the tile
+     */
+    public float navCost() {
+        return navCost;
     }
 
     /**
@@ -289,6 +311,8 @@ public final class TileType implements Keyed {
         private int tickPeriod;
         private @Nullable Behaviour periodicTick;
         private boolean stateful;
+        private @Nullable Boolean passable;
+        private float navCost = 1f;
 
         private Builder(Key key) {
             this.key = key;
@@ -371,6 +395,31 @@ public final class TileType implements Keyed {
          */
         public Builder shape(TileShape value) {
             this.shape = value;
+            return this;
+        }
+
+        /**
+         * Sets whether navigation agents may walk through the tile, regardless of its shape.
+         *
+         * @param value whether passable
+         * @return this builder
+         */
+        public Builder passable(boolean value) {
+            this.passable = value;
+            return this;
+        }
+
+        /**
+         * Sets the cost of walking through the tile, for example {@code 3} for mud.
+         *
+         * @param value the cost, at least {@code 1}
+         * @return this builder
+         */
+        public Builder navCost(float value) {
+            if (!(value >= 1f)) {
+                throw new IllegalArgumentException("Navigation cost must be at least 1: " + value);
+            }
+            this.navCost = value;
             return this;
         }
 

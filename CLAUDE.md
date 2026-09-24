@@ -60,7 +60,7 @@ Moduły, listenery (`@EventHandler`) i `@Serializable` wymagają `gulp-processor
 | `gulp-processor`, `gulp-test`, `gulp-tools` | procesor adnotacji, narzędzia testowe, CLI |
 | `gulp-gradle-plugin` | plugin `dev.gulp.game` — osobny included build (ADR 0008); główne `check` i `spotlessApply` go obejmują |
 | `examples/showcase` | przykład każdej funkcji |
-| `examples/topdown`, `examples/platformer` | gry przykładowe (świat z szumu, poziomy LDtk) |
+| `examples/topdown`, `examples/platformer`, `examples/sandbox` | gry przykładowe (świat z szumu i wrogowie z nawigacją, poziomy LDtk z fizyką kinematyczną, piaskownica brył sztywnych) |
 
 Web: kod w `gulp-backend-web` rozmawia z przeglądarką tylko przez `@JSBody` wołające `gulp-runtime.js` (prymitywy, napisy, `ArrayBuffer`); `Int8Array.fromJavaArray` nie działa w Wasm GC — używaj `copyFromJavaArray`. Po zmianach w backendzie web uruchom `webSmokeTest`.
 
@@ -68,4 +68,6 @@ Tekst i zasoby: font domyślny (`gulp:fonts/default.msdf.json`) ładuje się prz
 
 Wejście i dźwięk: kod gry czyta akcje (`input().justPressed(JUMP)`), nie klawisze; stany liczą się per tick. W testach headless wejście wstrzykuje `backend.input().inject(...)` / `setGamepad(...)`, a `HeadlessAudio` ma symulowany zegar i `setUnlocked(false)`. Dźwięki z `Registries.SOUND` ładują się z grupą startową. Przypisania i głośności szyn zapisują się w `preferences()`. Szczegóły: ADR 0010.
 
-Świat i encje: `worlds().register/load/switchTo`, encje przez `EntityType` + komponenty (metody cyklu życia są `protected`; silnik woła je przez `ComponentAccess`). Usuwanie encji jest odroczone do końca ticka. `ChunkGenerator` działa poza tickiem — tylko argumenty i niezmienne dane. Mapy (`.tmx`/`.tmj` z Tiled w dowolnym kodowaniu i kompresji, `.ldtk`) leżą w `maps/` małymi literami; wartości IntGrid z LDtk trafiają do warstwy `<nazwa>.grid` po mapowaniu `WorldSource.tile(...)`. Kolizje z mapą do etapu 7 pisze gra sama (zob. `examples/platformer`). Szczegóły: ADR 0011.
+Świat i encje: `worlds().register/load/switchTo`, encje przez `EntityType` + komponenty (metody cyklu życia są `protected`; silnik woła je przez `ComponentAccess`). Usuwanie encji jest odroczone do końca ticka. `ChunkGenerator` działa poza tickiem — tylko argumenty i niezmienne dane. Mapy (`.tmx`/`.tmj` z Tiled w dowolnym kodowaniu i kompresji, `.ldtk`) leżą w `maps/` małymi literami; wartości IntGrid z LDtk trafiają do warstwy `<nazwa>.grid` po mapowaniu `WorldSource.tile(...)`. Szczegóły: ADR 0011.
+
+Fizyka, nawigacja i AI: `world.physics()` i `world.navGrid()`. Komponenty (`Collider`, `Mover`, `Trigger`, `Body`) rozmawiają z rdzeniem przez SPI `PhysicsAccess`; logika jest w `gulp-core/.../physics` (`PhysicsWorld`, `MoverSolver`, `Collide`, `Joints`) i `.../world` (`NavGridImpl`, `GridSearch`). Kafelki kolizyjne leżą na warstwie `gulp:tiles` (`CollisionLayer.TILES`). Warstwy rejestruje się w `onLoad`; bity nadaje silnik po zamrożeniu rejestrów. Testy fizyki bez okna: `PhysicsFixture` w `gulp-core/src/test`. Szczegóły: ADR 0012.

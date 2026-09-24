@@ -123,6 +123,16 @@ def sprites():
             if (x - 8) ** 2 / 36 + (y - 10) ** 2 / 20 <= 1:
                 rock.set(x, y, (140, 140, 150, 255) if y > 9 else (170, 170, 180, 255))
     rock.save(os.path.join(OUT, "sprites", "rock.png"))
+    slime = Image(14, 12)
+    for y in range(12):
+        for x in range(14):
+            dx = (x - 6.5) / 7
+            dy = (y - 11) / 11
+            if dx * dx + dy * dy <= 1:
+                slime.set(x, y, (170, 80, 200, 255) if y > 2 else (210, 140, 235, 255))
+    slime.fill(4, 5, 2, 2, (30, 10, 40, 255))
+    slime.fill(8, 5, 2, 2, (30, 10, 40, 255))
+    slime.save(os.path.join(OUT, "sprites", "slime.png"))
 
 
 if __name__ == "__main__":

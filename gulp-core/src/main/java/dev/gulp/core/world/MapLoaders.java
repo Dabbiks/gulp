@@ -151,6 +151,8 @@ final class MapLoaders {
                 builder.tickEvery(mapped.tickPeriod(), mapped.periodicTick());
             }
             builder.stateful(mapped.isStateful());
+            builder.passable(mapped.isPassable());
+            builder.navCost(mapped.navCost());
         }
         String shapeName = properties.getOrDefault("shape", properties.get("collision"));
         if (shapeName != null) {
@@ -467,6 +469,18 @@ final class MapLoaders {
                         if (object.has("gid")) {
                             y -= height;
                         }
+                        List<Vec2> points = new ArrayList<>();
+                        JsonArray outline =
+                                object.has("polyline") ? array(object, "polyline") : array(object, "polygon");
+                        for (int p = 0; p < outline.size(); p++) {
+                            JsonObject point = outline.get(p).asObject();
+                            points.add(new Vec2(
+                                    (x + number(point, "x", 0f)) / tileWidth,
+                                    (y + number(point, "y", 0f)) / tileWidth));
+                        }
+                        if (object.has("polygon") && !points.isEmpty()) {
+                            points.add(points.get(0));
+                        }
                         objects.add(new MapObject(
                                 string(object, "name", ""),
                                 string(object, "type", string(object, "class", "")),
@@ -475,7 +489,8 @@ final class MapLoaders {
                                 (y + height / 2f) / tileWidth,
                                 width / tileWidth,
                                 height / tileWidth,
-                                tiledProperties(object)));
+                                tiledProperties(object),
+                                points));
                     }
                 }
                 case "imagelayer" -> {
@@ -603,6 +618,19 @@ final class MapLoaders {
     }
 
     // ------------------------------------------------------------------ LDtk
+
+    /** Collects LDtk point field values ({@code {cx, cy}} or arrays of them) as cell centres in world units. */
+    private static void ldtkPoints(@Nullable JsonValue value, List<Vec2> out, float levelX, float levelY, float cell) {
+        if (value instanceof JsonObject point && point.has("cx") && point.has("cy")) {
+            out.add(new Vec2(
+                    levelX + (integer(point, "cx", 0) + 0.5f) * cell,
+                    levelY + (integer(point, "cy", 0) + 0.5f) * cell));
+        } else if (value instanceof JsonArray list) {
+            for (int i = 0; i < list.size(); i++) {
+                ldtkPoints(list.get(i), out, levelX, levelY, cell);
+            }
+        }
+    }
 
     static Promise<Void> ldtk(WorldsImpl worlds, WorldImpl world, WorldSource source) {
         AssetKey<String> projectKey = java.util.Objects.requireNonNull(source.mapOrNull());
@@ -745,9 +773,12 @@ final class MapLoaders {
                 Map<String, String> fields = new LinkedHashMap<>();
                 JsonArray fieldArray = array(entity, "fieldInstances");
                 String objectName = "";
+                List<Vec2> points = new ArrayList<>();
+                float cell = gridSize / (float) grid;
                 for (int f = 0; f < fieldArray.size(); f++) {
                     JsonObject field = fieldArray.get(f).asObject();
                     String fieldName = string(field, "__identifier", "");
+                    ldtkPoints(field.get("__value"), points, levelX, levelY, cell);
                     String value = text(field.get("__value"));
                     fields.put(fieldName, value);
                     if (fieldName.equalsIgnoreCase("name")) {
@@ -762,7 +793,8 @@ final class MapLoaders {
                         levelY + (top + height / 2f) / grid,
                         width / grid,
                         height / grid,
-                        fields));
+                        fields,
+                        points));
             }
             return;
         }

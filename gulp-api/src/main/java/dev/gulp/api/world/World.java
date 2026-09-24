@@ -11,6 +11,8 @@ import dev.gulp.api.event.Subscription;
 import dev.gulp.api.math.Rect;
 import dev.gulp.api.math.Rng;
 import dev.gulp.api.math.Vec2;
+import dev.gulp.api.nav.NavGrid;
+import dev.gulp.api.physics.Physics;
 import dev.gulp.api.render.Camera;
 import dev.gulp.api.render.RenderLayer;
 import java.util.List;
@@ -199,6 +201,36 @@ public interface World {
      * @return the parallax
      */
     Parallax parallax();
+
+    /**
+     * Returns the physics of this world: gravity, collision matrix, queries and joints.
+     *
+     * @return the physics
+     */
+    Physics physics();
+
+    /**
+     * Returns the navigation grid, built from the collision tiles of the tile map.
+     *
+     * @return the grid
+     */
+    NavGrid navGrid();
+
+    /**
+     * Shows or hides a debug drawing, such as collision shapes or navigation paths.
+     *
+     * @param view what to draw
+     * @param shown whether to draw it
+     */
+    void showDebug(DebugView view, boolean shown);
+
+    /**
+     * Returns whether a debug drawing is shown.
+     *
+     * @param view the drawing
+     * @return {@code true} if drawn
+     */
+    boolean isDebugShown(DebugView view);
 
     /**
      * Returns the random generator of the world, seeded from its settings.

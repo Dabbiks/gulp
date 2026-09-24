@@ -4,6 +4,54 @@ Format oparty na [Keep a Changelog](https://keepachangelog.com/pl/1.1.0/); wersj
 
 ## [Unreleased]
 
+### Etap 7 — Fizyka, nawigacja i AI
+
+#### Dodane
+
+- **`dev.gulp.api.physics`, poziom kinematyczny:**
+  - warstwy i maski: `CollisionLayer`, `CollisionMask`;
+  - kształty `Shape`: prostokąt, koło, kapsuła, wielokąt (wklęsłe dzielone automatycznie), odcinek, łańcuch;
+  - komponenty `Collider` (także platformy jednokierunkowe), `Mover` i `Trigger`;
+  - `Mover`: `moveAndSlide` z podkrokami i osiami X/Y, zbocza, podłoga, ściana i sufit, przyciąganie do podłogi, stopnie, unoszenie przez platformy, platformy jednokierunkowe, coyote time, bufor skoku, `dropThroughPlatform`, tryb top-down;
+  - `Trigger`: `TriggerEnterEvent`, `TriggerExitEvent` i `triggered()`.
+- **Bryły sztywne:**
+  - `Body` (dynamiczne, kinematyczne, statyczne) z gęstością lub masą, tarciem, sprężystością, tłumieniem, `fixedRotation`, `bullet`, skalą grawitacji i usypianiem;
+  - siły, impulsy, moment obrotowy;
+  - złącza `distance`, `rope`, `revolute`, `prismatic`, `weld`, `wheel`, `mouse`, `motor` z limitami, silnikami i sprężynami;
+  - eventy `EntityCollideEvent`, `EntityCollideEndEvent`, `PreCollideEvent` i `EntityLandEvent`.
+- **`Physics` świata (`world.physics()`):** grawitacja, podkroki, macierz kolizji, `raycast`, `raycastAll`, `shapeCast`, `overlapPoint`, `overlapCircle`, `overlapRect`, `isSolidTile`, tworzenie złączy.
+- **`dev.gulp.api.nav`:**
+  - `NavGrid` (`world.navGrid()`) prosto z mapy kafelków, z blokadami `block(rect, owner)`;
+  - A* w 4 lub 8 kierunkach, Jump Point Search, wygładzanie, `requestPath` rozłożone na ticki, pola przepływu `FlowField`;
+  - A* na dowolnym grafie (`Graph`, `PathFinder`), `Path` (z punktów, krzywej, obiektu mapy);
+  - komponenty `NavAgent` (z omijaniem innych agentów) i `PathFollower`;
+  - eventy `NavTargetReachedEvent`, `NavPathFailedEvent`, `PathEndEvent`.
+- **`dev.gulp.api.ai`:**
+  - `StateMachine` ze stanami, przejściami i `StateChangeEvent`;
+  - `BehaviorTree` z węzłami sequence, selector, parallel i dekoratorami inverter, repeat, cooldown, timeout, untilSuccess;
+  - `Steering`: seek, flee, arrive, wander, pursue, evade, separation, cohesion, alignment, followPath, avoidObstacles.
+- **Komponenty `Health` i `SoundEmitter`:**
+  - `Health` wysyła `EntityDamageEvent` (anulowalny, ze zmienialną wartością), `EntityHealEvent` i `EntityDeathEvent`;
+  - `DamageType` z typem `gulp:generic`.
+- **Mapy i kafelki:**
+  - `TileType.passable` i `TileType.navCost`;
+  - `MapObject.points()` z linii łamanych i wielokątów Tiled oraz pól punktów LDtk.
+- **Debug:** `world.showDebug(DebugView, boolean)` rysuje kształty, kontakty, złącza, triggery, siatkę nawigacji, ścieżki i sterowanie.
+- **Przykłady:**
+  - `examples/platformer` w strukturze modułów z sekcji 21: gracz na `Mover`, monety jako triggery na warstwie `pickup` z dźwiękiem, ślimaki do nadepnięcia, winda na ścieżce z mapy, serca;
+  - nowy `examples/sandbox`: stos skrzyń, piramida, most z łańcucha, wahadło, samochód na złączach kół, przeciąganie myszą;
+  - w `examples/topdown` ślimaki wędrują i gonią gracza po ścieżkach z `NavGrid`, a gracz i drzewa mają kolizje.
+- ADR 0012.
+
+#### Zmienione
+
+- `CollisionLayer` i `DamageType` są klasami z `of(Key)`, a nie pustymi interfejsami. Silnik rejestruje `gulp:default`, `gulp:tiles` i `gulp:generic`.
+- `TileMapImpl` liczy rewizję zmian; nawigacja szuka od nowa, gdy się zmieni.
+
+#### Naprawione
+
+- Desktop: gra bez własnego folderu `assets` padała przy starcie, bo hot reload próbował obserwować nieistniejący katalog.
+
 ### Etap 6 — Świat i encje
 
 #### Dodane

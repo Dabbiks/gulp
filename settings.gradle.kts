@@ -28,4 +28,4 @@ include(
     "gulp-tools",
 )
 
-include("examples:showcase", "examples:topdown", "examples:platformer")
+include("examples:showcase", "examples:topdown", "examples:platformer", "examples:sandbox")

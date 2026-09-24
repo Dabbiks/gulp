@@ -1,9 +1,12 @@
 package dev.gulp.examples.topdown;
 
+import dev.gulp.api.ai.StateMachine;
 import dev.gulp.api.entity.Component;
+import dev.gulp.api.entity.DamageType;
 import dev.gulp.api.entity.Entity;
 import dev.gulp.api.entity.EntityClickEvent;
 import dev.gulp.api.entity.EntityType;
+import dev.gulp.api.entity.component.Health;
 import dev.gulp.api.entity.component.Interactable;
 import dev.gulp.api.entity.component.Lifetime;
 import dev.gulp.api.entity.component.SpriteComponent;
@@ -14,18 +17,22 @@ import dev.gulp.api.input.InputAction;
 import dev.gulp.api.input.Keys;
 import dev.gulp.api.input.SystemCursor;
 import dev.gulp.api.math.Ease;
-import dev.gulp.api.math.GridPos;
 import dev.gulp.api.math.Noise;
 import dev.gulp.api.math.Rect;
 import dev.gulp.api.math.Vec2;
 import dev.gulp.api.module.GameModule;
 import dev.gulp.api.module.ModuleInfo;
+import dev.gulp.api.nav.NavAgent;
+import dev.gulp.api.physics.Collider;
+import dev.gulp.api.physics.Mover;
+import dev.gulp.api.physics.Shape;
 import dev.gulp.api.registry.Registries;
 import dev.gulp.api.render.RenderLayerEvent;
 import dev.gulp.api.text.Text;
 import dev.gulp.api.text.TextStyle;
 import dev.gulp.api.world.Chunk;
 import dev.gulp.api.world.ChunkData;
+import dev.gulp.api.world.DebugView;
 import dev.gulp.api.world.Terrain;
 import dev.gulp.api.world.TileSet;
 import dev.gulp.api.world.TileShape;
@@ -37,7 +44,10 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 
-/** Registers the tiles, terrain, entities and actions, generates the world and draws a small HUD. */
+/**
+ * Registers the tiles, terrain, entities and actions, generates the world, spawns slimes that wander and chase the
+ * player along paths from the navigation grid, and draws a small HUD.
+ */
 @ModuleInfo(id = "overworld")
 final class OverworldModule extends GameModule {
 
@@ -54,13 +64,16 @@ final class OverworldModule extends GameModule {
     private EntityType tree;
     private EntityType rock;
     private EntityType floatingText;
+    private EntityType slime;
     private InputAction left;
     private InputAction right;
     private InputAction up;
     private InputAction down;
     private InputAction zoomIn;
     private InputAction zoomOut;
+    private InputAction debug;
     private int chopped;
+    private int ticks;
 
     @Override
     public void onLoad() {
@@ -93,6 +106,8 @@ final class OverworldModule extends GameModule {
                 EntityType.builder(key("player"))
                         .size(0.6f, 0.6f)
                         .component(() -> new SpriteComponent(GameAssets.Sprites.PLAYER).setAnchor(0.5f, 0.8f))
+                        .component(() -> new Mover().topDown(true))
+                        .component(() -> new Health(5f).invulnerableTicks(60))
                         .component(PlayerControl::new)
                         .zIndex(1)
                         .build());
@@ -104,6 +119,8 @@ final class OverworldModule extends GameModule {
                         // The whole 1 x 1.5 sprite is clickable, not just the trunk-sized body.
                         .component(() ->
                                 new Interactable().cursor(SystemCursor.HAND).area(Rect.of(-0.5f, -1.275f, 1f, 1.5f)))
+                        // Only the trunk blocks the way.
+                        .component(() -> new Collider(Shape.circle(0.25f)).offset(0f, 0.1f))
                         .tags("tree")
                         .build());
         rock = registries.register(
@@ -111,6 +128,17 @@ final class OverworldModule extends GameModule {
                 EntityType.builder(key("rock"))
                         .size(0.8f, 0.6f)
                         .component(() -> new SpriteComponent(GameAssets.Sprites.ROCK))
+                        .component(() -> new Collider(Shape.circle(0.35f)))
+                        .build());
+        slime = registries.register(
+                Registries.ENTITY_TYPE,
+                EntityType.builder(key("slime"))
+                        .size(0.6f, 0.5f)
+                        .component(() -> new SpriteComponent(GameAssets.Sprites.SLIME).setAnchor(0.5f, 0.7f))
+                        .component(() -> new Mover().topDown(true))
+                        .component(() -> new NavAgent().speed(2.2f).avoidance(0.9f))
+                        .component(SlimeBrain::new)
+                        .tags("slime")
                         .build());
         floatingText = registries.register(
                 Registries.ENTITY_TYPE,
@@ -147,6 +175,9 @@ final class OverworldModule extends GameModule {
         zoomOut = registries.register(
                 Registries.INPUT_ACTION,
                 InputAction.builder(key("zoom_out")).bind(Keys.Q).build());
+        debug = registries.register(
+                Registries.INPUT_ACTION,
+                InputAction.builder(key("debug")).bind(Keys.P).build());
     }
 
     @Override
@@ -183,6 +214,23 @@ final class OverworldModule extends GameModule {
         if (input().justPressed(zoomOut)) {
             world.camera().zoomTo(Math.max(0.25f, world.camera().zoom() / 2f), 0.3f, Ease.OUT_QUAD);
         }
+        if (input().justPressed(debug)) {
+            boolean shown = !world.isDebugShown(DebugView.PATHS);
+            world.showDebug(DebugView.PATHS, shown);
+            world.showDebug(DebugView.SHAPES, shown);
+        }
+        Entity hero = world.entity("player");
+        if (hero != null && ++ticks % 90 == 0 && world.query().tag("slime").count() < 6) {
+            // A slime appears somewhere on land, out of sight but not far.
+            for (int attempt = 0; attempt < 10; attempt++) {
+                Vec2 spot = hero.position()
+                        .add(Vec2.fromAngle(world.rng().nextFloat() * 360f).scale(11f));
+                if (height((int) Math.floor(spot.x()), (int) Math.floor(spot.y())) > SEA + 0.1f) {
+                    world.spawn(slime, spot.x(), spot.y());
+                    break;
+                }
+            }
+        }
     }
 
     private void chop(Entity target) {
@@ -205,11 +253,12 @@ final class OverworldModule extends GameModule {
         }
         Entity hero = world.entity("player");
         String position = hero == null ? "" : "x " + Math.round(hero.x()) + ", y " + Math.round(hero.y());
+        float hearts = hero == null ? 0f : hero.get(Health.class).current();
         event.draw()
                 .color(Color.rgba(0x00000088))
                 .rect(4, 4, 250, 42)
                 .color(Color.WHITE)
-                .text(position + "   drewno: " + chopped, 8, 8, TextStyle.of(10))
+                .text(position + "   drewno: " + chopped + "   zdrowie: " + Math.round(hearts), 8, 8, TextStyle.of(10))
                 .text(
                         "chunki: " + world.loadedChunks().size() + "   encje: " + world.entityCount() + "   FPS: "
                                 + Math.round(display().fps()),
@@ -272,37 +321,98 @@ final class OverworldModule extends GameModule {
         return Vec2.ZERO;
     }
 
-    /** Moves the player with the move actions; water and trees block the way. */
+    /** Moves the player with the move actions; water, trees and rocks block the way. Slimes bite. */
     final class PlayerControl extends Component {
         private static final float SPEED = 5f;
+        private Vec2 start = Vec2.ZERO;
+
+        @Override
+        protected void onSpawn() {
+            start = entity().position();
+        }
 
         @Override
         protected void onTick() {
             Vec2 move = input().vector(left, right, up, down);
-            if (move.equals(Vec2.ZERO)) {
-                return;
-            }
             Entity self = entity();
-            float step = SPEED / engine().targetTps();
-            float nx = self.x() + move.x() * step;
-            float ny = self.y() + move.y() * step;
-            if (walkable(self.world(), nx, self.y())) {
-                self.setPosition(nx, self.y());
+            self.get(Mover.class).moveAndSlide(move.scale(SPEED));
+            if (move.x() != 0) {
+                self.setFlipX(move.x() < 0);
             }
-            if (walkable(self.world(), self.x(), ny)) {
-                self.setPosition(self.x(), ny);
+            Health health = self.get(Health.class);
+            Entity biter = self.world()
+                    .query()
+                    .tag("slime")
+                    .near(self.position(), 0.7f)
+                    .first();
+            if (biter != null && health.damage(1f, DamageType.GENERIC, biter) > 0f) {
+                self.world()
+                        .spawn(
+                                floatingText,
+                                self.x(),
+                                self.y() - 1f,
+                                e -> e.add(new WorldText(Text.of("-1").color(Color.rgb(0xff004d)))
+                                        .style(TextStyle.of(12).outline(1, Color.BLACK))));
+                self.world().camera().shake(0.4f, 0.3f);
             }
-            self.setFlipX(move.x() < 0 || (move.x() == 0 && self.isFlipX()));
+            if (health.isDead()) {
+                self.teleport(start.x(), start.y());
+                health.revive(health.max());
+            }
+        }
+    }
+
+    /** Slimes wander around until the player comes near, then chase along paths from the navigation grid. */
+    final class SlimeBrain extends Component {
+        private StateMachine<Mode> brain;
+        private int wait;
+
+        @Override
+        protected void onSpawn() {
+            NavAgent agent = entity().get(NavAgent.class);
+            brain = new StateMachine<>(Mode.WANDER)
+                    .onEnter(Mode.WANDER, () -> {
+                        agent.stop();
+                        wait = 0;
+                    })
+                    .onTick(Mode.WANDER, () -> {
+                        if (--wait <= 0) {
+                            wait = 60 + world().rng().nextInt(90);
+                            Vec2 spot = entity().position()
+                                    .add(Vec2.fromAngle(world().rng().nextFloat() * 360f)
+                                            .scale(3f));
+                            if (world().navGrid().isPassable((int) Math.floor(spot.x()), (int) Math.floor(spot.y()))) {
+                                agent.moveTo(spot);
+                            }
+                        }
+                    })
+                    .onEnter(Mode.CHASE, () -> {
+                        Entity hero = world().entity("player");
+                        if (hero != null) {
+                            agent.follow(hero);
+                        }
+                    })
+                    .transition(Mode.WANDER, Mode.CHASE, () -> distanceToPlayer() < 7f)
+                    .transition(Mode.CHASE, Mode.WANDER, () -> distanceToPlayer() > 11f);
         }
 
-        private boolean walkable(World world, float x, float y) {
-            GridPos cell = world.tileMap().worldToTile(new Vec2(x, y));
-            TileType tile = world.tileMap().tile("ground", cell.x(), cell.y());
-            if (tile == null || tile.shape().isSolid()) {
-                return false;
-            }
-            return world.query().tag("tree").near(new Vec2(x, y), 0.45f).count() == 0;
+        private float distanceToPlayer() {
+            Entity hero = world().entity("player");
+            return hero == null ? Float.MAX_VALUE : hero.position().distanceTo(entity().position());
         }
+
+        @Override
+        protected void onTick() {
+            brain.update();
+            if (distanceToPlayer() > 30f) {
+                entity().remove();
+            }
+        }
+    }
+
+    enum Mode {
+        WANDER,
+        CHASE
     }
 
     /** Floats text upwards until its lifetime ends. */

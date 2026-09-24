@@ -229,6 +229,22 @@ public final class Renderer {
                     }
                     draw.flush();
                 }
+                if (view.hasDebug()) {
+                    camera.projection(projection, 1f, 1f);
+                    draw.begin(
+                            projection,
+                            worldPixel,
+                            1f / display.pixelsPerUnit(),
+                            0f,
+                            sx,
+                            sy,
+                            sw,
+                            sh,
+                            drawHeight,
+                            drawFramebuffer);
+                    view.drawDebug(draw, camera, worldPixel);
+                    draw.flush();
+                }
                 screenProjection(cw, ch);
                 draw.begin(
                         projection,

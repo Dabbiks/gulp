@@ -692,6 +692,53 @@ class WorldTest {
     }
 
     @Test
+    void mapObjectsCarryTheirPoints() {
+        TestGame game = start(b -> {
+            put(b, "test/maps/rails.tmj", """
+                    {"tilewidth": 16, "tileheight": 16, "tilesets": [], "layers": [
+                      {"type": "objectgroup", "name": "Paths", "objects": [
+                        {"name": "rail", "type": "Rail", "x": 16, "y": 0, "polyline": [{"x": 0, "y": 0}, {"x": 32, "y": 16}]},
+                        {"name": "loop", "type": "Rail", "x": 0, "y": 0, "polygon": [{"x": 0, "y": 0}, {"x": 16, "y": 0},
+                         {"x": 16, "y": 16}]}]}]}
+                    """);
+            put(b, "test/maps/rails_xml.tmx", """
+                    <map tilewidth="16" tileheight="16"><objectgroup name="Paths">
+                     <object id="1" name="rail" type="Rail" x="16" y="0"><polyline points="0,0 32,16"/></object>
+                    </objectgroup></map>
+                    """);
+            put(b, "test/maps/route.ldtk", """
+                    {"defaultGridSize": 16, "defs": {"tilesets": [], "layers": []}, "levels": [
+                      {"identifier": "Level_0", "worldX": 0, "worldY": 0, "layerInstances": [
+                        {"__identifier": "Entities", "__type": "Entities", "__gridSize": 16, "__cWid": 8, "entityInstances": [
+                          {"__identifier": "Guard", "px": [8, 8], "width": 16, "height": 16, "__pivot": [0.5, 0.5],
+                           "fieldInstances": [{"__identifier": "route", "__value": [{"cx": 1, "cy": 2}, {"cx": 3, "cy": 2}]},
+                                              {"__identifier": "home", "__value": {"cx": 0, "cy": 0}}]}]}]}]}
+                    """);
+        });
+        List<dev.gulp.api.world.MapObject> objects = new ArrayList<>();
+        for (String map : List.of("test:maps/rails", "test:maps/rails_xml")) {
+            game.worlds().load(map, WorldSource.tiled(AssetKey.text(map)).spawner((world, object) -> {
+                objects.add(object);
+                return null;
+            }));
+        }
+        game.worlds()
+                .load(
+                        "route",
+                        WorldSource.ldtk(AssetKey.text("test:maps/route")).spawner((world, object) -> {
+                            objects.add(object);
+                            return null;
+                        }));
+        runner.step(10);
+        assertThat(objects).hasSize(4);
+        assertThat(objects.get(0).points()).containsExactly(new Vec2(1f, 0f), new Vec2(3f, 1f));
+        assertThat(objects.get(1).points()).as("polygons close").hasSize(4).endsWith(new Vec2(0f, 0f));
+        assertThat(objects.get(2).points()).containsExactly(new Vec2(1f, 0f), new Vec2(3f, 1f));
+        assertThat(objects.get(3).points())
+                .containsExactly(new Vec2(1.5f, 2.5f), new Vec2(3.5f, 2.5f), new Vec2(0.5f, 0.5f));
+    }
+
+    @Test
     void mapFilesMustHaveLowerCaseNames() {
         TestGame game =
                 start(b -> put(b, "test/maps/bad.tmj", "{\"tilesets\": [{\"firstgid\": 1, \"source\": \"Bad.tsj\"}]}"));

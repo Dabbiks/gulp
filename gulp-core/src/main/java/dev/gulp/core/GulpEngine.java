@@ -15,6 +15,7 @@ import dev.gulp.api.audio.AudioClip;
 import dev.gulp.api.command.Commands;
 import dev.gulp.api.data.Config;
 import dev.gulp.api.data.Preferences;
+import dev.gulp.api.entity.DamageType;
 import dev.gulp.api.event.Events;
 import dev.gulp.api.event.lifecycle.FocusGainedEvent;
 import dev.gulp.api.event.lifecycle.FocusLostEvent;
@@ -31,6 +32,7 @@ import dev.gulp.api.i18n.Translations;
 import dev.gulp.api.input.Input;
 import dev.gulp.api.module.GameModule;
 import dev.gulp.api.module.ModuleManager;
+import dev.gulp.api.physics.CollisionLayer;
 import dev.gulp.api.registry.Key;
 import dev.gulp.api.registry.Registries;
 import dev.gulp.api.render.Display;
@@ -38,6 +40,7 @@ import dev.gulp.api.scheduler.Promise;
 import dev.gulp.api.scheduler.Scheduler;
 import dev.gulp.api.service.Services;
 import dev.gulp.api.spi.EngineBinding;
+import dev.gulp.api.spi.PhysicsAccess;
 import dev.gulp.api.text.Font;
 import dev.gulp.api.text.FontFamily;
 import dev.gulp.api.ui.Transitions;
@@ -278,6 +281,7 @@ public final class GulpEngine implements Engine, FrameHandler, CoreContext {
                 engineLogger,
                 () -> new PromiseImpl<>(game, this, mainQueue));
         renderer.setWorldView(worlds);
+        PhysicsAccess.installBackend(new dev.gulp.core.world.PhysicsBackend());
         // Size and camera bounds are valid before the first frame, so onLoad and onEnable can use them.
         PlatformWindow window = backend.window();
         display.update(
@@ -443,10 +447,14 @@ public final class GulpEngine implements Engine, FrameHandler, CoreContext {
             registries.register(Registries.TRANSITION, Transitions.slide(dev.gulp.api.math.Vec2.LEFT, 0.5f));
             registries.register(Registries.TRANSITION, Transitions.circleWipe(0.6f));
             registries.register(Registries.TRANSITION, Transitions.pixelate(0.5f));
+            registries.register(Registries.COLLISION_LAYER, CollisionLayer.DEFAULT);
+            registries.register(Registries.COLLISION_LAYER, CollisionLayer.TILES);
+            registries.register(Registries.DAMAGE_TYPE, DamageType.GENERIC);
         });
         game.onLoad();
         modules.loadAll();
         registries.freeze();
+        assignCollisionBits();
         input.registerActions(registries.get(Registries.INPUT_ACTION).values());
         AssetGroup startupGroup = assets.startup();
         for (AssetKey<AudioClip> file :
@@ -457,6 +465,18 @@ public final class GulpEngine implements Engine, FrameHandler, CoreContext {
         Promise<Void> startupAssets = assets.loadGroup(Assets.STARTUP);
         startupAssets.onFailure(error -> startupError = error);
         startup = startupAssets;
+    }
+
+    /** Gives every registered collision layer its mask bit, in registration order. */
+    private void assignCollisionBits() {
+        int bit = 0;
+        for (CollisionLayer layer : registries.get(Registries.COLLISION_LAYER).values()) {
+            if (bit >= CollisionLayer.MAX) {
+                throw new IllegalStateException(
+                        "At most " + CollisionLayer.MAX + " collision layers can be registered");
+            }
+            PhysicsAccess.assignBit(layer, bit++);
+        }
     }
 
     private void startGame(long nanoTime) {

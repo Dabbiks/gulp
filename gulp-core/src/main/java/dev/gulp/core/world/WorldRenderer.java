@@ -1,5 +1,6 @@
 package dev.gulp.core.world;
 
+import dev.gulp.api.ai.Steering;
 import dev.gulp.api.asset.AssetKey;
 import dev.gulp.api.entity.component.SpriteComponent;
 import dev.gulp.api.entity.component.WorldText;
@@ -8,14 +9,20 @@ import dev.gulp.api.graphics.Mesh2D;
 import dev.gulp.api.graphics.Texture;
 import dev.gulp.api.graphics.TextureRegion;
 import dev.gulp.api.math.Rect;
+import dev.gulp.api.math.Vec2;
+import dev.gulp.api.nav.NavAgent;
+import dev.gulp.api.nav.Path;
+import dev.gulp.api.nav.PathFollower;
 import dev.gulp.api.render.RenderLayer;
 import dev.gulp.api.text.TextAlign;
 import dev.gulp.api.world.Chunk;
+import dev.gulp.api.world.DebugView;
 import dev.gulp.api.world.TileSet;
 import dev.gulp.api.world.TileType;
 import dev.gulp.core.asset.AssetsImpl;
 import dev.gulp.core.graphics.CameraImpl;
 import dev.gulp.core.graphics.DrawImpl;
+import dev.gulp.core.physics.PhysicsWorld;
 import dev.gulp.core.util.IntList;
 import dev.gulp.core.util.LongObjectMap;
 import java.util.ArrayList;
@@ -536,6 +543,89 @@ final class WorldRenderer {
             float sx = camera.screenX(wx, wy);
             float sy = camera.screenY(wx, wy);
             draw.text(text.text(), new Rect(sx - 300f, sy - 200f, 600f, 200f), text.style(), TextAlign.BOTTOM);
+        }
+    }
+
+    private static final Color BLOCKED = Color.rgba(0xe5393566);
+    private static final Color COSTLY = Color.rgba(0xffa72666);
+    private static final Color PATH = Color.rgba(0x66bb6aff);
+    private static final Color VELOCITY = Color.rgba(0x29b6f6ff);
+    private static final Color FORCE = Color.rgba(0xef5350ff);
+
+    /** Draws the debug views the world shows, in world units. */
+    void drawDebug(WorldImpl world, DrawImpl draw, CameraImpl camera, float pixel) {
+        camera.viewBounds(view);
+        Rect visible = new Rect(view[0], view[1], view[2] - view[0], view[3] - view[1]);
+        float line = pixel * 1.5f;
+        int what = 0;
+        if (world.isDebugShown(DebugView.SHAPES)) {
+            what |= PhysicsWorld.SHAPES;
+        }
+        if (world.isDebugShown(DebugView.CONTACTS)) {
+            what |= PhysicsWorld.CONTACTS;
+        }
+        if (world.isDebugShown(DebugView.JOINTS)) {
+            what |= PhysicsWorld.JOINTS;
+        }
+        if (world.isDebugShown(DebugView.TRIGGERS)) {
+            what |= PhysicsWorld.TRIGGERS;
+        }
+        if (what != 0) {
+            world.physics.debugDraw(draw, what, visible, line);
+        }
+        if (world.isDebugShown(DebugView.NAVIGATION)) {
+            int x0 = (int) Math.floor(view[0]);
+            int y0 = (int) Math.floor(view[1]);
+            int x1 = Math.min((int) Math.floor(view[2]), x0 + 256);
+            int y1 = Math.min((int) Math.floor(view[3]), y0 + 256);
+            for (int y = y0; y <= y1; y++) {
+                for (int x = x0; x <= x1; x++) {
+                    float cost = world.navGrid.cost(x, y);
+                    if (cost == Float.POSITIVE_INFINITY) {
+                        draw.color(BLOCKED).rect(x, y, 1f, 1f);
+                    } else if (cost > 1f) {
+                        draw.color(COSTLY).rect(x, y, 1f, 1f);
+                    }
+                }
+            }
+        }
+        if (world.isDebugShown(DebugView.PATHS)) {
+            draw.color(PATH);
+            ComponentStore agents = world.store(NavAgent.class);
+            if (agents != null) {
+                for (int i = 0; i < agents.size; i++) {
+                    polyline(draw, ((NavAgent) agents.items[i]).path(), line);
+                }
+            }
+            ComponentStore followers = world.store(PathFollower.class);
+            if (followers != null) {
+                for (int i = 0; i < followers.size; i++) {
+                    polyline(draw, ((PathFollower) followers.items[i]).path(), line);
+                }
+            }
+        }
+        if (world.isDebugShown(DebugView.STEERING)) {
+            ComponentStore steering = world.store(Steering.class);
+            if (steering != null) {
+                for (int i = 0; i < steering.size; i++) {
+                    Steering s = (Steering) steering.items[i];
+                    EntityImpl owner = steering.owners[i];
+                    Vec2 v = s.velocity();
+                    Vec2 f = s.lastForce();
+                    draw.color(VELOCITY).line(owner.x, owner.y, owner.x + v.x() * 0.5f, owner.y + v.y() * 0.5f, line);
+                    draw.color(FORCE).line(owner.x, owner.y, owner.x + f.x() * 0.1f, owner.y + f.y() * 0.1f, line);
+                }
+            }
+        }
+        draw.color(Color.WHITE);
+    }
+
+    private static void polyline(DrawImpl draw, Path path, float line) {
+        List<Vec2> points = path.points();
+        for (int i = 0; i + 1 < points.size(); i++) {
+            Vec2 a = points.get(i);
+            Vec2 b = points.get(i + 1);
+            draw.line(a.x(), a.y(), b.x(), b.y(), line);
         }
     }
 }

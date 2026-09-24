@@ -73,7 +73,7 @@ Sekcje 11–13 opisują świat, encje, mapy kafelków i kamerę. Nie przesądzaj
 - Persystencja encji i chunków (`@ComponentInfo`, `WorldSaveEvent`, zapis świata) przychodzi w etapie 10. Rejestr `ComponentType` istnieje, ale nie jest jeszcze używany.
 - Kolizje: `TileShape` opisuje kształty, ale fizyka i `Mover` to etap 7. Przykład platformówki ma do tego czasu kilkanaście linii kolizji z siatką.
 - Światło, cząsteczki i animowane sprite'y w encjach to etap 8.
-- `Health` i `SoundEmitter` z listy komponentów wbudowanych (sekcja 14.4) nie są przypisane w roadmapie do żadnego etapu. Czekają na decyzję, w którym etapie je zrobić.
+- `Health` i `SoundEmitter` z listy komponentów wbudowanych (sekcja 14.4) nie były przypisane w roadmapie do żadnego etapu; weszły do etapu 7 (ADR 0012).
 
 ## Konsekwencje
 
