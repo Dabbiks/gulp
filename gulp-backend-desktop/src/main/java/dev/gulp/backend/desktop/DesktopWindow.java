@@ -8,7 +8,10 @@ import dev.gulp.platform.DecodedImage;
 import dev.gulp.platform.PlatformWindow;
 import dev.gulp.platform.WindowListener;
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
+import java.util.List;
 import org.jspecify.annotations.Nullable;
+import org.lwjgl.PointerBuffer;
 import org.lwjgl.glfw.GLFWImage;
 import org.lwjgl.glfw.GLFWVidMode;
 import org.lwjgl.system.MemoryStack;
@@ -40,12 +43,16 @@ public final class DesktopWindow implements PlatformWindow {
     private long customCursor = NULL;
     private final int[] intA = new int[1];
     private final int[] intB = new int[1];
+    private final int[] windowArea = new int[1];
+    private final int[] windowAreaHeight = new int[1];
     private final float[] floatA = new float[1];
     private final float[] floatB = new float[1];
     private int framebufferWidth;
     private int framebufferHeight;
     private float contentScale;
     private boolean fullscreen;
+    private boolean borderless;
+    private int monitor;
     private int windowedX;
     private int windowedY;
     private int windowedWidth;
@@ -172,7 +179,7 @@ public final class DesktopWindow implements PlatformWindow {
             glfwGetWindowSize(handle, intA, intB);
             windowedWidth = intA[0];
             windowedHeight = intB[0];
-            long monitor = glfwGetPrimaryMonitor();
+            long monitor = monitorHandle(this.monitor);
             GLFWVidMode mode = glfwGetVideoMode(monitor);
             if (mode == null) {
                 return;
@@ -184,6 +191,90 @@ public final class DesktopWindow implements PlatformWindow {
             glfwSetWindowMonitor(handle, NULL, windowedX, windowedY, width, height, GLFW_DONT_CARE);
         }
         this.fullscreen = fullscreen;
+    }
+
+    @Override
+    public boolean isBorderless() {
+        return borderless;
+    }
+
+    @Override
+    public void setBorderless(boolean borderless) {
+        this.borderless = borderless;
+        glfwSetWindowAttrib(handle, GLFW_DECORATED, borderless ? GLFW_FALSE : GLFW_TRUE);
+    }
+
+    @Override
+    public List<String> monitors() {
+        List<String> names = new ArrayList<>();
+        PointerBuffer all = glfwGetMonitors();
+        long primary = glfwGetPrimaryMonitor();
+        if (primary != NULL) {
+            names.add(name(primary));
+        }
+        if (all != null) {
+            for (int i = 0; i < all.limit(); i++) {
+                if (all.get(i) != primary) {
+                    names.add(name(all.get(i)));
+                }
+            }
+        }
+        if (names.isEmpty()) {
+            names.add("Monitor");
+        }
+        return names;
+    }
+
+    private static String name(long monitor) {
+        String name = glfwGetMonitorName(monitor);
+        return name != null ? name : "Monitor";
+    }
+
+    /** Monitor handle by index, primary first (the order of {@link #monitors()}). */
+    private static long monitorHandle(int index) {
+        long primary = glfwGetPrimaryMonitor();
+        if (index == 0) {
+            return primary;
+        }
+        PointerBuffer all = glfwGetMonitors();
+        int seen = 1;
+        if (all != null) {
+            for (int i = 0; i < all.limit(); i++) {
+                if (all.get(i) != primary && seen++ == index) {
+                    return all.get(i);
+                }
+            }
+        }
+        return primary;
+    }
+
+    @Override
+    public int monitor() {
+        return monitor;
+    }
+
+    @Override
+    public void setMonitor(int index) {
+        if (index < 0 || index >= monitors().size() || index == monitor) {
+            return;
+        }
+        monitor = index;
+        long target = monitorHandle(index);
+        if (fullscreen) {
+            GLFWVidMode mode = glfwGetVideoMode(target);
+            if (mode != null) {
+                glfwSetWindowMonitor(handle, target, 0, 0, mode.width(), mode.height(), mode.refreshRate());
+            }
+            return;
+        }
+        glfwGetMonitorWorkarea(target, intA, intB, windowArea, windowAreaHeight);
+        int areaX = intA[0];
+        int areaY = intB[0];
+        glfwGetWindowSize(handle, intA, intB);
+        glfwSetWindowPos(
+                handle,
+                areaX + Math.max(0, (windowArea[0] - intA[0]) / 2),
+                areaY + Math.max(0, (windowAreaHeight[0] - intB[0]) / 2));
     }
 
     @Override

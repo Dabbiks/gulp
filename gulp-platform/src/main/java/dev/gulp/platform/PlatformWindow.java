@@ -1,5 +1,6 @@
 package dev.gulp.platform;
 
+import java.util.List;
 import org.jspecify.annotations.Nullable;
 
 /**
@@ -82,6 +83,41 @@ public interface PlatformWindow {
      * @param fullscreen whether to be fullscreen
      */
     void setFullscreen(boolean fullscreen);
+
+    /**
+     * Returns whether the window has no frame.
+     *
+     * @return {@code true} if borderless
+     */
+    boolean isBorderless();
+
+    /**
+     * Hides or shows the window frame; platforms without frames ignore it.
+     *
+     * @param borderless whether to hide the frame
+     */
+    void setBorderless(boolean borderless);
+
+    /**
+     * Returns the names of the connected monitors, primary first.
+     *
+     * @return at least one name
+     */
+    List<String> monitors();
+
+    /**
+     * Returns the monitor the window is on.
+     *
+     * @return an index into {@link #monitors()}
+     */
+    int monitor();
+
+    /**
+     * Moves the window (or its fullscreen) to another monitor; an unknown index is ignored.
+     *
+     * @param index an index into {@link #monitors()}
+     */
+    void setMonitor(int index);
 
     /**
      * Turns VSync on or off. Ignored on the web.

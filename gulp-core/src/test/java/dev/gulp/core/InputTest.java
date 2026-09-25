@@ -136,10 +136,17 @@ class InputTest {
     @Test
     void holdingCountsTicksAndFiresEvents() {
         TestGame game = start();
-        game.on(ActionPressEvent.class, e -> log.add("press " + e.action().key().path()));
-        game.on(
-                ActionReleaseEvent.class,
-                e -> log.add("release " + e.action().key().path() + " " + e.heldTicks()));
+        // Built-in UI actions (gulp:ui_*) also fire; only the game's actions are checked here.
+        game.on(ActionPressEvent.class, e -> {
+            if (!e.action().key().namespace().equals("gulp")) {
+                log.add("press " + e.action().key().path());
+            }
+        });
+        game.on(ActionReleaseEvent.class, e -> {
+            if (!e.action().key().namespace().equals("gulp")) {
+                log.add("release " + e.action().key().path() + " " + e.heldTicks());
+            }
+        });
         game.on(KeyPressEvent.class, e -> log.add("key " + e.key().name() + " " + e.scanCode()));
         game.on(KeyReleaseEvent.class, e -> log.add("up " + e.key().name()));
         key(Keys.SPACE.code(), true);

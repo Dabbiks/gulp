@@ -56,6 +56,12 @@ public final class CommandsImpl implements Commands {
         labels.addAll(command.aliases());
         for (String label : labels) {
             Registered existing = byLabel.get(label);
+            if (existing != null
+                    && existing.owner.id().equals("gulp")
+                    && !owner.id().equals("gulp")) {
+                remove(existing); // games may replace built-in commands such as /spawn or /tp
+                existing = null;
+            }
             if (existing != null) {
                 throw new IllegalArgumentException(
                         "Command /" + label + " is already registered by '" + existing.owner.id() + "'");

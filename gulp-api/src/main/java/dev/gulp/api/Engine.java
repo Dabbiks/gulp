@@ -13,6 +13,7 @@ import dev.gulp.api.registry.Registries;
 import dev.gulp.api.render.Display;
 import dev.gulp.api.scheduler.Scheduler;
 import dev.gulp.api.service.Services;
+import dev.gulp.api.ui.Ui;
 import dev.gulp.api.world.Worlds;
 
 /**
@@ -136,6 +137,13 @@ public interface Engine {
      * @return the worlds
      */
     Worlds worlds();
+
+    /**
+     * Returns the UI: screens, HUD, overlay and notifications.
+     *
+     * @return the UI
+     */
+    Ui ui();
 
     /**
      * Returns platform information.

@@ -156,7 +156,11 @@ class WebSmokeTest {
             assertThat(colors).as("distinct colors on screen").hasSizeGreaterThan(5);
 
             // Juice screen: lights, shadows, particles and post-processing on this browser's WebGL.
-            page.click("#gulp-canvas");
+            // The main menu (UI screen) opens first and has the focus on Start; a click in the corner hits no
+            // button, so Enter presses Start.
+            page.click("#gulp-canvas", new Page.ClickOptions().setPosition(4, 4));
+            page.keyboard().press("Enter");
+            waitFor(page, logs, "Menu closed", 5_000);
             page.keyboard().press("Tab");
             page.keyboard().press("Tab");
             waitFor(page, logs, "Juice screen", 5_000);

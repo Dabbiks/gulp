@@ -42,6 +42,7 @@ public final class Renderer {
     private @Nullable WorldView worldView;
     private boolean transitionErrorLogged;
     private @Nullable LoadingScreen loadingScreen;
+    private @Nullable ScreenLayers screenLayers;
     private float loadingProgress;
     private final PostProcessor worldPost;
     private final PostProcessor displayPost;
@@ -78,6 +79,15 @@ public final class Renderer {
     public void showLoading(LoadingScreen screen, float progress) {
         this.loadingScreen = screen;
         this.loadingProgress = progress;
+    }
+
+    /**
+     * Connects the UI, which draws the {@code ui} and {@code overlay} layers.
+     *
+     * @param layers the UI
+     */
+    public void setScreenLayers(ScreenLayers layers) {
+        this.screenLayers = layers;
     }
 
     /** Stops drawing the loading screen. */
@@ -355,9 +365,18 @@ public final class Renderer {
         CameraImpl camera = display.cameraImpl();
         float unitScale = camera.unitScale();
         List<RenderLayer> layers = display.layers();
+        ScreenLayers ui = running ? screenLayers : null;
+        // On a viewport display the UI is drawn after scaling, at window resolution, so its text stays sharp.
+        boolean deferScreen = offscreenPass && ui != null && !ui.drawsInBaseBuffer();
         for (int i = 0; i < layers.size(); i++) {
             RenderLayer layer = layers.get(i);
-            if (!layer.isVisible() || !layerListeners || (worldLayers != null && !layer.isScreenSpace())) {
+            if (!layer.isVisible() || (worldLayers != null && !layer.isScreenSpace())) {
+                continue;
+            }
+            if (!layerListeners && !(layer.isScreenSpace() && ui != null)) {
+                continue;
+            }
+            if (layer.isScreenSpace() && deferScreen) {
                 continue;
             }
             if (layer.isScreenSpace()) {
@@ -390,7 +409,11 @@ public final class Renderer {
                         drawFramebuffer);
             }
             draw.material(layer.material());
-            events.call(new RenderLayerEvent(draw, layer, alpha));
+            if (layer.isScreenSpace()) {
+                drawScreenLayer(ui, layer, layerListeners, alpha);
+            } else {
+                events.call(new RenderLayerEvent(draw, layer, alpha));
+            }
             draw.flush();
         }
         if (running && events.hasListeners(PostRenderEvent.class)) {
@@ -448,10 +471,53 @@ public final class Renderer {
                 draw.image(frameBuffer.region(), 0, 0, lw, lh);
                 draw.flush();
             }
+            if (deferScreen) {
+                for (int i = 0; i < layers.size(); i++) {
+                    RenderLayer layer = layers.get(i);
+                    if (layer.isVisible() && layer.isScreenSpace()) {
+                        screenProjection(lw, lh);
+                        draw.begin(projection, lw / vw, 1f, 0f, vx, vy, vw, vh, fh, 0);
+                        draw.material(layer.material());
+                        drawScreenLayer(ui, layer, layerListeners, alpha);
+                        draw.flush();
+                    }
+                }
+            }
         }
         gl.disable(Gl.SCISSOR_TEST);
         completeScreenshots(fw, fh);
         display.frameDone(nanoTime, batcher);
+    }
+
+    /**
+     * Draws a screen layer: on {@code ui} the UI (world UI and HUD) and then the game's own drawing, on {@code overlay}
+     * the game's drawing first and then the UI above it (overlay drawers, screens, popups, console), so that menus
+     * cover everything the game draws.
+     */
+    private void drawScreenLayer(@Nullable ScreenLayers ui, RenderLayer layer, boolean listeners, float alpha) {
+        boolean overlay = layer.name().equals("overlay");
+        if (ui != null && layer.name().equals("ui")) {
+            drawUiPart(ui, false, layer);
+        }
+        if (listeners) {
+            events.call(new RenderLayerEvent(draw, layer, alpha));
+        }
+        if (ui != null && overlay) {
+            drawUiPart(ui, true, layer);
+        }
+    }
+
+    private void drawUiPart(ScreenLayers ui, boolean overlay, RenderLayer layer) {
+        try {
+            if (overlay) {
+                ui.drawOverlay(draw);
+            } else {
+                ui.drawUi(draw);
+            }
+        } catch (RuntimeException error) {
+            transitionFailed(error);
+        }
+        draw.material(layer.material());
     }
 
     /** Draws the lights into the light map and multiplies it over what the camera drew so far. */

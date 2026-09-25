@@ -21,6 +21,7 @@ import dev.gulp.api.render.Display;
 import dev.gulp.api.scheduler.Scheduler;
 import dev.gulp.api.scheduler.Task;
 import dev.gulp.api.service.Services;
+import dev.gulp.api.ui.Ui;
 import dev.gulp.api.world.Worlds;
 import java.time.Duration;
 import java.util.function.Consumer;
@@ -205,6 +206,15 @@ public interface Owner {
      */
     default Worlds worlds() {
         return engine().worlds();
+    }
+
+    /**
+     * Returns the UI.
+     *
+     * @return the UI
+     */
+    default Ui ui() {
+        return engine().ui();
     }
 
     /**

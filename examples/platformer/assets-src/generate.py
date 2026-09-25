@@ -143,6 +143,72 @@ def sprites():
     lift.save(os.path.join(OUT, "sprites", "lift.png"))
 
 
+def aseprite(name, frames, width, height, tags, durations):
+    """Writes a sheet and a JSON hash export like Aseprite does (animations/<name>.png and .json)."""
+    sheet = art.Image(width * len(frames), height)
+    for i, draw in enumerate(frames):
+        draw(sheet, i * width)
+    os.makedirs(os.path.join(OUT, "animations"), exist_ok=True)
+    sheet.save(os.path.join(OUT, "animations", name + ".png"))
+    hash_frames = {}
+    for i in range(len(frames)):
+        hash_frames["%s %d.aseprite" % (name, i)] = {
+            "frame": {"x": i * width, "y": 0, "w": width, "h": height},
+            "rotated": False,
+            "trimmed": False,
+            "spriteSourceSize": {"x": 0, "y": 0, "w": width, "h": height},
+            "sourceSize": {"w": width, "h": height},
+            "duration": durations[i],
+        }
+    meta = {"app": "https://www.aseprite.org/", "image": name + ".png", "format": "RGBA8888",
+            "size": {"w": width * len(frames), "h": height}, "scale": "1", "frameTags": tags}
+    with open(os.path.join(OUT, "animations", name + ".json"), "w", encoding="utf-8", newline="\n") as f:
+        json.dump({"frames": hash_frames, "meta": meta}, f, indent=1)
+
+
+def animations():
+    """Player: idle 0-1 (breathing), run 2-5 (legs), jump 6 (tucked legs). Coin: spin 0-3 (width shrinks and grows)."""
+    skin, eye, shirt, boots = (240, 200, 160, 255), (30, 30, 30, 255), (60, 90, 200, 255), (80, 60, 40, 255)
+
+    def player(lift, legs):
+        def draw(img, ox):
+            top = 1 + lift
+            img.fill(ox + 5, top, 6, 5, skin)
+            img.fill(ox + 6, top + 2, 1, 1, eye)
+            img.fill(ox + 9, top + 2, 1, 1, eye)
+            img.fill(ox + 4, top - 1, 8, 2, shirt)
+            img.fill(ox + 4, top + 5, 8, 6 - lift, shirt)
+            for x, h in legs:
+                img.fill(ox + x, 16 - h, 2, h, boots)
+        return draw
+
+    player_frames = [
+        player(0, [(5, 4), (9, 4)]), player(1, [(5, 4), (9, 4)]),
+        player(0, [(4, 4), (10, 3)]), player(1, [(6, 4), (8, 4)]),
+        player(0, [(10, 4), (4, 3)]), player(1, [(8, 4), (6, 4)]),
+        player(0, [(5, 2), (9, 2)]),
+    ]
+    aseprite("player", player_frames, 16, 16,
+             [{"name": "idle", "from": 0, "to": 1, "direction": "forward"},
+              {"name": "run", "from": 2, "to": 5, "direction": "forward"},
+              {"name": "jump", "from": 6, "to": 6, "direction": "forward"}],
+             [400, 400, 90, 90, 90, 90, 100])
+
+    def coin(half_width):
+        def draw(img, ox):
+            for y in range(12):
+                for x in range(12):
+                    dx = (x - 5.5) / max(half_width, 0.5)
+                    dy = (y - 5.5) / 5.5
+                    d = dx * dx + dy * dy
+                    if d <= 1:
+                        img.set(ox + x, y, (250, 200, 60, 255) if d > 0.45 else (255, 230, 110, 255))
+        return draw
+
+    aseprite("coin", [coin(5.5), coin(3.5), coin(1), coin(3.5)], 12, 12,
+             [{"name": "spin", "from": 0, "to": 3, "direction": "forward"}], [150, 110, 110, 110])
+
+
 def sounds():
     """A short rising blip for picking up coins, 16-bit mono WAV."""
     rate = 22050
@@ -293,6 +359,7 @@ if __name__ == "__main__":
     tileset()
     backgrounds()
     sprites()
+    animations()
     sounds()
     ldtk()
     print("platformer assets written to", os.path.normpath(OUT))

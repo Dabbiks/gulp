@@ -40,6 +40,8 @@ import org.jspecify.annotations.Nullable;
  */
 public final class DrawImpl implements Draw {
 
+    private final float[] clipCorners = new float[8];
+
     private static final int MAX_CLIPS = 32;
 
     private final Gl gl;
@@ -470,34 +472,41 @@ public final class DrawImpl implements Draw {
 
     @Override
     public Draw rectOutline(Rect rect, float thickness) {
-        float t = Math.min(thickness, Math.min(rect.width(), rect.height()) / 2f);
-        rect(rect.x(), rect.y(), rect.width(), t);
-        rect(rect.x(), rect.bottom() - t, rect.width(), t);
-        rect(rect.x(), rect.y() + t, t, rect.height() - 2 * t);
-        rect(rect.right() - t, rect.y() + t, t, rect.height() - 2 * t);
+        return rectOutline(rect.x(), rect.y(), rect.width(), rect.height(), thickness);
+    }
+
+    @Override
+    public Draw rectOutline(float x, float y, float width, float height, float thickness) {
+        float t = Math.min(thickness, Math.min(width, height) / 2f);
+        rect(x, y, width, t);
+        rect(x, y + height - t, width, t);
+        rect(x, y + t, t, height - 2 * t);
+        rect(x + width - t, y + t, t, height - 2 * t);
         return this;
     }
 
     @Override
     public Draw roundedRect(Rect rect, float radius) {
-        float r = Mathf.clamp(radius, 0f, Math.min(rect.width(), rect.height()) / 2f);
+        return roundedRect(rect.x(), rect.y(), rect.width(), rect.height(), radius);
+    }
+
+    @Override
+    public Draw roundedRect(float x, float y, float width, float height, float radius) {
+        float r = Mathf.clamp(radius, 0f, Math.min(width, height) / 2f);
         if (r <= 0f) {
-            return rect(rect);
+            return rect(x, y, width, height);
         }
         int perCorner = Math.max(2, segments(r) / 4);
         float[] p = points(perCorner * 4);
         int n = 0;
-        float[][] centers = {
-            {rect.right() - r, rect.y() + r, -90},
-            {rect.right() - r, rect.bottom() - r, 0},
-            {rect.x() + r, rect.bottom() - r, 90},
-            {rect.x() + r, rect.y() + r, 180}
-        };
-        for (float[] corner : centers) {
+        for (int corner = 0; corner < 4; corner++) {
+            float cx = corner == 0 || corner == 1 ? x + width - r : x + r;
+            float cy = corner == 1 || corner == 2 ? y + height - r : y + r;
+            float start = -90f + 90f * corner;
             for (int i = 0; i < perCorner; i++) {
-                float angle = corner[2] + 90f * i / (perCorner - 1);
-                p[n * 2] = corner[0] + Mathf.cosDeg(angle) * r;
-                p[n * 2 + 1] = corner[1] + Mathf.sinDeg(angle) * r;
+                float angle = start + 90f * i / (perCorner - 1);
+                p[n * 2] = cx + Mathf.cosDeg(angle) * r;
+                p[n * 2 + 1] = cy + Mathf.sinDeg(angle) * r;
                 n++;
             }
         }
@@ -515,6 +524,26 @@ public final class DrawImpl implements Draw {
         emit(rect.right(), rect.y(), 0.5f, 0.5f, topColor, false);
         emit(rect.right(), rect.bottom(), 0.5f, 0.5f, bottomColor, false);
         emit(rect.x(), rect.bottom(), 0.5f, 0.5f, bottomColor, false);
+        batcher.quad(base);
+        return this;
+    }
+
+    @Override
+    public Draw gradientRect(
+            float x,
+            float y,
+            float width,
+            float height,
+            Color topLeft,
+            Color topRight,
+            Color bottomRight,
+            Color bottomLeft) {
+        useWhite();
+        int base = batcher.reserve(4, 6);
+        emit(x, y, 0.5f, 0.5f, multiply(topLeft.toPremultipliedAbgr(), packed), false);
+        emit(x + width, y, 0.5f, 0.5f, multiply(topRight.toPremultipliedAbgr(), packed), false);
+        emit(x + width, y + height, 0.5f, 0.5f, multiply(bottomRight.toPremultipliedAbgr(), packed), false);
+        emit(x, y + height, 0.5f, 0.5f, multiply(bottomLeft.toPremultipliedAbgr(), packed), false);
         batcher.quad(base);
         return this;
     }
@@ -1219,9 +1248,15 @@ public final class DrawImpl implements Draw {
         float minY = Float.MAX_VALUE;
         float maxX = -Float.MAX_VALUE;
         float maxY = -Float.MAX_VALUE;
-        float[] corners = {
-            rect.x(), rect.y(), rect.right(), rect.y(), rect.right(), rect.bottom(), rect.x(), rect.bottom()
-        };
+        float[] corners = clipCorners;
+        corners[0] = rect.x();
+        corners[1] = rect.y();
+        corners[2] = rect.right();
+        corners[3] = rect.y();
+        corners[4] = rect.right();
+        corners[5] = rect.bottom();
+        corners[6] = rect.x();
+        corners[7] = rect.bottom();
         for (int i = 0; i < 8; i += 2) {
             float wx = transform.transformX(corners[i], corners[i + 1]);
             float wy = transform.transformY(corners[i], corners[i + 1]);

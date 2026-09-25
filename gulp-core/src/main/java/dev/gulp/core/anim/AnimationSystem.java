@@ -93,7 +93,9 @@ public final class AnimationSystem implements AnimationAccess.Backend {
         if (owner != null && !owner.isEnabled()) {
             return true;
         }
-        return AnimationAccess.target(animation) instanceof Entity entity && entity.isRemoved();
+        Object target = AnimationAccess.target(animation);
+        return (target instanceof Entity entity && entity.isRemoved())
+                || (target instanceof dev.gulp.api.ui.Node<?> node && node.isDisposed());
     }
 
     /**

@@ -118,6 +118,8 @@ public interface Entity {
 
     /**
      * Moves the entity at once, without interpolation, possibly to another world. Fires {@link EntityTeleportEvent}.
+     * Moving to another world detaches the entity from its parent and runs {@code onRemove} of every component in the
+     * old world and then {@code onSpawn} in the new one, so colliders, bodies, lights and emitters move along.
      *
      * @param location the target
      * @return this entity

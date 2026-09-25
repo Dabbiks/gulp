@@ -34,6 +34,7 @@
 ./gradlew check                       # format, kompilacja z -Werror, testy, pokrycie
 ./gradlew spotlessApply               # formatowanie (palantir-java-format)
 ./gradlew :examples:showcase:runDesktop   # showcase na desktopie
+./gradlew :examples:ui-gallery:runDesktop # galeria wszystkich widgetów UI
 ./gradlew :examples:showcase:runWeb --continuous   # showcase w przeglądarce, localhost:8080, przeładowanie po zmianach
 ./gradlew :examples:showcase:buildWeb     # strona w build/web (Wasm GC + JS)
 ./gradlew :examples:showcase:webSmokeTest -Pgulp.browsers=chromium   # test dymny web (Playwright; installBrowsers raz)
@@ -60,6 +61,7 @@ Moduły, listenery (`@EventHandler`) i `@Serializable` wymagają `gulp-processor
 | `gulp-processor`, `gulp-test`, `gulp-tools` | procesor adnotacji, narzędzia testowe, CLI |
 | `gulp-gradle-plugin` | plugin `dev.gulp.game` — osobny included build (ADR 0008); główne `check` i `spotlessApply` go obejmują |
 | `examples/showcase` | przykład każdej funkcji |
+| `examples/ui-gallery` | wszystkie kontenery i widgety UI, obsługa samym padem |
 | `examples/topdown`, `examples/platformer`, `examples/sandbox` | gry przykładowe (świat z szumu i wrogowie z nawigacją, poziomy LDtk z fizyką kinematyczną, piaskownica brył sztywnych) |
 
 Web: kod w `gulp-backend-web` rozmawia z przeglądarką tylko przez `@JSBody` wołające `gulp-runtime.js` (prymitywy, napisy, `ArrayBuffer`); `Int8Array.fromJavaArray` nie działa w Wasm GC — używaj `copyFromJavaArray`. Po zmianach w backendzie web uruchom `webSmokeTest`.
@@ -71,5 +73,7 @@ Wejście i dźwięk: kod gry czyta akcje (`input().justPressed(JUMP)`), nie klaw
 Świat i encje: `worlds().register/load/switchTo`, encje przez `EntityType` + komponenty (metody cyklu życia są `protected`; silnik woła je przez `ComponentAccess`). Usuwanie encji jest odroczone do końca ticka. `ChunkGenerator` działa poza tickiem — tylko argumenty i niezmienne dane. Mapy (`.tmx`/`.tmj` z Tiled w dowolnym kodowaniu i kompresji, `.ldtk`) leżą w `maps/` małymi literami; wartości IntGrid z LDtk trafiają do warstwy `<nazwa>.grid` po mapowaniu `WorldSource.tile(...)`. Szczegóły: ADR 0011.
 
 Fizyka, nawigacja i AI: `world.physics()` i `world.navGrid()`. Komponenty (`Collider`, `Mover`, `Trigger`, `Body`) rozmawiają z rdzeniem przez SPI `PhysicsAccess`; logika jest w `gulp-core/.../physics` (`PhysicsWorld`, `MoverSolver`, `Collide`, `Joints`) i `.../world` (`NavGridImpl`, `GridSearch`). Kafelki kolizyjne leżą na warstwie `gulp:tiles` (`CollisionLayer.TILES`). Warstwy rejestruje się w `onLoad`; bity nadaje silnik po zamrożeniu rejestrów. Testy fizyki bez okna: `PhysicsFixture` w `gulp-core/src/test`. Szczegóły: ADR 0012.
+
+UI: `import static dev.gulp.api.ui.Ui.*` daje fabryki kontenerów i widgetów, `ui()` ekrany (`open`, `push`, `pop`), `hud()`, `overlay()` i `toast`. Węzły to `Node<N>` z logiką w `gulp-api` (pomiar, rozmieszczenie, rysowanie, wejście), a rdzeń (`gulp-core/ui/UiImpl`) prowadzi warstwy, fokus i routing wejścia przez SPI `UiAccess`. Kod gry nie podaje współrzędnych, tylko flagi, kotwice i odstępy. UI dostaje wejście przed grą; akcje `gulp:ui_*` czyta co klatkę. Testy bez okna: `UiFixture` w `gulp-core/src/test` (kliknięcia, klawisze, pad). Galeria: `examples/ui-gallery`. Szczegóły: ADR 0015.
 
 Animacje i efekty: tweeny i timeline'y biegną co klatkę w czasie gry (z `realtime()` w rzeczywistym) przez SPI `AnimationAccess`; `Animator` liczy klatki w tickach. Cząsteczki, światło i łańcuch `postEffects()` należą do świata; efekty z `particles/*.json` i animacje z `animations/*.json` (eksport Aseprite) mają klucze w `GameAssets`. Materiały gotowe (`Materials.*`) czytają kolor i ilość z `Draw.effect(Color)` (4 bajty `a_params` w wierzchołku batchera). Testy bez okna: `JuiceFixture` w `gulp-core/src/test`; assety ekranu „juice” generuje `py examples/showcase/juice-src/generate_juice.py`. Szczegóły: ADR 0013.

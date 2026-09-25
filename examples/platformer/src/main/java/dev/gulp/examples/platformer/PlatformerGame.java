@@ -12,7 +12,8 @@ import dev.gulp.api.input.Keys;
 import dev.gulp.api.physics.CollisionLayer;
 import dev.gulp.api.registry.Registries;
 import dev.gulp.api.render.StretchMode;
-import dev.gulp.api.ui.Transitions;
+import dev.gulp.api.ui.Insets;
+import dev.gulp.api.ui.Theme;
 import dev.gulp.api.world.WorldSettings;
 import dev.gulp.api.world.WorldSource;
 
@@ -113,6 +114,14 @@ public final class PlatformerGame extends Game {
                                             .repeatX()
                                             .offset(0, -2f);
                                 }));
-        worlds().switchTo("level1", Transitions.circleWipe(0.5f));
+        // Base-pixel UI on a 480x270 viewport: the pixel theme with smaller text and buttons.
+        ui().setTheme(Theme.builder(key("small"))
+                .parent(Theme.PIXEL)
+                .base(s -> s.fontSize(10))
+                .style("button", s -> s.padding(Insets.symmetric(8, 3)).minSize(0, 18))
+                .style("panel", s -> s.padding(4))
+                .variant("label", "title", s -> s.fontSize(22))
+                .build());
+        ui().open(new MainMenu());
     }
 }

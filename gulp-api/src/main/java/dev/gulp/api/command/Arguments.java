@@ -1,6 +1,10 @@
 package dev.gulp.api.command;
 
+import dev.gulp.api.Gulp;
+import dev.gulp.api.entity.EntityType;
 import dev.gulp.api.registry.Key;
+import dev.gulp.api.registry.Registries;
+import dev.gulp.api.registry.Registry;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
@@ -200,6 +204,65 @@ public final class Arguments {
                         } catch (IllegalArgumentException e) {
                             throw new CommandException(e.getMessage() == null ? "Invalid key" : e.getMessage());
                         }
+                    }
+                },
+                false);
+    }
+
+    /**
+     * An entity type from {@link Registries#ENTITY_TYPE}, given as {@code namespace:path} or just {@code path} when
+     * one type has that path. Suggests every registered type.
+     *
+     * <pre>{@code
+     * Command.builder("summon").argument(Arguments.entityType("type"))
+     *         .executes(ctx -> world.spawn(ctx.<EntityType>arg("type"), 0, 0));
+     * }</pre>
+     *
+     * @param name the argument name
+     * @return the argument
+     */
+    public static Argument<EntityType> entityType(String name) {
+        return new Argument<>(
+                name,
+                new SuggestingType<>("entity type", () -> {
+                    List<String> texts = new ArrayList<>();
+                    for (Key key : Gulp.engine()
+                            .registries()
+                            .get(Registries.ENTITY_TYPE)
+                            .keys()) {
+                        texts.add(key.toString());
+                    }
+                    return texts;
+                }) {
+                    @Override
+                    public EntityType parse(String token) {
+                        Registry<EntityType> types = Gulp.engine().registries().get(Registries.ENTITY_TYPE);
+                        if (token.indexOf(':') >= 0) {
+                            EntityType type = null;
+                            try {
+                                type = types.get(Key.parse(token));
+                            } catch (IllegalArgumentException e) {
+                                // reported below
+                            }
+                            if (type == null) {
+                                throw new CommandException("No entity type '" + token + "'");
+                            }
+                            return type;
+                        }
+                        EntityType found = null;
+                        for (EntityType type : types.values()) {
+                            if (type.key().path().equals(token)) {
+                                if (found != null) {
+                                    throw new CommandException(
+                                            "Entity type '" + token + "' is ambiguous; add the namespace");
+                                }
+                                found = type;
+                            }
+                        }
+                        if (found == null) {
+                            throw new CommandException("No entity type '" + token + "'");
+                        }
+                        return found;
                     }
                 },
                 false);

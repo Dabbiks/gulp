@@ -21,7 +21,7 @@ import org.jspecify.annotations.Nullable;
 public interface Commands {
 
     /**
-     * Registers a command.
+     * Registers a command. A game or module command replaces a built-in command with the same name or alias.
      *
      * @param owner the owner; the command is removed when it is disabled
      * @param command the command

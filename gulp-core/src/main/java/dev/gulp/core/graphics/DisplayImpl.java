@@ -63,6 +63,7 @@ public final class DisplayImpl implements Display, dev.gulp.core.input.InputImpl
     private int textureBinds;
     private int vertices;
     private int flushes;
+    private @Nullable WindowImpl window;
 
     /**
      * Creates the display from the game settings.
@@ -291,13 +292,25 @@ public final class DisplayImpl implements Display, dev.gulp.core.input.InputImpl
      * @param windowY points from the top edge of the window
      * @return logical game coordinates
      */
+    @Override
     public dev.gulp.api.math.Vec2 toLogical(float windowX, float windowY) {
+        return new dev.gulp.api.math.Vec2(toLogicalX(windowX, windowY), toLogicalY(windowX, windowY));
+    }
+
+    @Override
+    public float toLogicalX(float windowX, float windowY) {
         DisplayLayout current = layout;
-        float px = windowX * contentScale - current.viewportX();
-        float py = windowY * contentScale - current.viewportY();
-        return new dev.gulp.api.math.Vec2(
-                px / Math.max(1, current.viewportWidth()) * current.logicalWidth(),
-                py / Math.max(1, current.viewportHeight()) * current.logicalHeight());
+        return (windowX * contentScale - current.viewportX())
+                / Math.max(1, current.viewportWidth())
+                * current.logicalWidth();
+    }
+
+    @Override
+    public float toLogicalY(float windowX, float windowY) {
+        DisplayLayout current = layout;
+        return (windowY * contentScale - current.viewportY())
+                / Math.max(1, current.viewportHeight())
+                * current.logicalHeight();
     }
 
     @Override
@@ -355,6 +368,24 @@ public final class DisplayImpl implements Display, dev.gulp.core.input.InputImpl
      */
     PostEffectsImpl postEffectsImpl() {
         return postEffects;
+    }
+
+    /**
+     * Connects the platform window.
+     *
+     * @param value the window
+     */
+    public void bindWindow(WindowImpl value) {
+        this.window = value;
+    }
+
+    @Override
+    public WindowImpl window() {
+        WindowImpl current = window;
+        if (current == null) {
+            throw new IllegalStateException("The display has no window yet");
+        }
+        return current;
     }
 
     @Override

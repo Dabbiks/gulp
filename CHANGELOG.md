@@ -4,6 +4,88 @@ Format oparty na [Keep a Changelog](https://keepachangelog.com/pl/1.1.0/); wersj
 
 ## [Unreleased]
 
+### Etap 9 — UI
+
+#### Dodane
+
+- **`dev.gulp.api.ui`, podstawy:**
+  - `Node` (typ fluent `Node<N>`): rozmiar (`width`, `height`, `minSize`, `maxSize`), flagi (`fill`, `expand(ratio)`, `grow`, `shrink*`, `alignX/Y`), kotwice (`anchor`, `offset`, `fillParent`), wygląd (`visible`, `alpha`, `scale`, `rotation`, `tint`, `variant`, `style`, `theme`), interakcja (`enabled`, `focusable`, `mouseFilter`, `tooltip`, `cursor`, `focusNeighbor`, `draggable`, `dropTarget`, `contextMenu`), `find`, `findAll` i zdarzenia węzła (`onClick`, `onHover`, `onFocus`, `on`);
+  - silnik layoutu z pomiarem od dołu i rozmieszczeniem od góry, unieważnianiem tylko brudnych poddrzew, drugim przebiegiem dla zawijanego tekstu i skalą UI (0,75–2, w preferencjach);
+  - `Insets`, `Size`, `Anchor` (9 punktów i presety `*_WIDE`, `FULL`), `Align`, `Direction`, `MouseFilter`, `WidgetState`.
+- **Kontenery:** `column`, `row` (`gap`, `align`, `justify`), `grid`, `stack`, `center`, `margin`, `panel`, `scroll` (kółko, przeciąganie, pasek, prawa gałka, podjazd do fokusu), `split`, `flow`, `tabs` i `tab`, `foldable` z `FoldGroup`, `aspect`, `spacer`.
+- **Widgety:**
+  - `label`, `richText` (markup, linki, `reveal`), `image`, `button`, `iconButton`;
+  - `checkbox`, `radio` z `ButtonGroup`, `toggle`, `slider`, `progressBar` (poziomy i kołowy), `spinBox`;
+  - `textField` i `textArea` (kursor, zaznaczanie, schowek, filtr, walidacja, placeholder, hasło, IME);
+  - `dropdown`, `listView` (wirtualny, zaznaczanie pojedyncze i wielokrotne), `tree` z `TreeItem`;
+  - `dialog`, `modal`, `window` (przeciągane, zamykane), `colorPicker`, `itemGrid` (sloty z przeciąganiem);
+  - `separator`, `keybindButton`, `virtualJoystick`, `menu` i `item` (menu kontekstowe), `ui().toast(...)`.
+- **Stan:** `State`, `Computed` (z automatycznym śledzeniem zależności), `ListState` (zmiany z indeksem), `Observable`; powiązania jedno- i dwukierunkowe (`bind(State)`), należące do węzła.
+- **Motywy:**
+  - `Theme` z budowniczym (baza, typ, stan, wariant, dziedziczenie przez `parent`);
+  - `Style` i `StyleBox` (kolor z zaokrągleniem, obramowaniem i cieniem, nine-patch);
+  - wbudowane `DARK`, `LIGHT`, `PIXEL` z `withAccent` i `highContrast`;
+  - płynne przejścia stanów.
+- **Ekrany:**
+  - `Screen` (`build`, `onOpen`, `onClose`, `onBack`, `defaultFocus`, `pausesGame`, `blocksGameplayInput`, `dimBackground`);
+  - przejścia `ScreenTransition` (`fade`, `slideUp`, `scale`);
+  - `ui().open`, `push`, `pop`, `close`, `current`;
+  - `ScreenOpenEvent` (anulowalny) i `ScreenCloseEvent`;
+  - ekran jest `Owner`.
+- **Warstwy:** `ui().hud()` (węzły z kotwicami, znikają z właścicielem), komponent `WorldUi` (węzeł przypięty do encji), `ui().overlay()` z `OverlayArea` (`center`, `anchor`).
+- **Fokus i pad:**
+  - automatyczny graf fokusu z geometrii i Tab w kolejności drzewa;
+  - wbudowane akcje `gulp:ui_accept`, `ui_cancel`, `ui_up`, `ui_down`, `ui_left`, `ui_right`, `ui_next_tab`, `ui_prev_tab`;
+  - przeciąganie padem, menu kontekstowe pod przyciskiem X;
+  - podpowiedzi przy fokusie.
+- **Wejście:**
+  - UI dostaje wejście przed grą, a wejście użyte przez UI ma `isConsumedByUi()` i nie trafia do akcji gameplay;
+  - `Input.setVirtualStrength`;
+  - `PointMapper.toLogicalX/Y`.
+- **Narzędzia:**
+  - konsola deweloperska w grze (`~`) z historią i uzupełnianiem;
+  - inspektor UI (F12 w trybie deweloperskim, `ui().inspector(true)`).
+- **Tweeny UI:** `Props.NODE_OFFSET`, `NODE_SIZE`, `NODE_ALPHA`, `NODE_SCALE`, `NODE_ROTATION`, `NODE_COLOR` (w czasie rzeczywistym).
+- **`Draw`:** `roundedRect`, `rectOutline` i czterokolorowy `gradientRect` na liczbach bez alokacji; `text(String, Vec2, TextStyle, TextAlign)`, `rect(Rect, Color)`.
+- **Przykłady:**
+  - `examples/ui-gallery`: każdy kontener i widget, przełączanie motywu, kontrastu, akcentu i skali;
+  - showcase: menu główne, pauza pod Escape, ustawienia (obraz, dźwięk, sterowanie) bez współrzędnych;
+  - platformówka: menu z sekcji 18.1, HUD z sekcji 21 (`State`, `ui().hud()`), własny motyw.
+- Testy `UiLayoutTest`, `UiStateTest`, `UiScreensTest`, `UiInputTest`, `UiToolsTest`, `UiDropdownMouseTest`; test dymny web zamyka menu startowe.
+- ADR 0015.
+
+#### Zmienione
+
+- `Theme` jest klasą z budowniczym, a nie pustym interfejsem.
+- W trybie `VIEWPORT` warstwy ekranowe rysują się po przeskalowaniu, w rozdzielczości okna (sekcja 12.7); odświeżony wzorzec testu wizualnego `viewport`.
+- Na warstwie `overlay` ekrany UI rysują się nad rysowaniem gry.
+- `Draw.clip` nie alokuje.
+
+#### Naprawione
+
+- Web: kliknięcie bez wcześniejszego ruchu wskaźnika trafiało w starą pozycję.
+
+### Przegląd po etapie 8
+
+#### Dodane
+
+- `display().window()` (`GameWindow`): tytuł, rozmiar, pełny ekran, okno bez ramki, VSync, lista monitorów i wybór monitora w trakcie gry; `GameSettings.borderless(...)` i `monitor(...)`.
+- Komendy `/spawn <typ> [x y]`, `/tp <x> <y>`, `/reload assets`; argument `Arguments.entityType`; `CommandContext.reply(Text)`.
+- `World.raycast(...)`, `TileType.data()` z `Builder.data(...)`.
+- `FloatList`, `IntIntMap`, `Stopwatch`, `RollingAverage` w `gulp-core`.
+- Test integracyjny `CrossWorldTest` (etapy 6–8 razem).
+- ADR 0014.
+
+#### Zmienione
+
+- Komenda gry zastępuje komendę wbudowaną o tej samej nazwie.
+- `examples/platformer`: gracz z `Animator` i regułami `auto()`, monety z animacją `spin` i tweenem przy zebraniu (jak w sekcji 21).
+
+#### Naprawione
+
+- Teleport encji do innego świata zostawiał jej collider, ciało, światło i emiter w starym świecie.
+- Tick światów alokował kopię listy światów co tick.
+
 ### Etap 8 — Animacje, tweeny, cząsteczki, światło
 
 #### Dodane

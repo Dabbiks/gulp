@@ -245,7 +245,12 @@
         move(e.clientX - r.left, e.clientY - r.top, e.movementX, e.movementY);
       });
       const order = [0, 2, 1, 3, 4];
-      canvas.addEventListener("mousedown", e => button(order[e.button] ?? e.button, true, modifiers(e)));
+      canvas.addEventListener("mousedown", e => {
+        // A press can come without a move before it (touch screens, automation), so report where it happened.
+        const r = canvas.getBoundingClientRect();
+        move(e.clientX - r.left, e.clientY - r.top, 0, 0);
+        button(order[e.button] ?? e.button, true, modifiers(e));
+      });
       window.addEventListener("mouseup", e => button(order[e.button] ?? e.button, false, modifiers(e)));
       canvas.addEventListener("wheel", e => {
         e.preventDefault();

@@ -2108,15 +2108,15 @@ Trzynaście etapów od pustego repozytorium do wersji 1.0, wykonywanych po kolei
 
 ### Etap 9 — UI
 
-- [ ] `Node`, silnik layoutu (pomiar, rozmieszczenie, kotwice, unieważnianie), skala UI.
-- [ ] Wszystkie kontenery i widgety z sekcji 18.3 i 18.4.
-- [ ] `Theme` z motywami jasnym, ciemnym i pixel-art, przejścia stanów.
-- [ ] `State`, `ListState`, `Computed`, powiązania.
-- [ ] Fokus i nawigacja padem, akcje `ui_*`.
-- [ ] Ekrany: stos, przejścia, `pausesGame`, `blocksGameplayInput`.
-- [ ] HUD, `WorldUi`, `Overlay`, przeciąganie, podpowiedzi, menu kontekstowe, powiadomienia.
-- [ ] Kolejność obsługi wejścia (UI przed grą); konsola deweloperska w grze; inspektor UI.
-- [ ] **Kamień milowy:** `examples/ui-gallery` ze wszystkimi widgetami w pełni obsługiwalna padem; menu i ustawienia w showcase bez żadnych współrzędnych w kodzie gry.
+- [x] `Node`, silnik layoutu (pomiar, rozmieszczenie, kotwice, unieważnianie), skala UI.
+- [x] Wszystkie kontenery i widgety z sekcji 18.3 i 18.4.
+- [x] `Theme` z motywami jasnym, ciemnym i pixel-art, przejścia stanów.
+- [x] `State`, `ListState`, `Computed`, powiązania.
+- [x] Fokus i nawigacja padem, akcje `ui_*`.
+- [x] Ekrany: stos, przejścia, `pausesGame`, `blocksGameplayInput`.
+- [x] HUD, `WorldUi`, `Overlay`, przeciąganie, podpowiedzi, menu kontekstowe, powiadomienia.
+- [x] Kolejność obsługi wejścia (UI przed grą); konsola deweloperska w grze; inspektor UI.
+- [x] **Kamień milowy:** `examples/ui-gallery` ze wszystkimi widgetami w pełni obsługiwalna padem; menu i ustawienia w showcase bez żadnych współrzędnych w kodzie gry. — *Galeria sprawdzona na desktopie i w Chromium (mysz, klawiatura) oraz symulowanym padem w testach; fizyczny pad nie był podłączony. Menu główne, pauza i ustawienia showcase oraz menu i HUD platformówki (sekcje 18.1 i 21) bez współrzędnych. Szczegóły: ADR 0015.*
 
 ### Etap 10 — Dane
 

@@ -94,6 +94,8 @@ public final class InputImpl implements Input, InputListener {
 
     private final boolean[] keyDown = new boolean[KEYS];
     private final boolean[] keyLatched = new boolean[KEYS];
+    private final boolean[] keyFrameLatched = new boolean[KEYS];
+    private @Nullable UiInput ui;
     private final boolean[] mouseDown = new boolean[BUTTONS];
     private final boolean[] mouseLatched = new boolean[BUTTONS];
     private final GamepadImpl[] pads = new GamepadImpl[GAMEPADS];
@@ -323,13 +325,28 @@ public final class InputImpl implements Input, InputListener {
 
     // ------------------------------------------------------------------ InputListener
 
+    /**
+     * Connects the UI, which sees keyboard, mouse and text input before game listeners and actions.
+     *
+     * @param handler the UI, or {@code null}
+     */
+    public void setUi(@Nullable UiInput handler) {
+        this.ui = handler;
+    }
+
     @Override
     public void keyDown(int keyCode, int scanCode, int modifiers, boolean repeat) {
         usedKeyboardOrMouse(InputDevice.KEYBOARD);
         boolean known = keyCode > 0 && keyCode < KEYS;
+        UiInput handler = ui;
         if (repeat) {
+            boolean consumed = running && handler != null && handler.keyPressed(Keys.of(keyCode), modifiers, true);
             if (running && events.hasListeners(KeyRepeatEvent.class)) {
-                events.call(new KeyRepeatEvent(Keys.of(keyCode), scanCode, modifiers));
+                KeyRepeatEvent event = new KeyRepeatEvent(Keys.of(keyCode), scanCode, modifiers);
+                if (consumed) {
+                    event.consumeByUi();
+                }
+                events.call(event);
             }
             return;
         }
@@ -341,10 +358,53 @@ public final class InputImpl implements Input, InputListener {
             return;
         }
         if (known) {
-            keyLatched[keyCode] = true;
+            keyFrameLatched[keyCode] = true;
+        }
+        boolean consumed = running && handler != null && handler.keyPressed(Keys.of(keyCode), modifiers, false);
+        if (known) {
+            if (consumed) {
+                suppress(Keys.of(keyCode));
+            } else {
+                keyLatched[keyCode] = true;
+            }
         }
         if (running && events.hasListeners(KeyPressEvent.class)) {
-            events.call(new KeyPressEvent(Keys.of(keyCode), scanCode, modifiers));
+            KeyPressEvent event = new KeyPressEvent(Keys.of(keyCode), scanCode, modifiers);
+            if (consumed) {
+                event.consumeByUi();
+            }
+            events.call(event);
+        }
+    }
+
+    private float logicalX(float windowX, float windowY) {
+        PointMapper mapper = pointMapper;
+        return mapper == null ? windowX : mapper.toLogicalX(windowX, windowY);
+    }
+
+    private float logicalY(float windowX, float windowY) {
+        PointMapper mapper = pointMapper;
+        return mapper == null ? windowY : mapper.toLogicalY(windowX, windowY);
+    }
+
+    private void suppress(Binding binding) {
+        if (!suppressed.contains(binding)) {
+            suppressed.add(binding);
+        }
+    }
+
+    /**
+     * Hides the held bindings of an action from actions until they are released, after the UI used them, so that
+     * closing a menu with Escape does not also press the pause action of the game.
+     *
+     * @param action the action whose held bindings to hide
+     */
+    public void suppressHeld(InputAction action) {
+        ActionState state = state(action);
+        for (Binding binding : state.current) {
+            if (binding != null && rawValue(binding, true) > 0f) {
+                suppress(binding);
+            }
         }
     }
 
@@ -360,8 +420,14 @@ public final class InputImpl implements Input, InputListener {
 
     @Override
     public void textTyped(int codePoint) {
+        UiInput handler = ui;
+        boolean consumed = running && handler != null && handler.charTyped(codePoint);
         if (running && events.hasListeners(CharTypedEvent.class)) {
-            events.call(new CharTypedEvent(codePoint));
+            CharTypedEvent event = new CharTypedEvent(codePoint);
+            if (consumed) {
+                event.consumeByUi();
+            }
+            events.call(event);
         }
     }
 
@@ -374,6 +440,10 @@ public final class InputImpl implements Input, InputListener {
         tickMoveX += deltaX;
         tickMoveY += deltaY;
         moved = true;
+        UiInput handler = ui;
+        if (running && handler != null) {
+            handler.pointerMoved(logicalX(x, y), logicalY(x, y));
+        }
     }
 
     @Override
@@ -384,26 +454,50 @@ public final class InputImpl implements Input, InputListener {
         }
         usedKeyboardOrMouse(InputDevice.MOUSE);
         mouseDown[button] = down;
+        if (down && capture != null) {
+            finishCapture(mouse);
+            return;
+        }
+        UiInput handler = ui;
+        boolean consumed = running
+                && handler != null
+                && handler.mouseButton(mouse, down, logicalX(mouseX, mouseY), logicalY(mouseX, mouseY));
         if (down) {
-            if (capture != null) {
-                finishCapture(mouse);
-                return;
+            if (consumed) {
+                suppress(mouse);
+            } else {
+                mouseLatched[button] = true;
             }
-            mouseLatched[button] = true;
             if (running && events.hasListeners(MouseButtonPressEvent.class)) {
-                events.call(new MouseButtonPressEvent(mouse, mouseX, mouseY, modifiers));
+                MouseButtonPressEvent event = new MouseButtonPressEvent(mouse, mouseX, mouseY, modifiers);
+                if (consumed) {
+                    event.consumeByUi();
+                }
+                events.call(event);
             }
         } else if (running && events.hasListeners(MouseButtonReleaseEvent.class)) {
-            events.call(new MouseButtonReleaseEvent(mouse, mouseX, mouseY, modifiers));
+            MouseButtonReleaseEvent event = new MouseButtonReleaseEvent(mouse, mouseX, mouseY, modifiers);
+            if (consumed) {
+                event.consumeByUi();
+            }
+            events.call(event);
         }
     }
 
     @Override
     public void scrolled(float deltaX, float deltaY) {
-        scrollSumX += deltaX;
-        scrollSumY += deltaY;
+        UiInput handler = ui;
+        boolean consumed = running && handler != null && handler.scrolled(deltaX, deltaY);
+        if (!consumed) {
+            scrollSumX += deltaX;
+            scrollSumY += deltaY;
+        }
         if (running && events.hasListeners(MouseScrollEvent.class)) {
-            events.call(new MouseScrollEvent(deltaX, deltaY));
+            MouseScrollEvent event = new MouseScrollEvent(deltaX, deltaY);
+            if (consumed) {
+                event.consumeByUi();
+            }
+            events.call(event);
         }
     }
 
@@ -531,6 +625,44 @@ public final class InputImpl implements Input, InputListener {
     }
 
     @Override
+    public void setVirtualStrength(InputAction action, float strength) {
+        state(action).virtual = Math.max(0f, Math.min(1f, strength));
+    }
+
+    /**
+     * Returns how strongly an action is held right now, for the UI, which reads actions every frame instead of every
+     * tick. Key presses since the last {@link #clearFrameLatches()} count even if the key is already up.
+     *
+     * @param action the action
+     * @return {@code 0..1}, with dead zones applied
+     */
+    public float frameStrength(InputAction action) {
+        ActionState state = state(action);
+        float best = 0f;
+        for (Binding binding : state.current) {
+            if (binding == null) {
+                continue;
+            }
+            float value;
+            if (binding instanceof KeyboardKey key
+                    && key.code() > 0
+                    && key.code() < KEYS
+                    && keyFrameLatched[key.code()]) {
+                value = 1f;
+            } else {
+                value = rawValue(binding, false);
+            }
+            best = Math.max(best, binding instanceof AxisDirection ? applyDeadZone(value, action.deadZone()) : value);
+        }
+        return best;
+    }
+
+    /** Forgets key presses seen by {@link #frameStrength}; called by the UI after each frame. */
+    public void clearFrameLatches() {
+        Arrays.fill(keyFrameLatched, false);
+    }
+
+    @Override
     public void enable(ActionSet set) {
         disabled.remove(set);
     }
@@ -602,6 +734,28 @@ public final class InputImpl implements Input, InputListener {
          * @return logical coordinates
          */
         Vec2 toLogical(float windowX, float windowY);
+
+        /**
+         * Converts the x of a window point without allocating.
+         *
+         * @param windowX window x
+         * @param windowY window y
+         * @return logical x
+         */
+        default float toLogicalX(float windowX, float windowY) {
+            return toLogical(windowX, windowY).x();
+        }
+
+        /**
+         * Converts the y of a window point without allocating.
+         *
+         * @param windowX window x
+         * @param windowY window y
+         * @return logical y
+         */
+        default float toLogicalY(float windowX, float windowY) {
+            return toLogical(windowX, windowY).y();
+        }
 
         /**
          * Returns the logical width.
@@ -752,6 +906,7 @@ public final class InputImpl implements Input, InputListener {
         int releasedAfter;
         float strength;
         float raw;
+        float virtual;
 
         ActionState(InputAction action) {
             this.action = action;
@@ -771,6 +926,8 @@ public final class InputImpl implements Input, InputListener {
                     float shaped = binding instanceof AxisDirection ? applyDeadZone(value, action.deadZone()) : value;
                     best = Math.max(best, shaped);
                 }
+                best = Math.max(best, virtual);
+                bestRaw = Math.max(bestRaw, virtual);
             }
             strength = best;
             raw = bestRaw;

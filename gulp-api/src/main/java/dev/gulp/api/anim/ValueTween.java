@@ -28,6 +28,8 @@ final class ValueTween<T, V> extends Tween {
         this.value = value;
         this.end = end;
         this.seconds = Math.max(0f, seconds);
+        // UI keeps moving while the game is paused (pause menus), so node tweens run in real time.
+        this.realtime = target instanceof dev.gulp.api.ui.Node<?>;
     }
 
     @Override

@@ -195,9 +195,27 @@ final class WorldImpl implements World {
         }
     }
 
+    /**
+     * Moves an entity to another world. Components leave this world through {@code onRemove} and join the target
+     * through {@code onSpawn}, so colliders, bodies, lights and emitters move with the entity.
+     */
     void transfer(EntityImpl entity, WorldImpl target) {
+        for (int c = entity.componentCount - 1; c >= 0; c--) {
+            try {
+                ComponentAccess.remove(entity.components[c]);
+            } catch (RuntimeException error) {
+                worlds.logger.error("onRemove failed while " + entity + " left " + name, error);
+            }
+        }
         extract(entity);
         target.insert(entity);
+        for (int c = 0; c < entity.componentCount; c++) {
+            try {
+                ComponentAccess.spawn(entity.components[c]);
+            } catch (RuntimeException error) {
+                worlds.logger.error("onSpawn failed while " + entity + " joined " + target.name, error);
+            }
+        }
     }
 
     private void discard(EntityImpl entity) {

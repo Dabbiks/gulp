@@ -16,7 +16,9 @@ import dev.gulp.api.nav.NavGrid;
 import dev.gulp.api.particle.ParticleEffect;
 import dev.gulp.api.particle.ParticleInstance;
 import dev.gulp.api.particle.Particles;
+import dev.gulp.api.physics.CollisionMask;
 import dev.gulp.api.physics.Physics;
+import dev.gulp.api.physics.RayHit;
 import dev.gulp.api.render.Camera;
 import dev.gulp.api.render.Lighting;
 import dev.gulp.api.render.PostEffects;
@@ -131,6 +133,34 @@ public interface World {
      * @return a new query over this world
      */
     EntityQuery query();
+
+    /**
+     * Casts a ray against tiles and colliders; a shortcut to {@code physics().raycast(from, to, mask)}.
+     *
+     * <pre>{@code
+     * RayHit hit = world.raycast(eye, player.position(), CollisionMask.of(CollisionLayer.TILES));
+     * boolean seesPlayer = hit == null;
+     * }</pre>
+     *
+     * @param from the start
+     * @param to the end
+     * @param mask the layers to hit
+     * @return the first hit, or {@code null}
+     */
+    default @Nullable RayHit raycast(Vec2 from, Vec2 to, CollisionMask mask) {
+        return physics().raycast(from, to, mask);
+    }
+
+    /**
+     * Casts a ray against everything; a shortcut to {@code physics().raycast(from, to)}.
+     *
+     * @param from the start
+     * @param to the end
+     * @return the first hit, or {@code null}
+     */
+    default @Nullable RayHit raycast(Vec2 from, Vec2 to) {
+        return physics().raycast(from, to);
+    }
 
     /**
      * Returns entities whose position is within a distance.

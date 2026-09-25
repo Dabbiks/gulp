@@ -30,6 +30,8 @@ public final class GameSettings {
     private int windowHeight = 720;
     private boolean resizable = true;
     private boolean fullscreen = false;
+    private boolean borderless = false;
+    private int monitor = 0;
     private boolean vsync = true;
     private int targetFps = 0;
     private int ticksPerSecond = 60;
@@ -143,6 +145,46 @@ public final class GameSettings {
      */
     public GameSettings fullscreen(boolean fullscreen) {
         this.fullscreen = fullscreen;
+        return this;
+    }
+
+    /**
+     * Returns whether the window starts without a frame and title bar.
+     *
+     * @return {@code false} by default
+     */
+    public boolean isBorderless() {
+        return borderless;
+    }
+
+    /**
+     * Sets whether the window starts without a frame and title bar (desktop only).
+     *
+     * @param borderless whether to hide the frame
+     * @return this settings object
+     */
+    public GameSettings borderless(boolean borderless) {
+        this.borderless = borderless;
+        return this;
+    }
+
+    /**
+     * Returns the monitor the window starts on.
+     *
+     * @return an index into {@link dev.gulp.api.render.GameWindow#monitors()}, {@code 0} (primary) by default
+     */
+    public int monitor() {
+        return monitor;
+    }
+
+    /**
+     * Sets the monitor the window starts on (desktop only); a missing monitor falls back to the primary one.
+     *
+     * @param index an index into {@link dev.gulp.api.render.GameWindow#monitors()}
+     * @return this settings object
+     */
+    public GameSettings monitor(int index) {
+        this.monitor = Math.max(0, index);
         return this;
     }
 

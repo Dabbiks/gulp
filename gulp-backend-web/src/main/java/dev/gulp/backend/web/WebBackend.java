@@ -348,6 +348,31 @@ public final class WebBackend implements PlatformBackend {
         }
 
         @Override
+        public boolean isBorderless() {
+            return false;
+        }
+
+        @Override
+        public void setBorderless(boolean borderless) {
+            // A canvas has no frame.
+        }
+
+        @Override
+        public List<String> monitors() {
+            return List.of("Browser");
+        }
+
+        @Override
+        public int monitor() {
+            return 0;
+        }
+
+        @Override
+        public void setMonitor(int index) {
+            // The page lives on one screen.
+        }
+
+        @Override
         public void setCursorMode(CursorMode mode) {
             Js.setCursor(mode.ordinal());
         }

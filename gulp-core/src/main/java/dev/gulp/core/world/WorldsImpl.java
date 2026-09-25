@@ -3,6 +3,7 @@ package dev.gulp.core.world;
 import dev.gulp.api.Engine;
 import dev.gulp.api.Logger;
 import dev.gulp.api.Owner;
+import dev.gulp.api.entity.Entity;
 import dev.gulp.api.entity.EntityClickEvent;
 import dev.gulp.api.entity.EntityHoverEnterEvent;
 import dev.gulp.api.entity.EntityHoverExitEvent;
@@ -70,6 +71,7 @@ public final class WorldsImpl implements Worlds, WorldView {
     private final Map<String, Promise<World>> loading = new LinkedHashMap<>();
     private final WorldRenderer renderer;
     private final List<float[]> clicks = new ArrayList<>();
+    private final List<WorldImpl> ticking = new ArrayList<>();
     private @Nullable WorldImpl active;
     private int nextRuntimeId = 1;
     private boolean inTick;
@@ -341,6 +343,41 @@ public final class WorldsImpl implements Worlds, WorldView {
         world.clear();
     }
 
+    /**
+     * Projects an entity's interpolated position (plus an offset) to the logical screen through the active world's
+     * main camera, without allocating.
+     *
+     * @param entity the entity
+     * @param dx offset in world units
+     * @param dy offset in world units
+     * @param alpha interpolation between ticks
+     * @param out receives screen x and y
+     * @return {@code false} if the entity is not in the active world
+     */
+    public boolean screenPoint(Entity entity, float dx, float dy, float alpha, float[] out) {
+        WorldImpl world = active;
+        if (world == null || !(entity instanceof EntityImpl impl) || impl.world != world || !impl.spawned) {
+            return false;
+        }
+        CameraImpl camera = world.mainCamera();
+        camera.prepareScreen();
+        float wx = impl.renderX(alpha) + dx;
+        float wy = impl.renderY(alpha) + dy;
+        out[0] = camera.screenX(wx, wy);
+        out[1] = camera.screenY(wx, wy);
+        return true;
+    }
+
+    /**
+     * Returns the zoom of the active world's main camera.
+     *
+     * @return the zoom, 1 without a world
+     */
+    public float activeZoom() {
+        WorldImpl world = active;
+        return world == null ? 1f : world.mainCamera().zoom();
+    }
+
     @Override
     public boolean isTransitioning() {
         return transition != null;
@@ -366,7 +403,12 @@ public final class WorldsImpl implements Worlds, WorldView {
     public void tick(boolean paused) {
         inTick = true;
         try {
-            for (WorldImpl world : List.copyOf(loaded.values())) {
+            // A reused snapshot: ticks may load or unload worlds, and copying every tick would allocate.
+            for (WorldImpl world : loaded.values()) {
+                ticking.add(world);
+            }
+            for (int i = 0; i < ticking.size(); i++) {
+                WorldImpl world = ticking.get(i);
                 if (world == active || (!paused && world.settings().tickWhenInactive())) {
                     world.tick(paused);
                 }
@@ -377,6 +419,7 @@ public final class WorldsImpl implements Worlds, WorldView {
                 updatePointer(current);
             }
         } finally {
+            ticking.clear();
             inTick = false;
             clicks.clear();
         }

@@ -1,16 +1,20 @@
 package dev.gulp.examples.platformer;
 
-import dev.gulp.api.entity.Component;
+import dev.gulp.api.anim.Animator;
+import dev.gulp.api.anim.Props;
+import dev.gulp.api.anim.Tweens;
 import dev.gulp.api.entity.Entity;
 import dev.gulp.api.entity.EntityType;
 import dev.gulp.api.entity.component.SpriteComponent;
+import dev.gulp.api.math.Ease;
 import dev.gulp.api.module.GameModule;
 import dev.gulp.api.module.ModuleInfo;
 import dev.gulp.api.physics.Trigger;
 import dev.gulp.api.physics.TriggerEnterEvent;
 import dev.gulp.api.registry.Registries;
+import dev.gulp.api.ui.State;
 
-/** Coins: triggers on the pickup layer; touching one plays a sound and counts it on the HUD. */
+/** Coins: spinning triggers on the pickup layer; touching one plays a sound, floats it away and counts it. */
 @ModuleInfo(
         id = "coin",
         dependsOn = {"player", "hud"})
@@ -26,8 +30,8 @@ public final class CoinModule extends GameModule {
                         EntityType.builder(key("coin"))
                                 .size(0.5f, 0.5f)
                                 .component(() -> new SpriteComponent(GameAssets.Sprites.COIN))
+                                .component(() -> new Animator(GameAssets.Animations.COIN).play("spin"))
                                 .component(() -> new Trigger().layer(PlatformerGame.pickup))
-                                .component(Bob::new)
                                 .tags("coin")
                                 .build());
     }
@@ -40,24 +44,15 @@ public final class CoinModule extends GameModule {
                 return;
             }
             picked.get(Trigger.class).setEnabled(false);
+            picked.tags().remove("coin");
             picked.world().playSound(picked.position(), PlatformerGame.pickupSound);
-            picked.remove();
-            require(HudModule.class).addCoin();
+            Tweens.parallel(
+                            Tweens.by(picked, Props.Y, -1f, 0.25f).ease(Ease.OUT_QUAD),
+                            Tweens.to(picked, Props.ALPHA, 0f, 0.25f))
+                    .onComplete(picked::remove)
+                    .start();
+            State<Integer> coins = require(HudModule.class).coins();
+            coins.set(coins.get() + 1);
         });
-    }
-
-    /** Coins bob up and down. */
-    static final class Bob extends Component {
-        private float base = Float.NaN;
-        private int ticks;
-
-        @Override
-        protected void onTick() {
-            if (Float.isNaN(base)) {
-                base = entity().y();
-            }
-            ticks++;
-            entity().setPosition(entity().x(), base + (float) Math.sin(ticks * 0.08f) * 0.12f);
-        }
     }
 }

@@ -1,6 +1,8 @@
 package dev.gulp.api.world;
 
 import dev.gulp.api.asset.AssetKey;
+import dev.gulp.api.data.DataContainer;
+import dev.gulp.api.data.DataType;
 import dev.gulp.api.entity.Entity;
 import dev.gulp.api.graphics.TextureRegion;
 import dev.gulp.api.registry.Key;
@@ -65,6 +67,7 @@ public final class TileType implements Keyed {
     private final TileShape shape;
     private final float friction;
     private final Map<String, String> properties;
+    private final DataContainer data;
     private final @Nullable Interaction interaction;
     private final float randomTickChance;
     private final @Nullable Behaviour randomTick;
@@ -85,6 +88,7 @@ public final class TileType implements Keyed {
         this.shape = builder.shape;
         this.friction = builder.friction;
         this.properties = Collections.unmodifiableMap(new LinkedHashMap<>(builder.properties));
+        this.data = builder.data;
         this.interaction = builder.interaction;
         this.randomTickChance = builder.randomTickChance;
         this.randomTick = builder.randomTick;
@@ -210,6 +214,19 @@ public final class TileType implements Keyed {
     }
 
     /**
+     * Returns typed data shared by every tile of this type, such as hardness or a drop table.
+     *
+     * <pre>{@code
+     * int hardness = tile.type().data().getOrDefault(HARDNESS, DataType.INT, 1);
+     * }</pre>
+     *
+     * @return the container given by {@link Builder#data}
+     */
+    public DataContainer data() {
+        return data;
+    }
+
+    /**
      * Returns the interaction handler.
      *
      * @return the handler, or {@code null}
@@ -300,6 +317,7 @@ public final class TileType implements Keyed {
         private final List<AssetKey<TextureRegion>> regions = new ArrayList<>();
         private final List<Integer> tileIndices = new ArrayList<>();
         private final Map<String, String> properties = new LinkedHashMap<>();
+        private final DataContainer data = DataContainer.create();
         private @Nullable TileSet tileSet;
         private @Nullable TextureRegion directRegion;
         private float frameSeconds = 0.2f;
@@ -443,6 +461,20 @@ public final class TileType implements Keyed {
          */
         public Builder property(String name, String value) {
             properties.put(name, value);
+            return this;
+        }
+
+        /**
+         * Stores a typed value in {@link TileType#data()}.
+         *
+         * @param dataKey the key
+         * @param type the data type
+         * @param value the value
+         * @param <T> the value type
+         * @return this builder
+         */
+        public <T> Builder data(Key dataKey, DataType<T> type, T value) {
+            data.set(dataKey, type, value);
             return this;
         }
 

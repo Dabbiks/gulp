@@ -5,6 +5,7 @@ import dev.gulp.platform.DecodedImage;
 import dev.gulp.platform.PlatformWindow;
 import dev.gulp.platform.WindowConfig;
 import dev.gulp.platform.WindowListener;
+import java.util.List;
 import org.jspecify.annotations.Nullable;
 
 /**
@@ -23,6 +24,8 @@ public final class HeadlessWindow implements PlatformWindow {
     private float contentScale = 1f;
     private boolean fullscreen;
     private boolean vsync;
+    private boolean borderless;
+    private int monitor;
     private boolean focused = true;
     private boolean shouldClose;
     private CursorMode cursorMode = CursorMode.NORMAL;
@@ -119,6 +122,34 @@ public final class HeadlessWindow implements PlatformWindow {
     @Override
     public void setVsync(boolean vsync) {
         this.vsync = vsync;
+    }
+
+    @Override
+    public boolean isBorderless() {
+        return borderless;
+    }
+
+    @Override
+    public void setBorderless(boolean borderless) {
+        this.borderless = borderless;
+    }
+
+    /** Two simulated monitors, so tests can switch between them. */
+    @Override
+    public List<String> monitors() {
+        return List.of("Headless 1", "Headless 2");
+    }
+
+    @Override
+    public int monitor() {
+        return monitor;
+    }
+
+    @Override
+    public void setMonitor(int index) {
+        if (index >= 0 && index < monitors().size()) {
+            monitor = index;
+        }
     }
 
     /**

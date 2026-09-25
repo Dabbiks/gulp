@@ -63,6 +63,19 @@ public interface Input {
     float strength(InputAction action);
 
     /**
+     * Holds an action from software, such as an on-screen joystick or button: the action reads at least this
+     * strength until it is set back to zero. Takes effect from the next tick, like real input.
+     *
+     * <pre>{@code
+     * input().setVirtualStrength(JUMP, touchButton.isPressed() ? 1f : 0f);
+     * }</pre>
+     *
+     * @param action the action
+     * @param strength {@code 0..1}
+     */
+    void setVirtualStrength(InputAction action, float strength);
+
+    /**
      * Returns one axis from two opposite actions.
      *
      * @param negative the action towards {@code -1}, for example move left

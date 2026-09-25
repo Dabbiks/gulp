@@ -43,7 +43,9 @@ import dev.gulp.api.spi.EngineBinding;
 import dev.gulp.api.spi.PhysicsAccess;
 import dev.gulp.api.text.Font;
 import dev.gulp.api.text.FontFamily;
+import dev.gulp.api.ui.Theme;
 import dev.gulp.api.ui.Transitions;
+import dev.gulp.api.ui.UiAction;
 import dev.gulp.api.world.Worlds;
 import dev.gulp.core.asset.AssetsImpl;
 import dev.gulp.core.audio.AudioImpl;
@@ -56,6 +58,7 @@ import dev.gulp.core.event.EventBus;
 import dev.gulp.core.graphics.DisplayImpl;
 import dev.gulp.core.graphics.GraphicsImpl;
 import dev.gulp.core.graphics.Renderer;
+import dev.gulp.core.graphics.WindowImpl;
 import dev.gulp.core.i18n.TranslationsImpl;
 import dev.gulp.core.input.InputImpl;
 import dev.gulp.core.log.LoggerImpl;
@@ -65,6 +68,7 @@ import dev.gulp.core.scheduler.PromiseImpl;
 import dev.gulp.core.scheduler.SchedulerImpl;
 import dev.gulp.core.service.ServicesImpl;
 import dev.gulp.core.text.TextSystem;
+import dev.gulp.core.ui.UiImpl;
 import dev.gulp.core.world.WorldsImpl;
 import dev.gulp.platform.FrameHandler;
 import dev.gulp.platform.PlatformBackend;
@@ -138,6 +142,7 @@ public final class GulpEngine implements Engine, FrameHandler, CoreContext {
     private final DisplayImpl display;
     private final Renderer renderer;
     private final dev.gulp.core.anim.AnimationSystem animations;
+    private final UiImpl ui;
     private final AssetsImpl assets;
     private final TranslationsImpl translations;
     private final TextSystem textSystem;
@@ -210,6 +215,7 @@ public final class GulpEngine implements Engine, FrameHandler, CoreContext {
         this.gameConfig = config("game", game);
         this.graphics = new GraphicsImpl(backend.gl(), backend.decoders(), this, mainQueue, game, engineLogger);
         this.display = new DisplayImpl(settings, () -> new PromiseImpl<>(game, this, mainQueue));
+        display.bindWindow(new WindowImpl(backend.window(), settings));
         this.renderer = new Renderer(graphics, display, events);
         this.assets = new AssetsImpl(
                 game, this, mainQueue, backend.files(), graphics, backend.decoders(), events, engineLogger);
@@ -285,6 +291,8 @@ public final class GulpEngine implements Engine, FrameHandler, CoreContext {
         PhysicsAccess.installBackend(new dev.gulp.core.world.PhysicsBackend());
         this.animations = new dev.gulp.core.anim.AnimationSystem(engineLogger);
         dev.gulp.api.spi.AnimationAccess.installBackend(animations);
+        this.ui = new UiImpl(this, input, events, worlds, console, engineLogger, development);
+        renderer.setScreenLayers(ui);
         // Size and camera bounds are valid before the first frame, so onLoad and onEnable can use them.
         PlatformWindow window = backend.window();
         display.update(
@@ -364,6 +372,7 @@ public final class GulpEngine implements Engine, FrameHandler, CoreContext {
         BuiltinCommands.register(this, commands, engineOwner);
         worlds.start(engineOwner);
         backend.window().setListener(new EngineWindowListener());
+        display.window().apply(settings);
         if (console.isAvailable()) {
             backend.console().setInputListener(console::submit);
         }
@@ -438,6 +447,7 @@ public final class GulpEngine implements Engine, FrameHandler, CoreContext {
         if (phase == Phase.RUNNING) {
             animations.frame(paused ? 0f : frameSeconds * timeScale, frameSeconds);
             worlds.frame(frameSeconds, alpha());
+            ui.frame(frameSeconds);
         }
         preferences.update(nanoTime);
         render(nanoTime);
@@ -454,6 +464,13 @@ public final class GulpEngine implements Engine, FrameHandler, CoreContext {
             registries.register(Registries.COLLISION_LAYER, CollisionLayer.DEFAULT);
             registries.register(Registries.COLLISION_LAYER, CollisionLayer.TILES);
             registries.register(Registries.DAMAGE_TYPE, DamageType.GENERIC);
+            for (UiAction action : UiAction.values()) {
+                registries.register(Registries.INPUT_ACTION, action.action());
+            }
+            for (Theme theme : List.of(Theme.DARK, Theme.LIGHT, Theme.PIXEL)) {
+                registries.register(Registries.THEME, theme);
+                registries.register(Registries.THEME, theme.highContrast());
+            }
         });
         game.onLoad();
         modules.loadAll();
@@ -485,6 +502,7 @@ public final class GulpEngine implements Engine, FrameHandler, CoreContext {
 
     private void startGame(long nanoTime) {
         startup = null;
+        ui.start();
         game.onStart();
         phase = Phase.RUNNING;
         input.setRunning(true);
@@ -596,6 +614,7 @@ public final class GulpEngine implements Engine, FrameHandler, CoreContext {
             }
             cleanup(engineOwner);
         } finally {
+            ui.dispose();
             input.setRunning(false);
             input.dispose();
             animations.clear();
@@ -623,7 +642,7 @@ public final class GulpEngine implements Engine, FrameHandler, CoreContext {
      *
      * @param owner the owner being disabled
      */
-    void cleanup(Owner owner) {
+    public void cleanup(Owner owner) {
         // Services first: their unregister events are still visible to every listener, including the owner's.
         services.unregisterAll(owner);
         commands.unregisterAll(owner);
@@ -644,12 +663,15 @@ public final class GulpEngine implements Engine, FrameHandler, CoreContext {
         if (owner instanceof ScopedOwner scoped) {
             return scoped.isEnabled();
         }
+        if (owner instanceof dev.gulp.api.ui.Screen screen) {
+            return screen.isOpen();
+        }
         return owner instanceof GameModule module && modules.isActive(module);
     }
 
     @Override
     public Logger loggerOf(Owner owner) {
-        if (owner instanceof ScopedOwner) {
+        if (owner instanceof ScopedOwner || owner instanceof dev.gulp.api.ui.Screen) {
             return engineLogger;
         }
         return owner == engineOwner ? engineLogger : modules.logger(owner);
@@ -713,7 +735,7 @@ public final class GulpEngine implements Engine, FrameHandler, CoreContext {
     }
 
     @Override
-    public Assets assets() {
+    public AssetsImpl assets() {
         return assets;
     }
 
@@ -735,6 +757,11 @@ public final class GulpEngine implements Engine, FrameHandler, CoreContext {
     @Override
     public Preferences preferences() {
         return preferences;
+    }
+
+    @Override
+    public UiImpl ui() {
+        return ui;
     }
 
     @Override

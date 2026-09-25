@@ -1,5 +1,6 @@
 package dev.gulp.examples.platformer;
 
+import dev.gulp.api.anim.Animator;
 import dev.gulp.api.entity.Component;
 import dev.gulp.api.entity.DamageType;
 import dev.gulp.api.entity.Entity;
@@ -36,6 +37,7 @@ public final class PlayerModule extends GameModule {
                         EntityType.builder(key("player"))
                                 .size(0.75f, 0.95f)
                                 .component(() -> new SpriteComponent(GameAssets.Sprites.PLAYER).setAnchor(0.5f, 0.53f))
+                                .component(() -> new Animator(GameAssets.Animations.PLAYER))
                                 .component(() -> new Mover().coyoteTicks(6).jumpBufferTicks(6))
                                 .component(() -> new Health(3f).invulnerableTicks(60))
                                 .component(PlayerController::new)
@@ -56,6 +58,11 @@ public final class PlayerModule extends GameModule {
         protected void onSpawn() {
             mover = entity().get(Mover.class);
             start = entity().position();
+            entity().get(Animator.class)
+                    .auto()
+                    .when(() -> !mover.isOnFloor(), "jump")
+                    .when(() -> mover.velocity().x() != 0, "run")
+                    .otherwise("idle");
             world().camera()
                     .follow(entity())
                     .smoothing(0.15f)

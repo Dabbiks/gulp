@@ -188,6 +188,13 @@ public interface Display {
     PostEffects postEffects();
 
     /**
+     * Returns the game window: title, size, fullscreen, borderless mode, VSync and monitor.
+     *
+     * @return the window
+     */
+    GameWindow window();
+
+    /**
      * Captures the next rendered frame.
      *
      * @return the image in framebuffer pixels, delivered after the frame is drawn

@@ -7,6 +7,7 @@ import dev.gulp.api.audio.Audio;
 import dev.gulp.api.input.Input;
 import dev.gulp.api.scheduler.Scheduler;
 import dev.gulp.api.spi.ComponentAccess;
+import dev.gulp.api.ui.Ui;
 import dev.gulp.api.world.World;
 import org.jspecify.annotations.Nullable;
 
@@ -71,13 +72,19 @@ public abstract class Component {
     /** Called when the component is added to an entity, which may not be in a world yet. */
     protected void onAttach() {}
 
-    /** Called when the entity enters its world, or at once when the component is added to a spawned entity. */
+    /**
+     * Called when the entity enters its world, or at once when the component is added to a spawned entity. Also called
+     * in the new world after a teleport to another world.
+     */
     protected void onSpawn() {}
 
     /** Called every game tick while the component is enabled and the entity is in a world. */
     protected void onTick() {}
 
-    /** Called when the entity is removed or this component is removed from it. */
+    /**
+     * Called when the entity is removed or this component is removed from it. Also called in the old world before a
+     * teleport to another world, followed by {@link #onSpawn()} there.
+     */
     protected void onRemove() {}
 
     /**
@@ -173,6 +180,15 @@ public abstract class Component {
      */
     protected final Audio audio() {
         return Gulp.engine().audio();
+    }
+
+    /**
+     * Returns the UI.
+     *
+     * @return the UI
+     */
+    protected final Ui ui() {
+        return Gulp.engine().ui();
     }
 
     /**

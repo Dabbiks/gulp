@@ -84,4 +84,76 @@ class UtilTest {
         assertThat(map.get(1)).isNull();
         assertThat(new IntMap<String>().remove(3)).isNull();
     }
+
+    @Test
+    void floatListGrowsAndSums() {
+        FloatList list = new FloatList(1);
+        for (int i = 1; i <= 10; i++) {
+            list.add(i);
+        }
+        list.set(0, 0.5f);
+        assertThat(list.size()).isEqualTo(10);
+        assertThat(list.get(0)).isEqualTo(0.5f);
+        assertThat(list.sum()).isEqualTo(54.5f);
+        assertThat(list.toArray()).hasSize(10);
+        assertThatThrownBy(() -> list.get(10)).isInstanceOf(IndexOutOfBoundsException.class);
+        list.clear();
+        assertThat(list.isEmpty()).isTrue();
+        assertThat(new FloatList().sum()).isZero();
+    }
+
+    @Test
+    void intIntMapMatchesAHashMap() {
+        IntIntMap map = new IntIntMap(2);
+        Map<Integer, Integer> reference = new HashMap<>();
+        Random random = new Random(7);
+        for (int i = 0; i < 5000; i++) {
+            int key = random.nextInt(300) - 150;
+            switch (random.nextInt(3)) {
+                case 0 -> {
+                    map.put(key, i);
+                    reference.put(key, i);
+                }
+                case 1 -> assertThat(map.remove(key)).isEqualTo(reference.remove(key) != null);
+                default -> assertThat(map.increment(key, 2)).isEqualTo(reference.merge(key, 2, Integer::sum));
+            }
+        }
+        assertThat(map.size()).isEqualTo(reference.size());
+        for (int key = -150; key < 150; key++) {
+            assertThat(map.containsKey(key)).isEqualTo(reference.containsKey(key));
+            assertThat(map.get(key, -1)).isEqualTo(reference.getOrDefault(key, -1));
+        }
+        map.clear();
+        assertThat(map.isEmpty()).isTrue();
+    }
+
+    @Test
+    void stopwatchAndRollingAverage() {
+        Stopwatch watch = new Stopwatch();
+        assertThat(watch.isRunning()).isFalse();
+        assertThat(watch.nanos()).isZero();
+        watch.start().start();
+        assertThat(watch.isRunning()).isTrue();
+        assertThat(watch.nanos()).isGreaterThanOrEqualTo(0L);
+        long stopped = watch.stop();
+        assertThat(watch.stop()).isEqualTo(stopped);
+        assertThat(watch.millis()).isEqualTo(stopped / 1_000_000f);
+        watch.reset();
+        assertThat(watch.nanos()).isZero();
+
+        RollingAverage average = new RollingAverage(3);
+        assertThat(average.average()).isZero();
+        assertThat(average.max()).isZero();
+        average.add(1f);
+        average.add(2f);
+        assertThat(average.average()).isEqualTo(1.5f);
+        average.add(3f);
+        average.add(10f);
+        assertThat(average.count()).isEqualTo(3);
+        assertThat(average.average()).isEqualTo(5f);
+        assertThat(average.max()).isEqualTo(10f);
+        average.clear();
+        assertThat(average.count()).isZero();
+        assertThatThrownBy(() -> new RollingAverage(0)).isInstanceOf(IllegalArgumentException.class);
+    }
 }

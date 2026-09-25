@@ -765,7 +765,7 @@ public final class AssetsImpl implements Assets {
      *
      * @return completes when all reloads finished
      */
-    Promise<Void> reloadAll() {
+    public Promise<Void> reloadAll() {
         List<Promise<Object>> reloads = new ArrayList<>();
         for (Entry<?> entry : new ArrayList<>(entries.values())) {
             if (entry.loaded && entry.key.type() != AssetType.REGION) {

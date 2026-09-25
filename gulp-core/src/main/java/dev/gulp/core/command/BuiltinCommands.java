@@ -5,6 +5,10 @@ import dev.gulp.api.command.ArgumentType;
 import dev.gulp.api.command.Arguments;
 import dev.gulp.api.command.Command;
 import dev.gulp.api.command.CommandException;
+import dev.gulp.api.entity.Entity;
+import dev.gulp.api.entity.EntityType;
+import dev.gulp.api.math.Vec2;
+import dev.gulp.api.world.World;
 import dev.gulp.core.GulpEngine;
 import dev.gulp.core.data.ConfigImpl;
 import java.util.ArrayList;
@@ -13,7 +17,7 @@ import java.util.Locale;
 
 /**
  * Commands every game has: {@code /help}, {@code /tps}, {@code /modules}, {@code /module enable|disable <id>},
- * {@code /reload config} and {@code /timescale <x>}.
+ * {@code /reload config|assets}, {@code /timescale <x>}, {@code /spawn <type> [x y]} and {@code /tp <x> <y>}.
  */
 public final class BuiltinCommands {
 
@@ -139,6 +143,56 @@ public final class BuiltinCommands {
                                     ctx.reply("Reloading " + configs.size() + " config file(s)");
                                 })
                                 .build())
+                        .subcommand(Command.builder("assets")
+                                .executes(ctx -> {
+                                    ctx.reply("Reloading loaded assets");
+                                    engine.assets()
+                                            .reloadAll()
+                                            .thenSync(done -> ctx.reply("Assets reloaded"))
+                                            .onFailure(error -> ctx.reply("Reload failed: " + error.getMessage()));
+                                })
+                                .build())
+                        .build());
+
+        commands.register(
+                owner,
+                Command.builder("spawn")
+                        .description("Spawns an entity in the active world, at the camera or at x y")
+                        .argument(Arguments.entityType("type"))
+                        .argument(Arguments.floating("x").optional())
+                        .argument(Arguments.floating("y").optional())
+                        .executes(ctx -> {
+                            World world = activeWorld(engine);
+                            EntityType type = ctx.arg("type");
+                            Vec2 at = ctx.has("x") && ctx.has("y")
+                                    ? new Vec2(ctx.<Float>arg("x"), ctx.<Float>arg("y"))
+                                    : world.camera().position();
+                            Entity entity = world.spawn(type, at.x(), at.y());
+                            ctx.reply("Spawned " + type.key() + " #" + entity.runtimeId() + " at " + format(at.x())
+                                    + " " + format(at.y()));
+                        })
+                        .build());
+
+        commands.register(
+                owner,
+                Command.builder("tp")
+                        .description("Teleports the player (the entity tagged 'player'), or the camera if none")
+                        .argument(Arguments.floating("x"))
+                        .argument(Arguments.floating("y"))
+                        .executes(ctx -> {
+                            World world = activeWorld(engine);
+                            float x = ctx.arg("x");
+                            float y = ctx.arg("y");
+                            Entity player = world.query().tag("player").first();
+                            if (player != null) {
+                                player.teleport(x, y);
+                                ctx.reply("Teleported " + player + " to " + format(x) + " " + format(y));
+                            } else {
+                                world.camera().follow(null);
+                                world.camera().setPosition(new Vec2(x, y));
+                                ctx.reply("Moved the camera to " + format(x) + " " + format(y));
+                            }
+                        })
                         .build());
 
         commands.register(
@@ -152,6 +206,14 @@ public final class BuiltinCommands {
                             ctx.reply("Time scale set to " + format(scale));
                         })
                         .build());
+    }
+
+    private static World activeWorld(GulpEngine engine) {
+        World world = engine.worlds().active();
+        if (world == null) {
+            throw new CommandException("No active world");
+        }
+        return world;
     }
 
     private static String describe(Command command) {

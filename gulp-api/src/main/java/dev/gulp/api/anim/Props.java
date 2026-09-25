@@ -8,6 +8,7 @@ import dev.gulp.api.graphics.Color;
 import dev.gulp.api.math.Vec2;
 import dev.gulp.api.render.Camera;
 import dev.gulp.api.render.Light;
+import dev.gulp.api.ui.Node;
 
 /**
  * Built-in animatable properties. Post-processing effects keep theirs as constants of their own classes, such as
@@ -16,6 +17,7 @@ import dev.gulp.api.render.Light;
  * <pre>{@code
  * Tweens.to(player, Props.ALPHA, 0f, 0.3f).start();
  * Tweens.to(world.camera(), Props.CAMERA_ZOOM, 2f, 1f).ease(Ease.IN_OUT_SINE).start();
+ * Tweens.to(menuPanel, Props.NODE_OFFSET, new Vec2(0, 0), 0.3f).ease(Ease.OUT_BACK).start();
  * Tweens.to(torch.get(LightSource.class).light(), Props.LIGHT_RADIUS, 8f, 0.5f).start();
  * }</pre>
  */
@@ -103,4 +105,28 @@ public final class Props {
             Property.of(Light::color, Light::setColor, Interpolators.COLOR);
 
     private Props() {}
+
+    /** Offset of an anchored UI node ({@link Node#offset}). UI tweens run in real time. */
+    public static final Property<Node<?>, Vec2> NODE_OFFSET =
+            Property.of(n -> new Vec2(n.offsetX(), n.offsetY()), (n, v) -> n.offset(v.x(), v.y()), Interpolators.VEC2);
+
+    /** Fixed size of a UI node ({@link Node#size}); reads the laid-out size. */
+    public static final Property<Node<?>, Vec2> NODE_SIZE =
+            Property.of(n -> new Vec2(n.width(), n.height()), (n, v) -> n.size(v.x(), v.y()), Interpolators.VEC2);
+
+    /** Opacity of a UI node and its subtree. */
+    public static final Property<Node<?>, Float> NODE_ALPHA =
+            Property.of(Node::alpha, (n, a) -> n.alpha(a), Interpolators.FLOAT);
+
+    /** Visual scale of a UI node, around its pivot. */
+    public static final Property<Node<?>, Float> NODE_SCALE =
+            Property.of(Node::scale, (n, v) -> n.scale(v), Interpolators.FLOAT);
+
+    /** Visual rotation of a UI node in degrees, around its pivot. */
+    public static final Property<Node<?>, Float> NODE_ROTATION =
+            Property.of(Node::rotation, (n, v) -> n.rotation(v), Interpolators.ANGLE);
+
+    /** Tint of a UI node's images. */
+    public static final Property<Node<?>, Color> NODE_COLOR =
+            Property.of(Node::tint, (n, c) -> n.tint(c), Interpolators.COLOR);
 }

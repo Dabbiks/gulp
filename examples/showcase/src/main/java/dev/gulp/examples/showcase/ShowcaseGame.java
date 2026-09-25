@@ -8,8 +8,8 @@ import dev.gulp.api.input.KeyPressEvent;
 import dev.gulp.api.input.Keys;
 
 /**
- * Showcase of every framework feature, one screen per feature. Until screens exist (stage 9) each feature is a module
- * that reports to the log and the terminal console.
+ * Showcase of every framework feature, one screen per feature (Tab switches them), with a main menu, a pause menu on
+ * Escape and settings built from UI widgets.
  */
 public final class ShowcaseGame extends Game {
 
@@ -40,7 +40,8 @@ public final class ShowcaseGame extends Game {
                         new SpritesDemoModule(),
                         new TextDemoModule(),
                         new InputAudioDemoModule(),
-                        new JuiceDemoModule());
+                        new JuiceDemoModule(),
+                        new MenuDemoModule());
     }
 
     /**
@@ -55,7 +56,7 @@ public final class ShowcaseGame extends Game {
     @Override
     public void onStart() {
         on(KeyPressEvent.class, e -> {
-            if (e.key().equals(Keys.TAB)) {
+            if (e.key().equals(Keys.TAB) && !e.isConsumedByUi()) {
                 screen = (screen + 1) % SCREENS;
             }
         });

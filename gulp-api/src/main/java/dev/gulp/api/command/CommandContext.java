@@ -1,5 +1,6 @@
 package dev.gulp.api.command;
 
+import dev.gulp.api.text.Text;
 import org.jspecify.annotations.Nullable;
 
 /**
@@ -66,4 +67,17 @@ public interface CommandContext {
      * @param message the line
      */
     void reply(String message);
+
+    /**
+     * Sends formatted text to whoever ran the command; consoles without formatting show its plain text.
+     *
+     * <pre>{@code
+     * ctx.reply(Text.of("Saved ").append(Text.of(slot).color(Color.GOLD)));
+     * }</pre>
+     *
+     * @param message the text
+     */
+    default void reply(Text message) {
+        reply(message.plain());
+    }
 }

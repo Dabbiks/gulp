@@ -153,6 +153,36 @@ public interface Draw {
     Draw rectOutline(Rect rect, float thickness);
 
     /**
+     * Draws the outline of a rectangle given by numbers, without allocating.
+     *
+     * @param x left
+     * @param y top
+     * @param width width
+     * @param height height
+     * @param thickness line thickness inside the rectangle
+     * @return this
+     */
+    Draw rectOutline(float x, float y, float width, float height, float thickness);
+
+    /**
+     * Fills a rectangle with the current colour.
+     *
+     * <pre>{@code
+     * draw.rect(screen.anchor(Anchor.BOTTOM_RIGHT, 8, 8, 100, 20), Color.BLACK.withAlpha(0.5f));
+     * }</pre>
+     *
+     * @param rect the rectangle
+     * @param color the colour, used only for this call
+     * @return this
+     */
+    default Draw rect(Rect rect, Color color) {
+        Color previous = color();
+        color(color);
+        rect(rect);
+        return color(previous);
+    }
+
+    /**
      * Fills a rectangle with rounded corners.
      *
      * @param rect the rectangle
@@ -160,6 +190,18 @@ public interface Draw {
      * @return this
      */
     Draw roundedRect(Rect rect, float radius);
+
+    /**
+     * Fills a rectangle with rounded corners given by numbers, without allocating.
+     *
+     * @param x left
+     * @param y top
+     * @param width width
+     * @param height height
+     * @param radius corner radius
+     * @return this
+     */
+    Draw roundedRect(float x, float y, float width, float height, float radius);
 
     /**
      * Fills a rectangle with a vertical gradient.
@@ -170,6 +212,29 @@ public interface Draw {
      * @return this
      */
     Draw gradientRect(Rect rect, Color top, Color bottom);
+
+    /**
+     * Fills a rectangle with a colour in each corner, blended across it (for example a colour picker).
+     *
+     * @param x left
+     * @param y top
+     * @param width width
+     * @param height height
+     * @param topLeft colour of the top-left corner
+     * @param topRight colour of the top-right corner
+     * @param bottomRight colour of the bottom-right corner
+     * @param bottomLeft colour of the bottom-left corner
+     * @return this
+     */
+    Draw gradientRect(
+            float x,
+            float y,
+            float width,
+            float height,
+            Color topLeft,
+            Color topRight,
+            Color bottomRight,
+            Color bottomLeft);
 
     /**
      * Fills a circle.
@@ -424,6 +489,23 @@ public interface Draw {
      * @return this draw
      */
     Draw text(String text, float x, float y, TextStyle style, TextAlign align);
+
+    /**
+     * Draws a string aligned around a point.
+     *
+     * <pre>{@code
+     * draw.text("Paused", screen.center(), TextStyle.of(32), TextAlign.CENTER);
+     * }</pre>
+     *
+     * @param text the string
+     * @param position the anchor point
+     * @param style the style
+     * @param align which point of the text lies at the position
+     * @return this
+     */
+    default Draw text(String text, Vec2 position, TextStyle style, TextAlign align) {
+        return text(text, position.x(), position.y(), style, align);
+    }
 
     /**
      * Draws rich text wrapped by words to the width of a rectangle and aligned inside it.
