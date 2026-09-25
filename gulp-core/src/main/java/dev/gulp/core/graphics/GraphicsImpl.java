@@ -50,6 +50,8 @@ public final class GraphicsImpl implements Graphics {
     private final List<FrameBufferImpl> frameBuffers = new ArrayList<>();
     private final ShaderImpl defaultShader;
     private final ShaderImpl msdfShader;
+    private final Map<String, ShaderImpl> builtIn = new HashMap<>();
+    private @Nullable TextureImpl softDot;
     private @Nullable TextSystem textSystem;
     private final TextureImpl white;
     private final TextureImpl fallback;
@@ -97,6 +99,33 @@ public final class GraphicsImpl implements Graphics {
     }
 
     /**
+     * Returns the shader of a built-in material, compiled on first use.
+     *
+     * @param name the material name, such as {@code gulp:flash}
+     * @return the shader, or the default one for an unknown name
+     */
+    ShaderImpl builtInShader(String name) {
+        ShaderImpl shader = builtIn.get(name);
+        if (shader != null) {
+            return shader;
+        }
+        String fragment =
+                switch (name) {
+                    case "gulp:flash" -> ShaderImpl.FLASH_FRAGMENT;
+                    case "gulp:outline" -> ShaderImpl.OUTLINE_FRAGMENT;
+                    case "gulp:dissolve" -> ShaderImpl.DISSOLVE_FRAGMENT;
+                    case "gulp:grayscale" -> ShaderImpl.GRAYSCALE_FRAGMENT;
+                    case "gulp:tint" -> ShaderImpl.TINT_FRAGMENT;
+                    default -> null;
+                };
+        shader = fragment == null
+                ? defaultShader
+                : new ShaderImpl(gl, ShaderImpl.DEFAULT_VERTEX, fragment, includes, logger);
+        builtIn.put(name, shader);
+        return shader;
+    }
+
+    /**
      * Connects text layout.
      *
      * @param system the text system
@@ -136,6 +165,60 @@ public final class GraphicsImpl implements Graphics {
 
     TextureImpl fallbackTexture() {
         return fallback;
+    }
+
+    /**
+     * Returns an engine shader made of the default vertex shader and a fragment shader, compiled on first use.
+     *
+     * @param name a unique name
+     * @param fragment the fragment source
+     * @return the shader
+     */
+    ShaderImpl internalShader(String name, String fragment) {
+        ShaderImpl shader = builtIn.get(name);
+        if (shader == null) {
+            shader = new ShaderImpl(gl, ShaderImpl.DEFAULT_VERTEX, fragment, includes, logger);
+            builtIn.put(name, shader);
+        }
+        return shader;
+    }
+
+    /**
+     * Returns the shader that draws light fans into a light map.
+     *
+     * @return the shader
+     */
+    public ShaderImpl lightShader() {
+        return internalShader("gulp:light", PostShaders.LIGHT);
+    }
+
+    /**
+     * Returns a soft round dot, white fading out to the edge; the default particle image.
+     *
+     * @return the region
+     */
+    public TextureRegion softDot() {
+        TextureImpl dot = softDot;
+        if (dot == null) {
+            int size = 32;
+            Pixmap pixels = new Pixmap(size, size);
+            for (int y = 0; y < size; y++) {
+                for (int x = 0; x < size; x++) {
+                    float dx = (x + 0.5f) / size * 2f - 1f;
+                    float dy = (y + 0.5f) / size * 2f - 1f;
+                    float d = Math.min(1f, (float) Math.sqrt(dx * dx + dy * dy));
+                    float a = smooth(1f - d);
+                    pixels.setPixel(x, y, new Color(1f, 1f, 1f, a));
+                }
+            }
+            dot = new TextureImpl(gl, size, size, TextureFilter.LINEAR, pixels);
+            softDot = dot;
+        }
+        return dot.region();
+    }
+
+    private static float smooth(float t) {
+        return t * t * (3f - 2f * t);
     }
 
     Gl gl() {
@@ -288,9 +371,19 @@ public final class GraphicsImpl implements Graphics {
         frameBuffers.clear();
         shaders.clear();
         textures.clear();
+        for (ShaderImpl shader : builtIn.values()) {
+            if (shader != defaultShader) {
+                shader.dispose();
+            }
+        }
+        builtIn.clear();
         defaultShader.dispose();
         msdfShader.dispose();
         white.dispose();
         fallback.dispose();
+        if (softDot != null) {
+            softDot.dispose();
+            softDot = null;
+        }
     }
 }

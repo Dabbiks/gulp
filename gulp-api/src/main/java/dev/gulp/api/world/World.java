@@ -1,6 +1,7 @@
 package dev.gulp.api.world;
 
 import dev.gulp.api.Owner;
+import dev.gulp.api.asset.AssetKey;
 import dev.gulp.api.audio.Playback;
 import dev.gulp.api.audio.Sound;
 import dev.gulp.api.data.DataContainer;
@@ -12,8 +13,13 @@ import dev.gulp.api.math.Rect;
 import dev.gulp.api.math.Rng;
 import dev.gulp.api.math.Vec2;
 import dev.gulp.api.nav.NavGrid;
+import dev.gulp.api.particle.ParticleEffect;
+import dev.gulp.api.particle.ParticleInstance;
+import dev.gulp.api.particle.Particles;
 import dev.gulp.api.physics.Physics;
 import dev.gulp.api.render.Camera;
+import dev.gulp.api.render.Lighting;
+import dev.gulp.api.render.PostEffects;
 import dev.gulp.api.render.RenderLayer;
 import java.util.List;
 import java.util.UUID;
@@ -215,6 +221,56 @@ public interface World {
      * @return the grid
      */
     NavGrid navGrid();
+
+    /**
+     * Returns the 2D lighting of this world; it costs nothing until {@code lighting().ambient(color)} enables it.
+     *
+     * @return the lighting
+     */
+    Lighting lighting();
+
+    /**
+     * Returns the post-processing chain applied to the world layers (not to screen-space layers).
+     *
+     * @return the chain
+     */
+    PostEffects postEffects();
+
+    /**
+     * Returns the particle system of this world.
+     *
+     * @return the particles
+     */
+    Particles particles();
+
+    /**
+     * Starts a particle effect.
+     *
+     * @param effect the effect
+     * @param position world units
+     * @return the running instance
+     */
+    ParticleInstance spawnParticles(ParticleEffect effect, Vec2 position);
+
+    /**
+     * Starts a particle effect loaded as an asset, in its current version.
+     *
+     * @param effect the asset key; must be loaded
+     * @param position world units
+     * @return the running instance
+     */
+    ParticleInstance spawnParticles(AssetKey<ParticleEffect> effect, Vec2 position);
+
+    /**
+     * Starts a particle effect at a location in this world.
+     *
+     * @param effect the effect
+     * @param location the location; its world must be this one
+     * @return the running instance
+     */
+    default ParticleInstance spawnParticles(ParticleEffect effect, Location location) {
+        return spawnParticles(effect, location.toVec2());
+    }
 
     /**
      * Shows or hides a debug drawing, such as collision shapes or navigation paths.

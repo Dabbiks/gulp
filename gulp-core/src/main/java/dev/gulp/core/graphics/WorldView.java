@@ -1,5 +1,6 @@
 package dev.gulp.core.graphics;
 
+import dev.gulp.api.graphics.Color;
 import dev.gulp.api.render.RenderLayer;
 import dev.gulp.api.ui.Transition;
 import java.util.List;
@@ -56,6 +57,35 @@ public interface WorldView {
      * @param worldPixel size of one screen pixel in world units
      */
     void drawDebug(DrawImpl draw, CameraImpl camera, float worldPixel);
+
+    /**
+     * Returns the post-processing chain of the active world.
+     *
+     * @return the chain, or {@code null} without an active world
+     */
+    @Nullable PostEffectsImpl worldPostEffects();
+
+    /**
+     * Returns whether the active world has lighting enabled.
+     *
+     * @return {@code true} to draw a light map
+     */
+    boolean lightingEnabled();
+
+    /**
+     * Returns the ambient light of the active world.
+     *
+     * @return the colour the light map starts from
+     */
+    Color ambient();
+
+    /**
+     * Draws the lights of the active world into the bound light map, in world units.
+     *
+     * @param draw drawing in world units through the camera
+     * @param camera the camera
+     */
+    void drawLights(DrawImpl draw, CameraImpl camera);
 
     /**
      * Returns the running transition.

@@ -343,6 +343,19 @@ public interface Draw {
     Draw material(Material material);
 
     /**
+     * Sets the effect colour passed with every vertex to the material: the built-in {@link
+     * dev.gulp.api.graphics.Materials} read their colour and amount from it; custom shaders get it as {@code v_params}.
+     *
+     * <pre>{@code
+     * draw.material(Materials.FLASH).effect(Color.WHITE.withAlpha(0.7f)).image(enemy, x, y);
+     * }</pre>
+     *
+     * @param color the effect colour; transparent turns effects off
+     * @return this
+     */
+    Draw effect(Color color);
+
+    /**
      * Draws only inside a rectangle while the body runs. Nested clips intersect.
      *
      * @param rect the clip area in current units (axis-aligned bounds are used under rotation)

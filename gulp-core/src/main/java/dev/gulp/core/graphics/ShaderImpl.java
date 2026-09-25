@@ -25,18 +25,22 @@ public final class ShaderImpl implements Shader {
 
     static final int TEX_COORD = 1;
     static final int COLOR = 2;
+    static final int PARAMS = 3;
 
     static final String DEFAULT_VERTEX = """
             #version 300 es
             in vec2 a_position;
             in vec2 a_texCoord;
             in vec4 a_color;
+            in vec4 a_params;
             uniform mat3 u_projection;
             out vec2 v_texCoord;
             out vec4 v_color;
+            out vec4 v_params;
             void main() {
                 v_texCoord = a_texCoord;
                 v_color = a_color;
+                v_params = a_params;
                 vec3 p = u_projection * vec3(a_position, 1.0);
                 gl_Position = vec4(p.xy, 0.0, 1.0);
             }
@@ -46,8 +50,73 @@ public final class ShaderImpl implements Shader {
             precision mediump float;
             in vec2 v_texCoord;
             in vec4 v_color;
+            in vec4 v_params;
             uniform sampler2D u_texture;
             out vec4 fragColor;
+            """;
+
+    /** Built-in materials: {@code v_params} carries the colour (rgb) and amount (a) set by {@code Draw.effect}. */
+    static final String FLASH_FRAGMENT = """
+            #include "gulp:common.glsl"
+            void main() {
+                vec4 c = texture(u_texture, v_texCoord) * v_color;
+                c.rgb = mix(c.rgb, v_params.rgb * c.a, v_params.a);
+                fragColor = c;
+            }
+            """;
+
+    static final String GRAYSCALE_FRAGMENT = """
+            #include "gulp:common.glsl"
+            void main() {
+                vec4 c = texture(u_texture, v_texCoord) * v_color;
+                float l = dot(c.rgb, vec3(0.299, 0.587, 0.114));
+                c.rgb = mix(c.rgb, vec3(l), v_params.a);
+                fragColor = c;
+            }
+            """;
+
+    static final String TINT_FRAGMENT = """
+            #include "gulp:common.glsl"
+            void main() {
+                vec4 c = texture(u_texture, v_texCoord) * v_color;
+                float l = dot(c.rgb, vec3(0.299, 0.587, 0.114));
+                c.rgb = mix(c.rgb, v_params.rgb * l, v_params.a);
+                fragColor = c;
+            }
+            """;
+
+    static final String DISSOLVE_FRAGMENT = """
+            #include "gulp:common.glsl"
+            float hash(vec2 p) {
+                return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453);
+            }
+            void main() {
+                vec4 c = texture(u_texture, v_texCoord) * v_color;
+                vec2 cell = floor(v_texCoord * vec2(textureSize(u_texture, 0)));
+                float n = hash(cell) * 0.999;
+                float progress = v_params.a * 1.08;
+                if (n < progress - 0.08) {
+                    c = vec4(0.0);
+                } else if (n < progress) {
+                    c.rgb = v_params.rgb * c.a;
+                }
+                fragColor = c;
+            }
+            """;
+
+    static final String OUTLINE_FRAGMENT = """
+            #include "gulp:common.glsl"
+            void main() {
+                vec4 c = texture(u_texture, v_texCoord) * v_color;
+                vec2 texel = v_params.a * 4.0 / vec2(textureSize(u_texture, 0));
+                float around = max(
+                        max(texture(u_texture, v_texCoord + vec2(texel.x, 0.0)).a,
+                            texture(u_texture, v_texCoord - vec2(texel.x, 0.0)).a),
+                        max(texture(u_texture, v_texCoord + vec2(0.0, texel.y)).a,
+                            texture(u_texture, v_texCoord - vec2(0.0, texel.y)).a));
+                float edge = around * (1.0 - c.a) * v_color.a;
+                fragColor = c + vec4(v_params.rgb * edge, edge);
+            }
             """;
 
     static final String DEFAULT_FRAGMENT = """
@@ -112,6 +181,7 @@ public final class ShaderImpl implements Shader {
             gl.bindAttribLocation(handle, POSITION, "a_position");
             gl.bindAttribLocation(handle, TEX_COORD, "a_texCoord");
             gl.bindAttribLocation(handle, COLOR, "a_color");
+            gl.bindAttribLocation(handle, PARAMS, "a_params");
             gl.linkProgram(handle);
             gl.detachShader(handle, vs);
             gl.detachShader(handle, fs);

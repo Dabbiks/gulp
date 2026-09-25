@@ -2100,11 +2100,11 @@ Trzynaście etapów od pustego repozytorium do wersji 1.0, wykonywanych po kolei
 
 ### Etap 8 — Animacje, tweeny, cząsteczki, światło
 
-- [ ] `Property`, `Props`, `Tweens` w całości z efektami gotowymi, `Timeline`.
-- [ ] `SpriteAnimation`, `AnimationSet`, import Aseprite, `Animator` z `auto()`.
-- [ ] Cząsteczki: emitery, krzywe, gradienty, pod-emitery, kolizje, JSON z hot reloadem, `ParticleEmitter`.
-- [ ] Światło 2D z cieniami od occluderów i kafelków; łańcuch post-process i efekty wbudowane; materiały gotowe.
-- [ ] **Kamień milowy:** scena „juice” w showcase (błyski, wstrząsy, cząsteczki, światło) na obu platformach.
+- [x] `Property`, `Props`, `Tweens` w całości z efektami gotowymi, `Timeline`.
+- [x] `SpriteAnimation`, `AnimationSet`, import Aseprite, `Animator` z `auto()`.
+- [x] Cząsteczki: emitery, krzywe, gradienty, pod-emitery, kolizje, JSON z hot reloadem, `ParticleEmitter`.
+- [x] Światło 2D z cieniami od occluderów i kafelków; łańcuch post-process i efekty wbudowane; materiały gotowe.
+- [x] **Kamień milowy:** scena „juice” w showcase (błyski, wstrząsy, cząsteczki, światło) na obu platformach. — *Ekran 2 showcase (Tab); sprawdzona na desktopie i w Chromium (test dymny przełącza na nią ekran). Szczegóły: ADR 0013.*
 
 ### Etap 9 — UI
 

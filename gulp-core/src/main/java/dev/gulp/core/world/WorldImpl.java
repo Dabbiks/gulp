@@ -2,6 +2,7 @@ package dev.gulp.core.world;
 
 import dev.gulp.api.Owner;
 import dev.gulp.api.PauseMode;
+import dev.gulp.api.asset.AssetKey;
 import dev.gulp.api.audio.Playback;
 import dev.gulp.api.audio.Sound;
 import dev.gulp.api.data.DataContainer;
@@ -17,8 +18,13 @@ import dev.gulp.api.math.Rect;
 import dev.gulp.api.math.Rng;
 import dev.gulp.api.math.Vec2;
 import dev.gulp.api.nav.NavGrid;
+import dev.gulp.api.particle.ParticleEffect;
+import dev.gulp.api.particle.ParticleInstance;
+import dev.gulp.api.particle.Particles;
 import dev.gulp.api.physics.Physics;
 import dev.gulp.api.render.Camera;
+import dev.gulp.api.render.Lighting;
+import dev.gulp.api.render.PostEffects;
 import dev.gulp.api.render.RenderLayer;
 import dev.gulp.api.spi.ComponentAccess;
 import dev.gulp.api.world.Chunk;
@@ -31,6 +37,7 @@ import dev.gulp.api.world.WorldSettings;
 import dev.gulp.core.data.DataContainerImpl;
 import dev.gulp.core.graphics.CameraImpl;
 import dev.gulp.core.graphics.DisplayImpl;
+import dev.gulp.core.graphics.PostEffectsImpl;
 import dev.gulp.core.physics.PhysicsWorld;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -74,6 +81,9 @@ final class WorldImpl implements World {
     int screenStamp;
     final PhysicsWorld physics;
     final NavGridImpl navGrid;
+    final LightingImpl lighting = new LightingImpl();
+    final PostEffectsImpl postEffects = new PostEffectsImpl();
+    final ParticleSystem particles = new ParticleSystem(this);
     private final EnumSet<DebugView> debug = EnumSet.noneOf(DebugView.class);
 
     WorldImpl(WorldsImpl worlds, String name, WorldSettings settings) {
@@ -475,6 +485,33 @@ final class WorldImpl implements World {
     }
 
     @Override
+    public Lighting lighting() {
+        return lighting;
+    }
+
+    @Override
+    public PostEffects postEffects() {
+        return postEffects;
+    }
+
+    @Override
+    public Particles particles() {
+        return particles;
+    }
+
+    @Override
+    public ParticleInstance spawnParticles(ParticleEffect effect, Vec2 position) {
+        worlds.context.checkMainThread("World.spawnParticles");
+        return particles.spawn(effect, position.x(), position.y());
+    }
+
+    @Override
+    public ParticleInstance spawnParticles(AssetKey<ParticleEffect> effect, Vec2 position) {
+        worlds.context.checkMainThread("World.spawnParticles");
+        return particles.spawn(effect, position.x(), position.y());
+    }
+
+    @Override
     public NavGrid navGrid() {
         return navGrid;
     }
@@ -563,6 +600,7 @@ final class WorldImpl implements World {
         flushRemovals();
         ticking = wasTicking;
         grid.clear();
+        particles.clear();
         physics.dispose();
         navGrid.clear();
         tileMap.dispose();

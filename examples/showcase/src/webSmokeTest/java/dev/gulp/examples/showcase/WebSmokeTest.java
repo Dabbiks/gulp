@@ -154,6 +154,23 @@ class WebSmokeTest {
                 }
             }
             assertThat(colors).as("distinct colors on screen").hasSizeGreaterThan(5);
+
+            // Juice screen: lights, shadows, particles and post-processing on this browser's WebGL.
+            page.click("#gulp-canvas");
+            page.keyboard().press("Tab");
+            page.keyboard().press("Tab");
+            waitFor(page, logs, "Juice screen", 5_000);
+            page.mouse().move(400, 200);
+            page.keyboard().press("Space");
+            page.waitForTimeout(1_000);
+            BufferedImage juice = ImageIO.read(new ByteArrayInputStream(page.screenshot()));
+            Set<Integer> juiceColors = new HashSet<>();
+            for (int y = 0; y < juice.getHeight(); y += 7) {
+                for (int x = 0; x < juice.getWidth(); x += 7) {
+                    juiceColors.add(juice.getRGB(x, y));
+                }
+            }
+            assertThat(juiceColors).as("distinct colors on the juice screen").hasSizeGreaterThan(20);
             synchronized (errors) {
                 assertThat(errors)
                         .as("console errors in %s (%s)", browserName, target)

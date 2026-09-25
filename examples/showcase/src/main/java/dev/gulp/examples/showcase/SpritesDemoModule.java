@@ -58,6 +58,9 @@ final class SpritesDemoModule extends GameModule {
         spawn(DEFAULT_COUNT);
         on(TickStartEvent.class, e -> update(1f / engine().targetTps()));
         on(RenderLayerEvent.class, e -> {
+            if (ShowcaseGame.screen() == JuiceDemoModule.SCREEN) {
+                return;
+            }
             if (e.layer().name().equals("entities")) {
                 drawWorld(e.draw(), e.alpha());
             } else if (e.layer().name().equals("ui")) {
@@ -123,6 +126,10 @@ final class SpritesDemoModule extends GameModule {
     }
 
     private void update(float delta) {
+        if (ShowcaseGame.screen() == JuiceDemoModule.SCREEN) {
+            // Hidden there, and the juice camera would squeeze the coins into its smaller view.
+            return;
+        }
         time += delta;
         Rect bounds = display().camera().bounds();
         float right = bounds.right() - 1f;

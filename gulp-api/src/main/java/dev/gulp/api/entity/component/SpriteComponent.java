@@ -3,6 +3,7 @@ package dev.gulp.api.entity.component;
 import dev.gulp.api.asset.AssetKey;
 import dev.gulp.api.entity.Component;
 import dev.gulp.api.graphics.Color;
+import dev.gulp.api.graphics.Material;
 import dev.gulp.api.graphics.TextureRegion;
 import dev.gulp.api.math.Vec2;
 import org.jspecify.annotations.Nullable;
@@ -25,6 +26,8 @@ public final class SpriteComponent extends Component {
     private Vec2 anchor = new Vec2(0.5f, 0.5f);
     private Vec2 offset = Vec2.ZERO;
     private Color tint = Color.WHITE;
+    private Material material = Material.DEFAULT;
+    private Color effect = Color.CLEAR;
 
     /**
      * Creates a sprite from an atlas region or texture key.
@@ -178,6 +181,46 @@ public final class SpriteComponent extends Component {
      */
     public SpriteComponent setTint(Color value) {
         this.tint = value;
+        return this;
+    }
+
+    /**
+     * Returns the material the sprite is drawn with.
+     *
+     * @return {@link Material#DEFAULT} unless changed
+     */
+    public Material material() {
+        return material;
+    }
+
+    /**
+     * Draws the sprite with another material, such as one of {@link dev.gulp.api.graphics.Materials}.
+     *
+     * @param value the material
+     * @return this component
+     */
+    public SpriteComponent setMaterial(Material value) {
+        this.material = value;
+        return this;
+    }
+
+    /**
+     * Returns the effect colour passed to the material.
+     *
+     * @return the colour, transparent by default
+     */
+    public Color effect() {
+        return effect;
+    }
+
+    /**
+     * Sets the effect colour the built-in materials read: the colour and, in its alpha, the amount.
+     *
+     * @param value the colour
+     * @return this component
+     */
+    public SpriteComponent setEffect(Color value) {
+        this.effect = value;
         return this;
     }
 }

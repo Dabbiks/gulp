@@ -4,6 +4,62 @@ Format oparty na [Keep a Changelog](https://keepachangelog.com/pl/1.1.0/); wersj
 
 ## [Unreleased]
 
+### Etap 8 — Animacje, tweeny, cząsteczki, światło
+
+#### Dodane
+
+- **`dev.gulp.api.anim`, tweeny i timeline:**
+  - `Property` (getter, setter, interpolator, bez refleksji), `Interpolators` (`FLOAT`, `INT`, `VEC2`, `COLOR`, `ANGLE`) i `Props`:
+    - encja: `POSITION`, `X`, `Y`, `ROTATION`, `SCALE`, `ALPHA`, `TINT`, `SPRITE_OFFSET`, `EFFECT`;
+    - kamera: `CAMERA_POSITION`, `CAMERA_ZOOM`, `CAMERA_ROTATION`;
+    - dźwięk: `VOLUME`, `BUS_VOLUME`;
+    - światło: `LIGHT_INTENSITY`, `LIGHT_RADIUS`, `LIGHT_COLOR`;
+    - efekty post-process mają stałe we własnych klasach;
+  - `Tweens`:
+    - tworzenie: `to`, `from`, `by`, `fromTo`, `custom`;
+    - ustawienia: `ease`, `delay`, `repeat`, `yoyo`, `onUpdate`, `onComplete`, `realtime`, `then`;
+    - kompozycja: `sequence`, `parallel`, `wait`, `call`;
+    - sterowanie: `pause`, `resume`, `kill`, `killAll`, `isRunning`, `progress`, `owner`;
+    - gotowe efekty: `punchScale`, `flash`, `fadeIn`, `fadeOut`, `pulse`, `bob`, `shake` (encji i kamery);
+  - `Timeline`: ścieżki klatek kluczowych z ease na odcinek, zdarzenia `at`, długość, pętla, prędkość, `play`, `stop`, `seek`, `reverse`.
+- **Animacje klatkowe:**
+  - `SpriteAnimation` z trybami `ONCE`, `LOOP`, `PING_PONG`, `REVERSED`, `LOOP_RANDOM` i `onFrame`;
+  - `AnimationSet` z Aseprite (`AssetKey.animations`, folder `animations/`: tagi, czasy klatek, kierunek) lub z atlasu (`fromAtlas`);
+  - komponent `Animator`: `play`, `playOnce(...).then(...)`, `speed`, `current`, `isFinished`, reguły `auto().when(...).otherwise(...)`;
+  - eventy `AnimationEndEvent` i `AnimationFrameEvent`.
+- **`dev.gulp.api.particle`:**
+  - `ParticleEffect` z emiterów `EmitterConfig`: `rate`, `burst`, czas trwania, pętla, kształty `EmitterShape` (punkt, koło, pierścień, prostokąt, odcinek), kierunek i rozrzut, prędkość, grawitacja, opór, obrót, czas życia;
+  - krzywe `FloatCurve` rozmiaru i przezroczystości, gradient `Gradient` koloru;
+  - region lub klatki, `BlendMode`, przestrzeń lokalna, pod-emitery `onDeath`, kolizja z kafelkami (`BOUNCE`, `DIE`), limit na emiter;
+  - `world.spawnParticles(effect, position | location)` zwraca `ParticleInstance` (`stop`, `kill`, `follow`); `world.particles()` z limitem 20 000;
+  - komponent `ParticleEmitter`;
+  - efekty z JSON w `particles/` (`AssetKey.particles`), z hot reloadem.
+- **Światło 2D:**
+  - `world.lighting().ambient(color)`; `Light.point`, `spot` i `directional` z kolorem, promieniem, intensywnością, zanikiem i cieniami;
+  - komponenty `LightSource` i `Occluder`;
+  - cienie z kształtów i kafelków kolizyjnych (mapa cieni 1D liczona na CPU).
+- **Post-processing:**
+  - `world.postEffects()` i `display().postEffects()`;
+  - efekty `Bloom`, `Vignette`, `ColorGrade` (LUT), `Blur`, `Pixelate`, `ChromaticAberration`, `Crt`, `CustomEffect(Shader)`, wszystkie z właściwościami do tweenów.
+- **Materiały gotowe:**
+  - `Materials.FLASH`, `OUTLINE`, `DISSOLVE`, `GRAYSCALE`, `TINT` z parametrem `Draw.effect(Color)`;
+  - `SpriteComponent.material` i `effect`.
+- **Plugin Gradle:** `GameAssets.Animations` i `GameAssets.Particles`.
+- **Showcase, ekran „juice” (Tab):**
+  - bohater z Aseprite z automatycznym wyborem animacji;
+  - pochodnie z ogniem i migoczącym światłem, skrzynie z cieniami, światło pod myszą;
+  - bloom, winieta, CRT i pikselizacja;
+  - Space: iskry z pod-emiterami, błysk, sprężynowanie i wstrząs kamery;
+  - JSON cząsteczek przeładowuje się w trakcie gry.
+- Scena wizualna `materials`; test dymny web przełącza na ekran juice.
+- ADR 0013.
+
+#### Zmienione
+
+- Wierzchołek batchera ma 24 bajty (doszły parametry materiału `a_params`/`v_params`); własne shadery mogą czytać `v_params`.
+- `ParticleEffect` jest klasą z emiterami, a nie pustym interfejsem.
+- Ekrany 0 i 1 showcase rysują w pustym świecie `plain`.
+
 ### Etap 7 — Fizyka, nawigacja i AI
 
 #### Dodane

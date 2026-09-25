@@ -140,6 +140,34 @@ final class TileMapImpl implements TileMap {
         return chunk == null ? 0 : chunk.get(layer.index, localIndex(x, y));
     }
 
+    /**
+     * Returns whether a collision layer has a solid tile at a cell; every solid shape counts as the whole cell.
+     *
+     * @param x tile column
+     * @param y tile row
+     * @return {@code true} for solid tiles
+     */
+    boolean isSolidAt(int x, int y) {
+        if (chunks.size() == 0) {
+            return false;
+        }
+        ChunkImpl chunk = chunks.get(chunkKey(x, y));
+        if (chunk == null) {
+            return false;
+        }
+        int local = localIndex(x, y);
+        for (int i = 0; i < layers.size(); i++) {
+            TileLayerImpl layer = layers.get(i);
+            if (layer.isCollision()) {
+                TileType type = typeOf(chunk.get(layer.index, local));
+                if (type != null && type.shape().isSolid()) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
     private ChunkImpl chunkForWrite(int x, int y) {
         long key = chunkKey(x, y);
         ChunkImpl chunk = chunks.get(key);

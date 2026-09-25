@@ -13,7 +13,7 @@ import dev.gulp.api.input.Keys;
  */
 public final class ShowcaseGame extends Game {
 
-    private static final int SCREENS = 2;
+    private static final int SCREENS = 3;
     private static int screen;
 
     /**
@@ -39,11 +39,12 @@ public final class ShowcaseGame extends Game {
                         new CoreDemoModule(),
                         new SpritesDemoModule(),
                         new TextDemoModule(),
-                        new InputAudioDemoModule());
+                        new InputAudioDemoModule(),
+                        new JuiceDemoModule());
     }
 
     /**
-     * Returns the screen shown: 0 text, 1 input and audio. Tab switches.
+     * Returns the screen shown: 0 text, 1 input and audio, 2 juice (animations, particles, light). Tab switches.
      *
      * @return the screen number
      */

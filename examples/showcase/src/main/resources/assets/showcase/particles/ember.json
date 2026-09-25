@@ -1,0 +1,36 @@
+{
+ "emitters": [
+  {
+   "bursts": [
+    {
+     "count": 2,
+     "at": 0
+    }
+   ],
+   "duration": 0.1,
+   "direction": -90,
+   "spread": 90,
+   "speed": [
+    0.3,
+    0.8
+   ],
+   "lifetime": [
+    0.3,
+    0.6
+   ],
+   "size": 0.1,
+   "color": "#ff9d3a",
+   "alpha": [
+    [
+     0,
+     1
+    ],
+    [
+     1,
+     0
+    ]
+   ],
+   "blend": "add"
+  }
+ ]
+}

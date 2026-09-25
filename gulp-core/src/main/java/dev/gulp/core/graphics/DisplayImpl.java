@@ -38,6 +38,7 @@ public final class DisplayImpl implements Display, dev.gulp.core.input.InputImpl
     private final Supplier<PromiseImpl<Pixmap>> promises;
     private final List<RenderLayer> layers = new ArrayList<>();
     private final List<RenderLayer> layersView = Collections.unmodifiableList(layers);
+    private final PostEffectsImpl postEffects = new PostEffectsImpl();
     private final List<PromiseImpl<Pixmap>> screenshots = new ArrayList<>();
 
     private int baseWidth;
@@ -340,6 +341,20 @@ public final class DisplayImpl implements Display, dev.gulp.core.input.InputImpl
         layers.add(layer);
         layers.sort(ORDER);
         return layer;
+    }
+
+    @Override
+    public dev.gulp.api.render.PostEffects postEffects() {
+        return postEffects;
+    }
+
+    /**
+     * Returns the display chain for the renderer.
+     *
+     * @return the chain
+     */
+    PostEffectsImpl postEffectsImpl() {
+        return postEffects;
     }
 
     @Override

@@ -9,6 +9,7 @@ import dev.gulp.api.graphics.BlendMode;
 import dev.gulp.api.graphics.Color;
 import dev.gulp.api.graphics.FrameBuffer;
 import dev.gulp.api.graphics.Material;
+import dev.gulp.api.graphics.Materials;
 import dev.gulp.api.graphics.Mesh2D;
 import dev.gulp.api.graphics.NinePatch;
 import dev.gulp.api.graphics.Pixmap;
@@ -236,6 +237,22 @@ class VisualTest {
             d.material(Material.DEFAULT).color(Color.WHITE);
             d.material(Material.DEFAULT.withShader(r.invert)).image(r.checker.region(), 90, 108, 40, 40);
             d.material(Material.DEFAULT);
+        }));
+        scenes.add(new Scene("materials", () -> {}, (d, r) -> {}, (d, r) -> {
+            // Built-in materials read their colour and amount from Draw.effect.
+            d.image(r.panel.region(), 8, 8, 48, 48);
+            d.material(Materials.FLASH).effect(Color.WHITE.withAlpha(0.6f));
+            d.image(r.panel.region(), 64, 8, 48, 48);
+            d.material(Materials.GRAYSCALE).effect(Color.BLACK.withAlpha(1f));
+            d.image(r.panel.region(), 120, 8, 48, 48);
+            d.material(Materials.TINT).effect(Color.GREEN);
+            d.image(r.panel.region(), 176, 8, 48, 48);
+            d.material(Materials.DISSOLVE).effect(Color.ORANGE.withAlpha(0.5f));
+            d.image(r.checker.region(), 8, 72, 64, 64);
+            d.material(Materials.OUTLINE).effect(Color.CYAN.withAlpha(0.25f));
+            d.image(r.arrow, 96, 88, 64, 32);
+            d.material(Material.DEFAULT).effect(Color.CLEAR);
+            d.image(r.arrow, 176, 88, 64, 32);
         }));
         scenes.add(new Scene("transforms", () -> {}, (d, r) -> {}, (d, r) -> {
             d.push().translate(40, 40).rotate(30).scale(2, 1);

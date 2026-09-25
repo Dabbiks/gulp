@@ -9,6 +9,7 @@ import dev.gulp.api.entity.EntityHoverExitEvent;
 import dev.gulp.api.entity.EntityScreenEnterEvent;
 import dev.gulp.api.entity.EntityScreenExitEvent;
 import dev.gulp.api.entity.component.Interactable;
+import dev.gulp.api.graphics.Color;
 import dev.gulp.api.input.Cursor;
 import dev.gulp.api.input.MouseButton;
 import dev.gulp.api.input.MouseButtonPressEvent;
@@ -32,6 +33,7 @@ import dev.gulp.core.event.EventBus;
 import dev.gulp.core.graphics.CameraImpl;
 import dev.gulp.core.graphics.DisplayImpl;
 import dev.gulp.core.graphics.DrawImpl;
+import dev.gulp.core.graphics.PostEffectsImpl;
 import dev.gulp.core.graphics.WorldView;
 import dev.gulp.core.input.InputImpl;
 import dev.gulp.core.scheduler.PromiseImpl;
@@ -404,6 +406,7 @@ public final class WorldsImpl implements Worlds, WorldView {
                 }
             }
             world.parallax.advance(seconds);
+            world.particles.advance(engine.isPaused() ? 0f : seconds * engine.timeScale(), alpha);
             world.tileMap.stream(world.cameras);
         }
         Transition running = transition;
@@ -620,6 +623,32 @@ public final class WorldsImpl implements Worlds, WorldView {
         WorldImpl world = active;
         if (world != null) {
             renderer.drawDebug(world, draw, camera, worldPixel);
+        }
+    }
+
+    @Override
+    public @Nullable PostEffectsImpl worldPostEffects() {
+        WorldImpl world = active;
+        return world == null ? null : world.postEffects;
+    }
+
+    @Override
+    public boolean lightingEnabled() {
+        WorldImpl world = active;
+        return world != null && world.lighting.isEnabled();
+    }
+
+    @Override
+    public Color ambient() {
+        WorldImpl world = active;
+        return world == null ? Color.WHITE : world.lighting.ambient();
+    }
+
+    @Override
+    public void drawLights(DrawImpl draw, CameraImpl camera) {
+        WorldImpl world = active;
+        if (world != null) {
+            renderer.drawLights(world, draw, camera);
         }
     }
 

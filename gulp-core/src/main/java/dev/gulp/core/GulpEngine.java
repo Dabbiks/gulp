@@ -137,6 +137,7 @@ public final class GulpEngine implements Engine, FrameHandler, CoreContext {
     private final GraphicsImpl graphics;
     private final DisplayImpl display;
     private final Renderer renderer;
+    private final dev.gulp.core.anim.AnimationSystem animations;
     private final AssetsImpl assets;
     private final TranslationsImpl translations;
     private final TextSystem textSystem;
@@ -282,6 +283,8 @@ public final class GulpEngine implements Engine, FrameHandler, CoreContext {
                 () -> new PromiseImpl<>(game, this, mainQueue));
         renderer.setWorldView(worlds);
         PhysicsAccess.installBackend(new dev.gulp.core.world.PhysicsBackend());
+        this.animations = new dev.gulp.core.anim.AnimationSystem(engineLogger);
+        dev.gulp.api.spi.AnimationAccess.installBackend(animations);
         // Size and camera bounds are valid before the first frame, so onLoad and onEnable can use them.
         PlatformWindow window = backend.window();
         display.update(
@@ -433,6 +436,7 @@ public final class GulpEngine implements Engine, FrameHandler, CoreContext {
         float frameSeconds = Math.max(0f, Math.min(audioSeconds, 0.25f));
         audio.update(frameSeconds, paused);
         if (phase == Phase.RUNNING) {
+            animations.frame(paused ? 0f : frameSeconds * timeScale, frameSeconds);
             worlds.frame(frameSeconds, alpha());
         }
         preferences.update(nanoTime);
@@ -594,6 +598,7 @@ public final class GulpEngine implements Engine, FrameHandler, CoreContext {
         } finally {
             input.setRunning(false);
             input.dispose();
+            animations.clear();
             worlds.dispose();
             audio.dispose();
             preferences.flush();

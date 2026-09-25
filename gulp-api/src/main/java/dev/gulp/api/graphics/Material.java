@@ -6,7 +6,8 @@ import org.jspecify.annotations.Nullable;
 
 /**
  * How things are drawn: a shader (or the default one), a blend mode and extra textures bound to units 1 and up.
- * Immutable; the {@code with*} methods return copies.
+ * Immutable; the {@code with*} methods return copies. The ready-made materials in {@link Materials} use shaders built
+ * into the engine and read their parameters from the draw's effect colour ({@code Draw.effect}).
  *
  * <pre>{@code
  * Material glow = Material.DEFAULT.withBlend(BlendMode.ADD);
@@ -17,16 +18,33 @@ import org.jspecify.annotations.Nullable;
 public final class Material {
 
     /** Default shader and normal blending. */
-    public static final Material DEFAULT = new Material(null, BlendMode.NORMAL, Map.of());
+    public static final Material DEFAULT = new Material(null, BlendMode.NORMAL, Map.of(), null);
 
     private final @Nullable Shader shader;
     private final BlendMode blend;
     private final Map<Integer, Texture> textures;
+    private final @Nullable String builtIn;
 
-    private Material(@Nullable Shader shader, BlendMode blend, Map<Integer, Texture> textures) {
+    private Material(
+            @Nullable Shader shader, BlendMode blend, Map<Integer, Texture> textures, @Nullable String builtIn) {
         this.shader = shader;
         this.blend = blend;
         this.textures = textures;
+        this.builtIn = builtIn;
+    }
+
+    /** A material with one of the engine's own shaders; see {@link Materials}. */
+    static Material builtIn(String name) {
+        return new Material(null, BlendMode.NORMAL, Map.of(), name);
+    }
+
+    /**
+     * Returns the name of the engine shader this material uses, for the renderer.
+     *
+     * @return the name, or {@code null} for the default or a custom shader
+     */
+    public @Nullable String builtInShader() {
+        return builtIn;
     }
 
     /**
@@ -36,7 +54,7 @@ public final class Material {
      * @return the material
      */
     public static Material of(Shader shader) {
-        return new Material(shader, BlendMode.NORMAL, Map.of());
+        return new Material(shader, BlendMode.NORMAL, Map.of(), null);
     }
 
     /**
@@ -73,7 +91,7 @@ public final class Material {
      * @return the new material
      */
     public Material withShader(@Nullable Shader newShader) {
-        return new Material(newShader, blend, textures);
+        return new Material(newShader, blend, textures, newShader == null ? builtIn : null);
     }
 
     /**
@@ -83,7 +101,7 @@ public final class Material {
      * @return the new material
      */
     public Material withBlend(BlendMode newBlend) {
-        return new Material(shader, newBlend, textures);
+        return new Material(shader, newBlend, textures, builtIn);
     }
 
     /**
@@ -100,6 +118,6 @@ public final class Material {
         }
         Map<Integer, Texture> copy = new TreeMap<>(textures);
         copy.put(unit, texture);
-        return new Material(shader, blend, java.util.Collections.unmodifiableMap(copy));
+        return new Material(shader, blend, java.util.Collections.unmodifiableMap(copy), builtIn);
     }
 }

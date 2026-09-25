@@ -43,6 +43,13 @@ public final class Renderer {
     private boolean transitionErrorLogged;
     private @Nullable LoadingScreen loadingScreen;
     private float loadingProgress;
+    private final PostProcessor worldPost;
+    private final PostProcessor displayPost;
+    private @Nullable FrameBufferImpl worldBuffer;
+    private @Nullable FrameBufferImpl displayBuffer;
+    private @Nullable FrameBufferImpl lightMap;
+    private final Material multiply = Material.DEFAULT.withBlend(dev.gulp.api.graphics.BlendMode.MULTIPLY);
+    private long startNanos = Long.MIN_VALUE;
 
     /**
      * Creates the renderer.
@@ -58,6 +65,8 @@ public final class Renderer {
         this.events = events;
         this.batcher = new Batcher(gl, graphics.defaultShader());
         this.draw = new DrawImpl(gl, batcher, graphics);
+        this.worldPost = new PostProcessor(gl, graphics, draw);
+        this.displayPost = new PostProcessor(gl, graphics, draw);
     }
 
     /**
@@ -121,6 +130,10 @@ public final class Renderer {
         }
         DisplayLayout layout = display.update(fw, fh, contentScale);
         batcher.beginFrame();
+        if (startNanos == Long.MIN_VALUE) {
+            startNanos = nanoTime;
+        }
+        float time = (nanoTime - startNanos) / 1e9f;
 
         gl.bindFramebuffer(Gl.FRAMEBUFFER, 0);
         gl.disable(Gl.SCISSOR_TEST);
@@ -137,14 +150,20 @@ public final class Renderer {
         float lh = layout.logicalHeight();
 
         boolean offscreenPass = display.stretchMode() == StretchMode.VIEWPORT;
+        PostEffectsImpl displayEffects = display.postEffectsImpl();
+        boolean displayChain = running && displayEffects.isActive();
         int targetFramebuffer = 0;
         int targetHeight = fh;
         int tx = vx;
         int ty = vy;
         int tw = vw;
         int th = vh;
-        if (offscreenPass) {
-            FrameBufferImpl buffer = offscreen(Math.max(1, Math.round(lw)), Math.max(1, Math.round(lh)));
+        FrameBufferImpl frameBuffer = null;
+        if (offscreenPass || displayChain) {
+            FrameBufferImpl buffer = offscreenPass
+                    ? offscreen(Math.max(1, Math.round(lw)), Math.max(1, Math.round(lh)))
+                    : displayBuffer(vw, vh);
+            frameBuffer = buffer;
             targetFramebuffer = buffer.handle();
             gl.bindFramebuffer(Gl.FRAMEBUFFER, targetFramebuffer);
             tx = 0;
@@ -204,10 +223,55 @@ public final class Renderer {
                 camera.resize(cw, ch);
                 float cameraPixel = cw / sw;
                 float worldPixel = cameraPixel / camera.unitScale();
+                PostEffectsImpl worldEffects = view.worldPostEffects();
+                boolean worldChain = worldEffects != null && worldEffects.isActive();
+                int layerFramebuffer = drawFramebuffer;
+                int layerHeight = drawHeight;
+                int lx = sx;
+                int ly = sy;
+                FrameBufferImpl chainSource = null;
+                if (worldChain) {
+                    chainSource = worldBuffer(sw, sh);
+                    layerFramebuffer = chainSource.handle();
+                    layerHeight = sh;
+                    lx = 0;
+                    ly = 0;
+                    gl.bindFramebuffer(Gl.FRAMEBUFFER, layerFramebuffer);
+                    gl.viewport(0, 0, sw, sh);
+                    gl.clearColor(
+                            clearColor.r() * clearColor.a(),
+                            clearColor.g() * clearColor.a(),
+                            clearColor.b() * clearColor.a(),
+                            clearColor.a());
+                    gl.clear(Gl.COLOR_BUFFER_BIT);
+                }
+                boolean lit = view.lightingEnabled();
                 for (int i = 0; i < worldLayers.size(); i++) {
                     RenderLayer layer = worldLayers.get(i);
                     if (!layer.isVisible()) {
                         continue;
+                    }
+                    if (lit && layer.name().equals("effects")) {
+                        composeLights(
+                                view,
+                                camera,
+                                worldPixel,
+                                cameraPixel,
+                                cw,
+                                ch,
+                                sw,
+                                sh,
+                                lx,
+                                ly,
+                                layerHeight,
+                                layerFramebuffer,
+                                worldChain,
+                                dx,
+                                dy,
+                                tw,
+                                th,
+                                drawHeight);
+                        lit = false;
                     }
                     camera.projection(
                             projection, layer.parallax().x(), layer.parallax().y());
@@ -216,18 +280,39 @@ public final class Renderer {
                             worldPixel,
                             1f / display.pixelsPerUnit(),
                             snap ? worldPixel : 0f,
-                            sx,
-                            sy,
+                            lx,
+                            ly,
                             sw,
                             sh,
-                            drawHeight,
-                            drawFramebuffer);
+                            layerHeight,
+                            layerFramebuffer);
                     draw.material(layer.material());
                     view.drawLayer(draw, layer, camera, alpha);
                     if (layerListeners) {
                         events.call(new RenderLayerEvent(draw, layer, alpha));
                     }
                     draw.flush();
+                }
+                if (lit) {
+                    composeLights(
+                            view,
+                            camera,
+                            worldPixel,
+                            cameraPixel,
+                            cw,
+                            ch,
+                            sw,
+                            sh,
+                            lx,
+                            ly,
+                            layerHeight,
+                            layerFramebuffer,
+                            worldChain,
+                            dx,
+                            dy,
+                            tw,
+                            th,
+                            drawHeight);
                 }
                 if (view.hasDebug()) {
                     camera.projection(projection, 1f, 1f);
@@ -236,14 +321,20 @@ public final class Renderer {
                             worldPixel,
                             1f / display.pixelsPerUnit(),
                             0f,
-                            sx,
-                            sy,
+                            lx,
+                            ly,
                             sw,
                             sh,
-                            drawHeight,
-                            drawFramebuffer);
+                            layerHeight,
+                            layerFramebuffer);
                     view.drawDebug(draw, camera, worldPixel);
                     draw.flush();
+                }
+                if (chainSource != null && worldEffects != null) {
+                    worldPost.apply(
+                            worldEffects.effects, chainSource, drawFramebuffer, sx, sy, sw, sh, drawHeight, time);
+                    gl.bindFramebuffer(Gl.FRAMEBUFFER, drawFramebuffer);
+                    gl.viewport(dx, drawHeight - dy - th, tw, th);
                 }
                 screenProjection(cw, ch);
                 draw.begin(
@@ -344,17 +435,106 @@ public final class Renderer {
             draw.flush();
         }
 
-        if (offscreenPass && offscreen != null) {
+        if (frameBuffer != null) {
             gl.bindFramebuffer(Gl.FRAMEBUFFER, 0);
             gl.viewport(vx, fh - vy - vh, vw, vh);
-            screenProjection(lw, lh);
-            draw.begin(projection, lw / vw, 1f, 0f, vx, vy, vw, vh, fh, 0);
-            draw.image(offscreen.region(), 0, 0, lw, lh);
-            draw.flush();
+            if (displayChain) {
+                displayPost.apply(displayEffects.effects, frameBuffer, 0, vx, vy, vw, vh, fh, time);
+                gl.bindFramebuffer(Gl.FRAMEBUFFER, 0);
+                gl.viewport(vx, fh - vy - vh, vw, vh);
+            } else {
+                screenProjection(lw, lh);
+                draw.begin(projection, lw / vw, 1f, 0f, vx, vy, vw, vh, fh, 0);
+                draw.image(frameBuffer.region(), 0, 0, lw, lh);
+                draw.flush();
+            }
         }
         gl.disable(Gl.SCISSOR_TEST);
         completeScreenshots(fw, fh);
         display.frameDone(nanoTime, batcher);
+    }
+
+    /** Draws the lights into the light map and multiplies it over what the camera drew so far. */
+    private void composeLights(
+            WorldView view,
+            CameraImpl camera,
+            float worldPixel,
+            float cameraPixel,
+            float cw,
+            float ch,
+            int sw,
+            int sh,
+            int lx,
+            int ly,
+            int layerHeight,
+            int layerFramebuffer,
+            boolean intoWorldBuffer,
+            int dx,
+            int dy,
+            int tw,
+            int th,
+            int drawHeight) {
+        draw.flush();
+        int mw = Math.max(1, sw / 2);
+        int mh = Math.max(1, sh / 2);
+        FrameBufferImpl map = lightMap(mw, mh);
+        gl.bindFramebuffer(Gl.FRAMEBUFFER, map.handle());
+        gl.viewport(0, 0, mw, mh);
+        Color ambient = view.ambient();
+        gl.clearColor(ambient.r(), ambient.g(), ambient.b(), 1f);
+        gl.clear(Gl.COLOR_BUFFER_BIT);
+        camera.projection(projection, 1f, 1f);
+        draw.begin(projection, worldPixel * 2f, 1f / display.pixelsPerUnit(), 0f, 0, 0, mw, mh, mh, map.handle());
+        view.drawLights(draw, camera);
+        draw.flush();
+        gl.bindFramebuffer(Gl.FRAMEBUFFER, layerFramebuffer);
+        if (intoWorldBuffer) {
+            gl.viewport(0, 0, sw, sh);
+        } else {
+            gl.viewport(dx, drawHeight - dy - th, tw, th);
+        }
+        screenProjection(cw, ch);
+        draw.begin(projection, cameraPixel, 1f, 0f, lx, ly, sw, sh, layerHeight, layerFramebuffer);
+        draw.material(multiply);
+        draw.image(map.region(), 0, 0, cw, ch);
+        draw.flush();
+        draw.material(Material.DEFAULT);
+    }
+
+    private FrameBufferImpl worldBuffer(int width, int height) {
+        FrameBufferImpl buffer = worldBuffer;
+        if (buffer == null || buffer.width() != width || buffer.height() != height) {
+            if (buffer != null) {
+                buffer.dispose();
+            }
+            buffer = new FrameBufferImpl(gl, width, height, false, TextureFilter.LINEAR);
+            worldBuffer = buffer;
+        }
+        return buffer;
+    }
+
+    private FrameBufferImpl displayBuffer(int width, int height) {
+        FrameBufferImpl buffer = displayBuffer;
+        if (buffer == null || buffer.width() != width || buffer.height() != height) {
+            if (buffer != null) {
+                buffer.dispose();
+            }
+            buffer = new FrameBufferImpl(gl, width, height, false, TextureFilter.LINEAR);
+            displayBuffer = buffer;
+        }
+        return buffer;
+    }
+
+    private FrameBufferImpl lightMap(int width, int height) {
+        FrameBufferImpl buffer = lightMap;
+        if (buffer == null || buffer.width() != width || buffer.height() != height) {
+            if (buffer != null) {
+                buffer.dispose();
+            }
+            buffer = new FrameBufferImpl(gl, width, height, false, TextureFilter.LINEAR);
+            lightMap = buffer;
+        }
+        return buffer;
     }
 
     private void screenProjection(float lw, float lh) {
@@ -455,5 +635,15 @@ public final class Renderer {
             captureBuffer.dispose();
             captureBuffer = null;
         }
+        for (FrameBufferImpl buffer : new FrameBufferImpl[] {worldBuffer, displayBuffer, lightMap}) {
+            if (buffer != null) {
+                buffer.dispose();
+            }
+        }
+        worldBuffer = null;
+        displayBuffer = null;
+        lightMap = null;
+        worldPost.dispose();
+        displayPost.dispose();
     }
 }

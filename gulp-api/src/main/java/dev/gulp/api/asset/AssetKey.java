@@ -1,11 +1,13 @@
 package dev.gulp.api.asset;
 
+import dev.gulp.api.anim.AnimationSet;
 import dev.gulp.api.audio.AudioClip;
 import dev.gulp.api.audio.Music;
 import dev.gulp.api.graphics.Pixmap;
 import dev.gulp.api.graphics.Texture;
 import dev.gulp.api.graphics.TextureAtlas;
 import dev.gulp.api.graphics.TextureRegion;
+import dev.gulp.api.particle.ParticleEffect;
 import dev.gulp.api.registry.Key;
 import dev.gulp.api.text.Font;
 
@@ -124,6 +126,26 @@ public record AssetKey<T>(Key key, AssetType<T> type) {
      */
     public static AssetKey<Music> music(String key) {
         return of(AssetType.MUSIC, key);
+    }
+
+    /**
+     * Creates a key for frame animations exported from Aseprite.
+     *
+     * @param key {@code namespace:path}, for example {@code coins:sprites/hero}
+     * @return the key
+     */
+    public static AssetKey<AnimationSet> animations(String key) {
+        return of(AssetType.ANIMATIONS, key);
+    }
+
+    /**
+     * Creates a key for a particle effect in JSON.
+     *
+     * @param key {@code namespace:path}, for example {@code coins:particles/sparks}
+     * @return the key
+     */
+    public static AssetKey<ParticleEffect> particles(String key) {
+        return of(AssetType.PARTICLES, key);
     }
 
     @Override

@@ -51,11 +51,13 @@ public final class DrawImpl implements Draw {
     private float alpha = 1f;
     private int packed = 0xffffffff;
     private Material material = Material.DEFAULT;
+    private Color effect = Color.CLEAR;
 
     private Affine2[] savedTransforms = new Affine2[8];
     private Color[] savedColors = new Color[8];
     private float[] savedAlphas = new float[8];
     private Material[] savedMaterials = new Material[8];
+    private Color[] savedEffects = new Color[8];
     private int depth;
 
     private final Affine2 projection = new Affine2();
@@ -135,6 +137,7 @@ public final class DrawImpl implements Draw {
         alpha = 1f;
         updatePacked();
         material(Material.DEFAULT);
+        effect(Color.CLEAR);
     }
 
     /** Draws what is pending. */
@@ -204,6 +207,146 @@ public final class DrawImpl implements Draw {
             vertex(x0, y1, u, v2, true);
         }
         batcher.quad(base);
+    }
+
+    /**
+     * Draws a region centred on a point, rotated, with a colour given as numbers: the allocation-free path used for
+     * particles. The current transform and alpha apply.
+     *
+     * @param region the image
+     * @param cx centre x
+     * @param cy centre y
+     * @param halfWidth half the width
+     * @param halfHeight half the height
+     * @param degrees rotation
+     * @param r red, {@code 0..1}
+     * @param g green
+     * @param b blue
+     * @param a alpha
+     */
+    public void sprite(
+            TextureRegion region,
+            float cx,
+            float cy,
+            float halfWidth,
+            float halfHeight,
+            float degrees,
+            float r,
+            float g,
+            float b,
+            float a) {
+        useTexture(region.texture());
+        float alphaAll = Mathf.clamp(a * alpha, 0f, 1f);
+        int abgr = (Math.round(alphaAll * 255f) << 24)
+                | (Math.round(Mathf.clamp(b, 0f, 1f) * alphaAll * 255f) << 16)
+                | (Math.round(Mathf.clamp(g, 0f, 1f) * alphaAll * 255f) << 8)
+                | Math.round(Mathf.clamp(r, 0f, 1f) * alphaAll * 255f);
+        float cos = 1f;
+        float sin = 0f;
+        if (degrees != 0f) {
+            double radians = Math.toRadians(degrees);
+            cos = (float) Math.cos(radians);
+            sin = (float) Math.sin(radians);
+        }
+        float ax = halfWidth * cos;
+        float ay = halfWidth * sin;
+        float bx = -halfHeight * sin;
+        float by = halfHeight * cos;
+        float u = region.u();
+        float v = region.v();
+        float u2 = region.u2();
+        float v2 = region.v2();
+        int base = batcher.reserve(4, 6);
+        if (region.isRotated()) {
+            emit(cx - ax - bx, cy - ay - by, u2, v, abgr, false);
+            emit(cx + ax - bx, cy + ay - by, u2, v2, abgr, false);
+            emit(cx + ax + bx, cy + ay + by, u, v2, abgr, false);
+            emit(cx - ax + bx, cy - ay + by, u, v, abgr, false);
+        } else {
+            emit(cx - ax - bx, cy - ay - by, u, v, abgr, false);
+            emit(cx + ax - bx, cy + ay - by, u2, v, abgr, false);
+            emit(cx + ax + bx, cy + ay + by, u2, v2, abgr, false);
+            emit(cx - ax + bx, cy - ay + by, u, v2, abgr, false);
+        }
+        batcher.quad(base);
+    }
+
+    /**
+     * Packs a colour given as numbers, premultiplied and with the current alpha, for {@link #rawTriangle}.
+     *
+     * @param r red, {@code 0..1}
+     * @param g green
+     * @param b blue
+     * @param a alpha
+     * @return the packed colour
+     */
+    public int packColor(float r, float g, float b, float a) {
+        float alphaAll = Mathf.clamp(a * alpha, 0f, 1f);
+        return (Math.round(alphaAll * 255f) << 24)
+                | (Math.round(Mathf.clamp(b, 0f, 1f) * alphaAll * 255f) << 16)
+                | (Math.round(Mathf.clamp(g, 0f, 1f) * alphaAll * 255f) << 8)
+                | Math.round(Mathf.clamp(r, 0f, 1f) * alphaAll * 255f);
+    }
+
+    /**
+     * Adds a triangle with its own texture coordinates, through the current transform and texture.
+     *
+     * @param x1 first corner x
+     * @param y1 first corner y
+     * @param u1 first corner u
+     * @param v1 first corner v
+     * @param x2 second corner x
+     * @param y2 second corner y
+     * @param u2 second corner u
+     * @param v2 second corner v
+     * @param x3 third corner x
+     * @param y3 third corner y
+     * @param u3 third corner u
+     * @param v3 third corner v
+     * @param abgr packed colour from {@link #packColor}
+     */
+    public void rawTriangle(
+            float x1,
+            float y1,
+            float u1,
+            float v1,
+            float x2,
+            float y2,
+            float u2,
+            float v2,
+            float x3,
+            float y3,
+            float u3,
+            float v3,
+            int abgr) {
+        int base = batcher.reserve(3, 3);
+        emit(x1, y1, u1, v1, abgr, false);
+        emit(x2, y2, u2, v2, abgr, false);
+        emit(x3, y3, u3, v3, abgr, false);
+        batcher.triangle(base, base + 1, base + 2);
+    }
+
+    /**
+     * Sets the material parameters of the following vertices without a {@link Color}.
+     *
+     * @param abgr four bytes, {@code 0xAABBGGRR}
+     */
+    public void rawParams(int abgr) {
+        batcher.params(abgr);
+    }
+
+    /** Uses the white texture, for untextured raw triangles. */
+    public void whiteTexture() {
+        useWhite();
+    }
+
+    /**
+     * Returns the graphics this draw belongs to.
+     *
+     * @return the graphics
+     */
+    public GraphicsImpl graphics() {
+        return graphics;
     }
 
     private void uvQuad(float x0, float y0, float x1, float y1, float u, float v, float u2, float v2) {
@@ -968,11 +1111,13 @@ public final class DrawImpl implements Draw {
             savedColors = Arrays.copyOf(savedColors, size);
             savedAlphas = Arrays.copyOf(savedAlphas, size);
             savedMaterials = Arrays.copyOf(savedMaterials, size);
+            savedEffects = Arrays.copyOf(savedEffects, size);
         }
         savedTransforms[depth].set(transform);
         savedColors[depth] = color;
         savedAlphas[depth] = alpha;
         savedMaterials[depth] = material;
+        savedEffects[depth] = effect;
         depth++;
         return this;
     }
@@ -988,6 +1133,7 @@ public final class DrawImpl implements Draw {
         alpha = savedAlphas[depth];
         updatePacked();
         material(savedMaterials[depth]);
+        effect(savedEffects[depth]);
         return this;
     }
 
@@ -1037,10 +1183,24 @@ public final class DrawImpl implements Draw {
     }
 
     @Override
+    public Draw effect(Color value) {
+        effect = value;
+        batcher.params((Math.round(value.a() * 255f) << 24)
+                | (Math.round(value.b() * 255f) << 16)
+                | (Math.round(value.g() * 255f) << 8)
+                | Math.round(value.r() * 255f));
+        return this;
+    }
+
+    @Override
     public Draw material(Material newMaterial) {
         this.material = newMaterial;
         Shader shader = newMaterial.shader();
-        batcher.shader(shader instanceof ShaderImpl impl ? impl : graphics.defaultShader());
+        String builtIn = newMaterial.builtInShader();
+        batcher.shader(
+                shader instanceof ShaderImpl impl
+                        ? impl
+                        : builtIn != null ? graphics.builtInShader(builtIn) : graphics.defaultShader());
         batcher.blend(newMaterial.blend());
         for (int unit = 1; unit < 8; unit++) {
             Texture extra = newMaterial.textures().get(unit);
@@ -1145,6 +1305,7 @@ public final class DrawImpl implements Draw {
         Color savedColor = color;
         float savedAlpha = alpha;
         Material savedMaterial = material;
+        Color savedEffect = effect;
         int savedDepth = depth;
 
         int w = buffer.width();
@@ -1191,6 +1352,7 @@ public final class DrawImpl implements Draw {
             color(savedColor);
             alpha(savedAlpha);
             material(savedMaterial);
+            effect(savedEffect);
             clipDepth = savedClipDepth;
             applyScissor();
         }

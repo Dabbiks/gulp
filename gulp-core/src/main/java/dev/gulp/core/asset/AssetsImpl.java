@@ -135,6 +135,7 @@ public final class AssetsImpl implements Assets {
         registerLoader(AssetType.TEXT, AssetLoadContext::text);
         registerLoader(AssetType.BYTES, AssetLoadContext::bytes);
         BuiltinLoaders.register(this, graphics, decoders);
+        AnimationLoaders.register(this);
     }
 
     // ------------------------------------------------------------------ engine hooks

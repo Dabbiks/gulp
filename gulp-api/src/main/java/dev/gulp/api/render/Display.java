@@ -180,6 +180,14 @@ public interface Display {
     RenderLayer addLayer(String name, int zOrder, boolean screenSpace);
 
     /**
+     * Returns the post-processing chain applied to the whole frame, after the world's own chain and screen-space
+     * layers.
+     *
+     * @return the chain
+     */
+    PostEffects postEffects();
+
+    /**
      * Captures the next rendered frame.
      *
      * @return the image in framebuffer pixels, delivered after the frame is drawn

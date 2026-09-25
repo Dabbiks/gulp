@@ -7,7 +7,8 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 
 /**
- * Collects triangles with position, texture coordinates and a packed premultiplied color, and draws them in as few
+ * Collects triangles with position, texture coordinates, a packed premultiplied color and four bytes of material
+ * parameters, and draws them in as few
  * calls as possible. A flush happens only when the texture, shader, blend mode or projection changes, when the buffer
  * is full, or when the caller asks. Two vertex buffers alternate between flushes so the GPU is never waited on.
  * Adding vertices does not allocate.
@@ -19,7 +20,7 @@ public final class Batcher {
 
     static final int MAX_VERTICES = MAX_QUADS * 4;
     static final int MAX_INDICES = MAX_QUADS * 6;
-    static final int VERTEX_BYTES = 20;
+    static final int VERTEX_BYTES = 24;
 
     private final Gl gl;
     private final ByteBuffer vertices =
@@ -46,6 +47,7 @@ public final class Batcher {
     private int submittedVertices;
     private int flushes;
     private int boundTexture = -1;
+    private int params;
 
     /**
      * Creates the GPU buffers.
@@ -72,6 +74,8 @@ public final class Batcher {
             gl.vertexAttribPointer(ShaderImpl.TEX_COORD, 2, Gl.FLOAT, false, VERTEX_BYTES, 8);
             gl.enableVertexAttribArray(ShaderImpl.COLOR);
             gl.vertexAttribPointer(ShaderImpl.COLOR, 4, Gl.UNSIGNED_BYTE, true, VERTEX_BYTES, 16);
+            gl.enableVertexAttribArray(ShaderImpl.PARAMS);
+            gl.vertexAttribPointer(ShaderImpl.PARAMS, 4, Gl.UNSIGNED_BYTE, true, VERTEX_BYTES, 20);
             indexBuffers[i] = gl.createBuffer();
             gl.bindBuffer(Gl.ELEMENT_ARRAY_BUFFER, indexBuffers[i]);
             gl.bufferData(Gl.ELEMENT_ARRAY_BUFFER, MAX_INDICES * 2, Gl.DYNAMIC_DRAW);
@@ -157,6 +161,15 @@ public final class Batcher {
         projection[8] = 1f;
     }
 
+    /**
+     * Sets the material parameters written with every following vertex ({@code a_params} in shaders).
+     *
+     * @param abgr four bytes, {@code 0xAABBGGRR}, not premultiplied
+     */
+    public void params(int abgr) {
+        params = abgr;
+    }
+
     // ------------------------------------------------------------------ geometry
 
     /**
@@ -189,6 +202,7 @@ public final class Batcher {
         vertices.putFloat(o + 8, u);
         vertices.putFloat(o + 12, v);
         vertices.putInt(o + 16, abgr);
+        vertices.putInt(o + 20, params);
         vertexCount++;
     }
 

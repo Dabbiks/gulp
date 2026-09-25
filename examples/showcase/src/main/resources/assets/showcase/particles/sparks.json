@@ -1,0 +1,98 @@
+{
+ "emitters": [
+  {
+   "bursts": [
+    {
+     "count": 40,
+     "at": 0
+    }
+   ],
+   "duration": 0.1,
+   "shape": {
+    "type": "point"
+   },
+   "direction": -90,
+   "spread": 160,
+   "speed": [
+    3,
+    8
+   ],
+   "gravity": [
+    0,
+    18
+   ],
+   "drag": 0.5,
+   "lifetime": [
+    0.3,
+    0.8
+   ],
+   "size": [
+    [
+     0,
+     0.3
+    ],
+    [
+     1,
+     0
+    ]
+   ],
+   "color": [
+    "#ffffff",
+    "#ffd23f",
+    "#ff5a1f"
+   ],
+   "blend": "add",
+   "region": "sprites/spark",
+   "rotation": [
+    0,
+    360
+   ],
+   "spin": [
+    -360,
+    360
+   ],
+   "collision": "bounce",
+   "bounce": 0.4,
+   "onDeath": "particles/ember"
+  },
+  {
+   "bursts": [
+    {
+     "count": 1,
+     "at": 0
+    }
+   ],
+   "duration": 0.1,
+   "speed": [
+    0,
+    0
+   ],
+   "lifetime": [
+    0.25,
+    0.25
+   ],
+   "size": [
+    [
+     0,
+     0.5
+    ],
+    [
+     1,
+     3
+    ]
+   ],
+   "color": "#fff6d0",
+   "alpha": [
+    [
+     0,
+     0.8
+    ],
+    [
+     1,
+     0
+    ]
+   ],
+   "blend": "add"
+  }
+ ]
+}

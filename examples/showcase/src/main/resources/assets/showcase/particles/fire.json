@@ -1,0 +1,96 @@
+{
+ "emitters": [
+  {
+   "rate": 40,
+   "loop": true,
+   "duration": 1,
+   "shape": {
+    "type": "circle",
+    "radius": 0.1
+   },
+   "direction": -90,
+   "spread": 25,
+   "speed": [
+    0.8,
+    1.6
+   ],
+   "gravity": [
+    0,
+    -0.6
+   ],
+   "drag": 0.8,
+   "lifetime": [
+    0.35,
+    0.7
+   ],
+   "size": [
+    [
+     0,
+     0.3
+    ],
+    [
+     1,
+     0.04
+    ]
+   ],
+   "color": [
+    [
+     0,
+     "#ffe070"
+    ],
+    [
+     0.4,
+     "#ff7a10"
+    ],
+    [
+     1,
+     "#5a1a0a"
+    ]
+   ],
+   "alpha": [
+    [
+     0,
+     0.55
+    ],
+    [
+     1,
+     0
+    ]
+   ],
+   "blend": "add"
+  },
+  {
+   "rate": 6,
+   "loop": true,
+   "duration": 1,
+   "direction": -90,
+   "spread": 40,
+   "speed": [
+    0.6,
+    1.2
+   ],
+   "lifetime": [
+    0.8,
+    1.4
+   ],
+   "size": 0.08,
+   "color": "#ffd070",
+   "alpha": [
+    [
+     0,
+     1
+    ],
+    [
+     1,
+     0
+    ]
+   ],
+   "blend": "add",
+   "region": "sprites/spark",
+   "spin": [
+    -180,
+    180
+   ]
+  }
+ ]
+}

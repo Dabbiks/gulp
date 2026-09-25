@@ -1,11 +1,13 @@
 package dev.gulp.api.asset;
 
+import dev.gulp.api.anim.AnimationSet;
 import dev.gulp.api.audio.AudioClip;
 import dev.gulp.api.audio.Music;
 import dev.gulp.api.graphics.Pixmap;
 import dev.gulp.api.graphics.Texture;
 import dev.gulp.api.graphics.TextureAtlas;
 import dev.gulp.api.graphics.TextureRegion;
+import dev.gulp.api.particle.ParticleEffect;
 import dev.gulp.api.text.Font;
 import java.util.List;
 import java.util.Locale;
@@ -60,6 +62,14 @@ public final class AssetType<T> {
 
     /** A music track streamed while it plays: OGG Vorbis or WAV. */
     public static final AssetType<Music> MUSIC = new AssetType<>("music", List.of("ogg", "wav"));
+
+    /**
+     * Frame animations exported from Aseprite (JSON array or hash with frame tags), with the sprite sheet next to it.
+     */
+    public static final AssetType<AnimationSet> ANIMATIONS = new AssetType<>("animations", List.of("json"));
+
+    /** A particle effect described in JSON, usually in {@code particles/}. */
+    public static final AssetType<ParticleEffect> PARTICLES = new AssetType<>("particles", List.of("json"));
 
     private final String name;
     private final List<String> extensions;

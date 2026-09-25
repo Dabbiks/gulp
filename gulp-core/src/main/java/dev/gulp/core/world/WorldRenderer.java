@@ -5,6 +5,7 @@ import dev.gulp.api.asset.AssetKey;
 import dev.gulp.api.entity.component.SpriteComponent;
 import dev.gulp.api.entity.component.WorldText;
 import dev.gulp.api.graphics.Color;
+import dev.gulp.api.graphics.Material;
 import dev.gulp.api.graphics.Mesh2D;
 import dev.gulp.api.graphics.Texture;
 import dev.gulp.api.graphics.TextureRegion;
@@ -45,6 +46,7 @@ final class WorldRenderer {
     private final Map<TileType, TileVisual> visuals = new HashMap<>();
     private final IdentityHashMap<TextureRegion, TextureRegion[]> flipped = new IdentityHashMap<>();
     private final float[] view = new float[4];
+    private final LightRenderer lights = new LightRenderer();
     private EntityImpl[] sprites = new EntityImpl[64];
     private EntityImpl[] sortScratch = new EntityImpl[64];
     private int spriteCount;
@@ -136,6 +138,12 @@ final class WorldRenderer {
         drawParallax(world, draw, name, camera);
         drawTiles(world, draw, name, camera);
         drawSprites(world, draw, name, alpha);
+        world.particles.draw(draw, name, view);
+    }
+
+    void drawLights(WorldImpl world, DrawImpl draw, CameraImpl camera) {
+        camera.viewBounds(view);
+        lights.draw(world, world.lighting, draw, view);
     }
 
     private void drawParallax(WorldImpl world, DrawImpl draw, String name, CameraImpl camera) {
@@ -422,6 +430,8 @@ final class WorldRenderer {
         }
         sort(spriteCount);
         int tileSize = world.settings().tileSize();
+        Material material = Material.DEFAULT;
+        Color effect = Color.CLEAR;
         for (int i = 0; i < spriteCount; i++) {
             EntityImpl entity = sprites[i];
             sprites[i] = null;
@@ -464,6 +474,14 @@ final class WorldRenderer {
             }
             Color tint = sprite.tint() == Color.WHITE ? entity.tint : entity.tint.mul(sprite.tint());
             draw.color(tint);
+            if (sprite.material() != material) {
+                material = sprite.material();
+                draw.material(material);
+            }
+            if (!sprite.effect().equals(effect)) {
+                effect = sprite.effect();
+                draw.effect(effect);
+            }
             draw.image(
                     flipX || flipY ? flip(region, flipX, flipY) : region,
                     left + offsetX,
@@ -475,6 +493,12 @@ final class WorldRenderer {
                     entity.renderRotation(alpha));
         }
         draw.color(Color.WHITE);
+        if (material != Material.DEFAULT) {
+            draw.material(Material.DEFAULT);
+        }
+        if (effect != Color.CLEAR) {
+            draw.effect(Color.CLEAR);
+        }
     }
 
     /** Stable merge sort by z-index, then y, then spawn order; no allocation after warm-up. */

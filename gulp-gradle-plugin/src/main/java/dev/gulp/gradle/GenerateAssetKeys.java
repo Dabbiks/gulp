@@ -32,7 +32,8 @@ import org.gradle.api.tasks.TaskAction;
  * }</pre>
  *
  * <p>Folders become nested classes: {@code textures/} (textures), {@code sprites/} (atlas regions), {@code fonts/}
- * (fonts), {@code sounds/} (audio clips), {@code music/} (music), {@code data/}, {@code shaders/}, {@code lang/} and {@code maps/} (text); other folders give byte keys. Constant names are
+ * (fonts), {@code sounds/} (audio clips), {@code music/} (music), {@code animations/} (Aseprite JSON),
+ * {@code particles/} (particle effects), {@code data/}, {@code shaders/}, {@code lang/} and {@code maps/} (text); other folders give byte keys. Constant names are
  * the paths in upper case with {@code _} for separators. The engine's own {@code gulp} namespace is skipped.
  */
 @CacheableTask
@@ -179,6 +180,20 @@ public abstract class GenerateAssetKeys extends DefaultTask {
             }
             case "config" -> {
                 return;
+            }
+            case "animations" -> {
+                if (!lower.endsWith(".json")) {
+                    // Sprite sheets are read through their Aseprite JSON.
+                    return;
+                }
+                group = "Animations";
+                type = "AssetKey<dev.gulp.api.anim.AnimationSet>";
+                factory = "animations";
+            }
+            case "particles" -> {
+                group = "Particles";
+                type = "AssetKey<dev.gulp.api.particle.ParticleEffect>";
+                factory = "particles";
             }
             case "maps" -> {
                 if (lower.endsWith(".png") || lower.endsWith(".jpg") || lower.endsWith(".webp")) {

@@ -137,6 +137,20 @@ public final class TextureAtlasImpl implements TextureAtlas {
     }
 
     private static void add(Map<String, TextureRegion> result, String file, JsonObject frame, Texture page) {
+        TextureRegion region = frameRegion(frame, page);
+        int dot = file.lastIndexOf('.');
+        String name = dot > file.lastIndexOf('/') ? file.substring(0, dot) : file;
+        result.put(name, region);
+    }
+
+    /**
+     * Reads one frame of a TexturePacker or Aseprite JSON: its rectangle, rotation and trim.
+     *
+     * @param frame the frame object
+     * @param page the texture it is on
+     * @return the region
+     */
+    static TextureRegion frameRegion(JsonObject frame, Texture page) {
         JsonObject rect = frame.getOrThrow("frame").asObject();
         int x = rect.getOrThrow("x").asInt();
         int y = rect.getOrThrow("y").asInt();
@@ -164,9 +178,7 @@ public final class TextureAtlasImpl implements TextureAtlas {
                         page, x, y, h, w, false, false, true, offsetX, offsetY, originalWidth, originalHeight)
                 : new TextureRegion(
                         page, x, y, w, h, false, false, false, offsetX, offsetY, originalWidth, originalHeight);
-        int dot = file.lastIndexOf('.');
-        String name = dot > file.lastIndexOf('/') ? file.substring(0, dot) : file;
-        result.put(name, region);
+        return region;
     }
 
     /**
