@@ -15,9 +15,11 @@ import dev.gulp.api.graphics.Graphics;
 import dev.gulp.api.i18n.Translations;
 import dev.gulp.api.input.Input;
 import dev.gulp.api.module.ModuleManager;
+import dev.gulp.api.net.Http;
 import dev.gulp.api.registry.Key;
 import dev.gulp.api.registry.Registries;
 import dev.gulp.api.render.Display;
+import dev.gulp.api.save.SaveStore;
 import dev.gulp.api.scheduler.Scheduler;
 import dev.gulp.api.scheduler.Task;
 import dev.gulp.api.service.Services;
@@ -215,6 +217,37 @@ public interface Owner {
      */
     default Ui ui() {
         return engine().ui();
+    }
+
+    /**
+     * Returns the save games.
+     *
+     * @return the save store
+     */
+    default SaveStore saves() {
+        return engine().saves();
+    }
+
+    /**
+     * Returns HTTP and WebSockets.
+     *
+     * @return the network access
+     */
+    default Http http() {
+        return engine().http();
+    }
+
+    /**
+     * Returns the developer tools: F3 overlay, debug drawings, inspectors and the profiler.
+     *
+     * <pre>{@code
+     * debug().draw().circle(position, range, Color.RED);
+     * }</pre>
+     *
+     * @return the tools
+     */
+    default dev.gulp.api.debug.Debug debug() {
+        return engine().debug();
     }
 
     /**

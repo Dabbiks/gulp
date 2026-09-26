@@ -32,4 +32,21 @@ public interface PlatformLog {
      * @param error an exception to print with its stack trace, or {@code null}
      */
     void write(int level, String logger, String message, @Nullable Throwable error);
+
+    /**
+     * Keeps a crash report: a file in {@code crash-reports/} on desktop, the error overlay with a copy button on the
+     * web. The default writes it to the log.
+     *
+     * <pre>{@code
+     * String where = backend.log().crash("crash-2026-09-25_14-03-07.txt", report);
+     * }</pre>
+     *
+     * @param name the file name
+     * @param report the text
+     * @return where the report is, for the error screen, or an empty string
+     */
+    default String crash(String name, String report) {
+        write(ERROR, "gulp", report, null);
+        return "";
+    }
 }

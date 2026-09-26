@@ -51,6 +51,15 @@ final class WebGl implements Gl {
             return handle > 0 && handle < objects.size() ? objects.get(handle) : null;
         }
 
+        /** Puts a new object behind an existing handle, after the context was restored. */
+        void set(int handle, T object) {
+            while (objects.size() <= handle) {
+                objects.add(null);
+            }
+            objects.set(handle, object);
+            free.remove((Integer) handle);
+        }
+
         @Nullable T remove(int handle) {
             T object = get(handle);
             if (object != null) {
@@ -71,9 +80,47 @@ final class WebGl implements Gl {
     private final Table<WebGLFramebuffer> framebuffers = new Table<>();
     private final Table<WebGLRenderbuffer> renderbuffers = new Table<>();
 
+    private final GlJournal journal = new GlJournal();
+    private boolean replaying;
+
     WebGl(WebGL2RenderingContext gl) {
         this.gl = gl;
+        journal.setRelocator((handle, fresh) -> {
+            WebGLUniformLocation moved = uniforms.remove(fresh);
+            if (moved != null) {
+                uniforms.set(handle, moved);
+            }
+        });
     }
+
+    /**
+     * Rebuilds every GL object behind the engine's handles after the browser restored a lost context.
+     *
+     * @return bytes of pixel and buffer copies that were uploaded again
+     */
+    long restore() {
+        replaying = true;
+        try {
+            journal.replay(this, this::recreate);
+        } finally {
+            replaying = false;
+        }
+        return journal.shadowBytes();
+    }
+
+    private void recreate(GlJournal.Kind kind, int handle) {
+        switch (kind) {
+            case BUFFER -> buffers.set(handle, gl.createBuffer());
+            case VERTEX_ARRAY -> vertexArrays.set(handle, gl.createVertexArray());
+            case SHADER -> shaders.set(handle, gl.createShader(shaderTypes.getOrDefault(handle, Gl.VERTEX_SHADER)));
+            case PROGRAM -> programs.set(handle, gl.createProgram());
+            case TEXTURE -> textures.set(handle, gl.createTexture());
+            case FRAMEBUFFER -> framebuffers.set(handle, gl.createFramebuffer());
+            case RENDERBUFFER -> renderbuffers.set(handle, gl.createRenderbuffer());
+        }
+    }
+
+    private final java.util.Map<Integer, Integer> shaderTypes = new java.util.HashMap<>();
 
     WebGL2RenderingContext context() {
         return gl;
@@ -158,12 +205,17 @@ final class WebGl implements Gl {
 
     @Override
     public int createBuffer() {
-        return buffers.add(gl.createBuffer());
+        int handle = buffers.add(gl.createBuffer());
+        if (!replaying) {
+            journal.created(GlJournal.Kind.BUFFER, handle);
+        }
+        return handle;
     }
 
     @Override
     public void deleteBuffer(int buffer) {
         WebGLBuffer object = buffers.remove(buffer);
+        journal.deleted(GlJournal.Kind.BUFFER, buffer);
         if (object != null) {
             gl.deleteBuffer(object);
         }
@@ -171,37 +223,55 @@ final class WebGl implements Gl {
 
     @Override
     public void bindBuffer(int target, int buffer) {
+        if (!replaying) {
+            journal.bindBuffer(target, buffer);
+        }
         gl.bindBuffer(target, buffers.get(buffer));
     }
 
     @Override
     public void bufferData(int target, ByteBuffer data, int usage) {
+        if (!replaying) {
+            journal.bufferData(target, data, 0, usage);
+        }
         gl.bufferData(target, data, usage);
     }
 
     @Override
     public void bufferData(int target, int sizeInBytes, int usage) {
+        if (!replaying) {
+            journal.bufferData(target, null, sizeInBytes, usage);
+        }
         gl.bufferData(target, sizeInBytes, usage);
     }
 
     @Override
     public void bufferSubData(int target, int offsetInBytes, ByteBuffer data) {
+        // Streamed data (vertices and indices of each flush) is uploaded again before use, so it is not kept.
         gl.bufferSubData(target, offsetInBytes, data);
     }
 
     @Override
     public void bindBufferBase(int target, int index, int buffer) {
+        if (!replaying) {
+            journal.bindBufferBase(target, index, buffer);
+        }
         gl.bindBufferBase(target, index, buffers.get(buffer));
     }
 
     @Override
     public int createVertexArray() {
-        return vertexArrays.add(gl.createVertexArray());
+        int handle = vertexArrays.add(gl.createVertexArray());
+        if (!replaying) {
+            journal.created(GlJournal.Kind.VERTEX_ARRAY, handle);
+        }
+        return handle;
     }
 
     @Override
     public void deleteVertexArray(int vertexArray) {
         WebGLVertexArrayObject object = vertexArrays.remove(vertexArray);
+        journal.deleted(GlJournal.Kind.VERTEX_ARRAY, vertexArray);
         if (object != null) {
             gl.deleteVertexArray(object);
         }
@@ -209,27 +279,42 @@ final class WebGl implements Gl {
 
     @Override
     public void bindVertexArray(int vertexArray) {
+        if (!replaying) {
+            journal.bindVertexArray(vertexArray);
+        }
         gl.bindVertexArray(vertexArrays.get(vertexArray));
     }
 
     @Override
     public void enableVertexAttribArray(int index) {
+        if (!replaying) {
+            journal.enableVertexAttribArray(index);
+        }
         gl.enableVertexAttribArray(index);
     }
 
     @Override
     public void disableVertexAttribArray(int index) {
+        if (!replaying) {
+            journal.disableVertexAttribArray(index);
+        }
         gl.disableVertexAttribArray(index);
     }
 
     @Override
     public void vertexAttribPointer(
             int index, int size, int type, boolean normalized, int strideInBytes, int offsetInBytes) {
+        if (!replaying) {
+            journal.vertexAttribPointer(index, size, type, normalized, strideInBytes, offsetInBytes);
+        }
         gl.vertexAttribPointer(index, size, type, normalized, strideInBytes, offsetInBytes);
     }
 
     @Override
     public void vertexAttribDivisor(int index, int divisor) {
+        if (!replaying) {
+            journal.vertexAttribDivisor(index, divisor);
+        }
         gl.vertexAttribDivisor(index, divisor);
     }
 
@@ -237,11 +322,19 @@ final class WebGl implements Gl {
 
     @Override
     public int createShader(int type) {
-        return shaders.add(gl.createShader(type));
+        int handle = shaders.add(gl.createShader(type));
+        if (!replaying) {
+            journal.shaderCreated(handle, type);
+            shaderTypes.put(handle, type);
+        }
+        return handle;
     }
 
     @Override
     public void shaderSource(int shader, String source) {
+        if (!replaying) {
+            journal.shaderSource(shader, source);
+        }
         gl.shaderSource(shaders.get(shader), source);
     }
 
@@ -264,6 +357,10 @@ final class WebGl implements Gl {
     @Override
     public void deleteShader(int shader) {
         WebGLShader object = shaders.remove(shader);
+        if (!replaying) {
+            journal.deleted(GlJournal.Kind.SHADER, shader);
+            shaderTypes.remove(shader);
+        }
         if (object != null) {
             gl.deleteShader(object);
         }
@@ -271,26 +368,42 @@ final class WebGl implements Gl {
 
     @Override
     public int createProgram() {
-        return programs.add(gl.createProgram());
+        int handle = programs.add(gl.createProgram());
+        if (!replaying) {
+            journal.created(GlJournal.Kind.PROGRAM, handle);
+        }
+        return handle;
     }
 
     @Override
     public void attachShader(int program, int shader) {
+        if (!replaying) {
+            journal.attachShader(program, shader);
+        }
         gl.attachShader(programs.get(program), shaders.get(shader));
     }
 
     @Override
     public void detachShader(int program, int shader) {
+        if (!replaying) {
+            journal.detachShader(program, shader);
+        }
         gl.detachShader(programs.get(program), shaders.get(shader));
     }
 
     @Override
     public void bindAttribLocation(int program, int index, String name) {
+        if (!replaying) {
+            journal.bindAttribLocation(program, index, name);
+        }
         gl.bindAttribLocation(programs.get(program), index, name);
     }
 
     @Override
     public void linkProgram(int program) {
+        if (!replaying) {
+            journal.linkProgram(program);
+        }
         gl.linkProgram(programs.get(program));
     }
 
@@ -313,6 +426,7 @@ final class WebGl implements Gl {
     @Override
     public void deleteProgram(int program) {
         WebGLProgram object = programs.remove(program);
+        journal.deleted(GlJournal.Kind.PROGRAM, program);
         if (object != null) {
             gl.deleteProgram(object);
         }
@@ -321,6 +435,9 @@ final class WebGl implements Gl {
     @Override
     public int getUniformLocation(int program, String name) {
         int handle = uniforms.add(gl.getUniformLocation(programs.get(program), name));
+        if (!replaying) {
+            journal.uniformLocation(handle, program, name);
+        }
         return handle == 0 ? -1 : handle;
     }
 
@@ -331,51 +448,84 @@ final class WebGl implements Gl {
 
     @Override
     public void uniformBlockBinding(int program, int blockIndex, int binding) {
+        if (!replaying) {
+            String name = gl.getActiveUniformBlockName(programs.get(program), blockIndex);
+            if (name != null) {
+                journal.uniformBlockBinding(program, name, binding);
+            }
+        }
         gl.uniformBlockBinding(programs.get(program), blockIndex, binding);
     }
 
     @Override
     public void uniform1i(int location, int x) {
+        if (!replaying) {
+            journal.uniformInt(location, x);
+        }
         gl.uniform1i(uniforms.get(location), x);
     }
 
     @Override
     public void uniform1f(int location, float x) {
+        if (!replaying) {
+            journal.uniformFloats(location, 1, x, 0f, 0f, 0f);
+        }
         gl.uniform1f(uniforms.get(location), x);
     }
 
     @Override
     public void uniform2f(int location, float x, float y) {
+        if (!replaying) {
+            journal.uniformFloats(location, 2, x, y, 0f, 0f);
+        }
         gl.uniform2f(uniforms.get(location), x, y);
     }
 
     @Override
     public void uniform3f(int location, float x, float y, float z) {
+        if (!replaying) {
+            journal.uniformFloats(location, 3, x, y, z, 0f);
+        }
         gl.uniform3f(uniforms.get(location), x, y, z);
     }
 
     @Override
     public void uniform4f(int location, float x, float y, float z, float w) {
+        if (!replaying) {
+            journal.uniformFloats(location, 4, x, y, z, w);
+        }
         gl.uniform4f(uniforms.get(location), x, y, z, w);
     }
 
     @Override
     public void uniform1fv(int location, FloatBuffer values) {
+        if (!replaying) {
+            journal.uniformArray(location, 6, values);
+        }
         gl.uniform1fv(uniforms.get(location), values);
     }
 
     @Override
     public void uniform4fv(int location, FloatBuffer values) {
+        if (!replaying) {
+            journal.uniformArray(location, 9, values);
+        }
         gl.uniform4fv(uniforms.get(location), values);
     }
 
     @Override
     public void uniformMatrix3fv(int location, FloatBuffer values) {
+        if (!replaying) {
+            journal.uniformArray(location, 7, values);
+        }
         gl.uniformMatrix3fv(uniforms.get(location), false, values);
     }
 
     @Override
     public void uniformMatrix4fv(int location, FloatBuffer values) {
+        if (!replaying) {
+            journal.uniformArray(location, 8, values);
+        }
         gl.uniformMatrix4fv(uniforms.get(location), false, values);
     }
 
@@ -383,12 +533,17 @@ final class WebGl implements Gl {
 
     @Override
     public int createTexture() {
-        return textures.add(gl.createTexture());
+        int handle = textures.add(gl.createTexture());
+        if (!replaying) {
+            journal.created(GlJournal.Kind.TEXTURE, handle);
+        }
+        return handle;
     }
 
     @Override
     public void deleteTexture(int texture) {
         WebGLTexture object = textures.remove(texture);
+        journal.deleted(GlJournal.Kind.TEXTURE, texture);
         if (object != null) {
             gl.deleteTexture(object);
         }
@@ -396,16 +551,25 @@ final class WebGl implements Gl {
 
     @Override
     public void activeTexture(int unit) {
+        if (!replaying) {
+            journal.activeTexture(unit);
+        }
         gl.activeTexture(unit);
     }
 
     @Override
     public void bindTexture(int target, int texture) {
+        if (!replaying) {
+            journal.bindTexture(texture);
+        }
         gl.bindTexture(target, textures.get(texture));
     }
 
     @Override
     public void texParameteri(int target, int pname, int value) {
+        if (!replaying) {
+            journal.texParameteri(pname, value);
+        }
         gl.texParameteri(target, pname, value);
     }
 
@@ -419,6 +583,9 @@ final class WebGl implements Gl {
             int format,
             int type,
             @Nullable ByteBuffer pixels) {
+        if (!replaying) {
+            journal.texImage2D(level, internalFormat, width, height, format, type, pixels);
+        }
         if (pixels == null) {
             gl.texImage2D(target, level, internalFormat, width, height, 0, format, type, (Int8Array) null);
         } else {
@@ -429,6 +596,9 @@ final class WebGl implements Gl {
     @Override
     public void texSubImage2D(
             int target, int level, int x, int y, int width, int height, int format, int type, ByteBuffer pixels) {
+        if (!replaying) {
+            journal.texSubImage2D(level, x, y, width, height, format, type, pixels);
+        }
         gl.texSubImage2D(target, level, x, y, width, height, format, type, bytes(pixels));
     }
 
@@ -439,17 +609,25 @@ final class WebGl implements Gl {
 
     @Override
     public void generateMipmap(int target) {
+        if (!replaying) {
+            journal.generateMipmap();
+        }
         gl.generateMipmap(target);
     }
 
     @Override
     public int createFramebuffer() {
-        return framebuffers.add(gl.createFramebuffer());
+        int handle = framebuffers.add(gl.createFramebuffer());
+        if (!replaying) {
+            journal.created(GlJournal.Kind.FRAMEBUFFER, handle);
+        }
+        return handle;
     }
 
     @Override
     public void deleteFramebuffer(int framebuffer) {
         WebGLFramebuffer object = framebuffers.remove(framebuffer);
+        journal.deleted(GlJournal.Kind.FRAMEBUFFER, framebuffer);
         if (object != null) {
             gl.deleteFramebuffer(object);
         }
@@ -457,11 +635,17 @@ final class WebGl implements Gl {
 
     @Override
     public void bindFramebuffer(int target, int framebuffer) {
+        if (!replaying) {
+            journal.bindFramebuffer(target, framebuffer);
+        }
         gl.bindFramebuffer(target, framebuffers.get(framebuffer));
     }
 
     @Override
     public void framebufferTexture2D(int target, int attachment, int textureTarget, int texture, int level) {
+        if (!replaying) {
+            journal.framebufferAttachment(attachment, 0, texture);
+        }
         gl.framebufferTexture2D(target, attachment, textureTarget, textures.get(texture), level);
     }
 
@@ -472,12 +656,17 @@ final class WebGl implements Gl {
 
     @Override
     public int createRenderbuffer() {
-        return renderbuffers.add(gl.createRenderbuffer());
+        int handle = renderbuffers.add(gl.createRenderbuffer());
+        if (!replaying) {
+            journal.created(GlJournal.Kind.RENDERBUFFER, handle);
+        }
+        return handle;
     }
 
     @Override
     public void deleteRenderbuffer(int renderbuffer) {
         WebGLRenderbuffer object = renderbuffers.remove(renderbuffer);
+        journal.deleted(GlJournal.Kind.RENDERBUFFER, renderbuffer);
         if (object != null) {
             gl.deleteRenderbuffer(object);
         }
@@ -485,16 +674,25 @@ final class WebGl implements Gl {
 
     @Override
     public void bindRenderbuffer(int target, int renderbuffer) {
+        if (!replaying) {
+            journal.bindRenderbuffer(renderbuffer);
+        }
         gl.bindRenderbuffer(target, renderbuffers.get(renderbuffer));
     }
 
     @Override
     public void renderbufferStorage(int target, int internalFormat, int width, int height) {
+        if (!replaying) {
+            journal.renderbufferStorage(internalFormat, width, height);
+        }
         gl.renderbufferStorage(target, internalFormat, width, height);
     }
 
     @Override
     public void framebufferRenderbuffer(int target, int attachment, int renderbufferTarget, int renderbuffer) {
+        if (!replaying) {
+            journal.framebufferAttachment(attachment, 1, renderbuffer);
+        }
         gl.framebufferRenderbuffer(target, attachment, renderbufferTarget, renderbuffers.get(renderbuffer));
     }
 
@@ -507,7 +705,8 @@ final class WebGl implements Gl {
     @Override
     public void readPixels(int x, int y, int width, int height, int format, int type, ByteBuffer pixels) {
         Int8Array target = new Int8Array(width * height * 4);
-        gl.readPixels(x, y, width, height, format, type, target);
+        // WebGL wants a Uint8Array for UNSIGNED_BYTE; the view shares the buffer, so target sees the pixels.
+        gl.readPixels(x, y, width, height, format, type, Js.unsigned(target));
         byte[] copy = target.copyToJavaArray();
         pixels.duplicate().put(copy, 0, Math.min(copy.length, pixels.remaining()));
     }

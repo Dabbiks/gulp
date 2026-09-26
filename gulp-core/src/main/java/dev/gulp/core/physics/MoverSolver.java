@@ -78,6 +78,9 @@ final class MoverSolver {
         out = result;
         result.contacts.clear();
         MoverState state = proxy.moverState;
+        if (state != null) {
+            state.contactsUsed = 0;
+        }
         if (state == null) {
             state = new MoverState();
             proxy.moverState = state;
@@ -197,15 +200,24 @@ final class MoverSolver {
         return Math.max(0.01f, Math.min(maxX - minX, maxY - minY) * 0.5f);
     }
 
+    private @Nullable Proxy gathering;
+    private final java.util.function.Consumer<Proxy> gather = this::gatherOne;
+    private final PhysicsHost.TileVisitor tileVisitor = this::tile;
+
     private void gatherCandidates(Proxy proxy, float reach) {
         candidates.clear();
         Entity entity = proxy.entity;
         float r = proxy.extent + reach;
-        physics.broadphase.query(entity.x() - r, entity.y() - r, entity.x() + r, entity.y() + r, other -> {
-            if (other != proxy && !other.pieces.isEmpty() && physics.canTouch(proxy, other)) {
-                candidates.add(other);
-            }
-        });
+        gathering = proxy;
+        physics.broadphase.query(entity.x() - r, entity.y() - r, entity.x() + r, entity.y() + r, gather);
+        gathering = null;
+    }
+
+    private void gatherOne(Proxy other) {
+        Proxy proxy = gathering;
+        if (proxy != null && other != proxy && !other.pieces.isEmpty() && physics.canTouch(proxy, other)) {
+            candidates.add(other);
+        }
     }
 
     /** Pushes the mover out of everything it overlaps, a few times, with rules for the axis just moved. */
@@ -240,7 +252,7 @@ final class MoverSolver {
                 int y0 = (int) Math.floor(moverPiece.minY);
                 int x1 = (int) Math.floor(moverPiece.maxX);
                 int y1 = (int) Math.floor(moverPiece.maxY);
-                physics.host.tiles(x0, y0, x1, y1, this::tile);
+                physics.host.tiles(x0, y0, x1, y1, tileVisitor);
             }
         }
     }
@@ -455,11 +467,10 @@ final class MoverSolver {
         if (state == null || !state.touch(key)) {
             return;
         }
-        out.contacts.add(new Contact(
-                other != null ? other.entity : null,
-                other == null ? new GridPos(hitTileX, hitTileY) : null,
-                new Vec2(hitPx, hitPy),
-                new Vec2(nx, ny)));
+        Contact contact = state.nextContact();
+        PhysicsAccess.setContact(
+                contact, other != null ? other.entity : null, other == null, hitTileX, hitTileY, hitPx, hitPy, nx, ny);
+        out.contacts.add(contact);
         if (other != null && other.body != null) {
             other.body.wake();
         }
@@ -471,7 +482,8 @@ final class MoverSolver {
             events.call(new EntityLandEvent(entity, landingSpeed, new Vec2(floorNx, floorNy)));
         }
         if (events.hasListeners(EntityCollideEvent.class)) {
-            for (Contact contact : out.contacts) {
+            for (int i = 0; i < out.contacts.size(); i++) {
+                Contact contact = out.contacts.get(i);
                 long key = keyOf(contact);
                 if (!state.wasTouching(key)) {
                     events.call(new EntityCollideEvent(

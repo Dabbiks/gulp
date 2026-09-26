@@ -25,7 +25,10 @@ import org.jspecify.annotations.Nullable;
  */
 public final class Mover extends Component {
 
-    private Vec2 velocity = Vec2.ZERO;
+    // Vectors are kept as numbers and built only when read, so moving allocates nothing.
+    private float velocityX;
+    private float velocityY;
+    private @Nullable Vec2 velocity = Vec2.ZERO;
     private boolean gravity = true;
     private boolean topDown;
     private float maxFloorAngle = 46f;
@@ -39,8 +42,12 @@ public final class Mover extends Component {
     private boolean onFloor;
     private boolean onWall;
     private boolean onCeiling;
-    private Vec2 floorNormal = Vec2.UP;
-    private Vec2 wallNormal = Vec2.ZERO;
+    private float floorNormalX;
+    private float floorNormalY = -1f;
+    private @Nullable Vec2 floorNormal = Vec2.UP;
+    private float wallNormalX;
+    private float wallNormalY;
+    private @Nullable Vec2 wallNormal = Vec2.ZERO;
     private @Nullable Entity floorEntity;
     private int airTicks = Integer.MAX_VALUE / 2;
     private boolean jumpedSinceFloor;
@@ -52,6 +59,14 @@ public final class Mover extends Component {
 
     /** Creates a mover with gravity. */
     public Mover() {}
+
+    private void setVelocity(float x, float y) {
+        if (x != velocityX || y != velocityY) {
+            velocityX = x;
+            velocityY = y;
+            velocity = null;
+        }
+    }
 
     /**
      * Moves the entity by {@code velocity} for one tick and slides along what it hits.
@@ -69,12 +84,24 @@ public final class Mover extends Component {
             vy += g.y() * dt;
         }
         PhysicsAccess.backend().moveAndSlide(this, vx, vy, result);
-        this.velocity = new Vec2(result.velocityX, result.velocityY);
+        setVelocity(result.velocityX, result.velocityY);
         onFloor = result.floor && !topDown;
         onWall = result.wall;
         onCeiling = result.ceiling && !topDown;
-        floorNormal = onFloor ? new Vec2(result.floorNormalX, result.floorNormalY) : Vec2.UP;
-        wallNormal = onWall ? new Vec2(result.wallNormalX, result.wallNormalY) : Vec2.ZERO;
+        float fx = onFloor ? result.floorNormalX : 0f;
+        float fy = onFloor ? result.floorNormalY : -1f;
+        if (fx != floorNormalX || fy != floorNormalY) {
+            floorNormalX = fx;
+            floorNormalY = fy;
+            floorNormal = null;
+        }
+        float wx = onWall ? result.wallNormalX : 0f;
+        float wy = onWall ? result.wallNormalY : 0f;
+        if (wx != wallNormalX || wy != wallNormalY) {
+            wallNormalX = wx;
+            wallNormalY = wy;
+            wallNormal = null;
+        }
         floorEntity = onFloor ? result.floorEntity : null;
         if (dropTicks > 0) {
             dropTicks--;
@@ -101,7 +128,30 @@ public final class Mover extends Component {
      * @return units per second
      */
     public Vec2 velocity() {
-        return velocity;
+        Vec2 current = velocity;
+        if (current == null) {
+            current = new Vec2(velocityX, velocityY);
+            velocity = current;
+        }
+        return current;
+    }
+
+    /**
+     * Returns the horizontal velocity after the last move, without creating a vector.
+     *
+     * @return units per second
+     */
+    public float velocityX() {
+        return velocityX;
+    }
+
+    /**
+     * Returns the vertical velocity after the last move, without creating a vector.
+     *
+     * @return units per second, down is positive
+     */
+    public float velocityY() {
+        return velocityY;
     }
 
     /**
@@ -111,6 +161,8 @@ public final class Mover extends Component {
      * @return this mover
      */
     public Mover setVelocity(Vec2 value) {
+        velocityX = value.x();
+        velocityY = value.y();
         velocity = value;
         return this;
     }
@@ -148,7 +200,12 @@ public final class Mover extends Component {
      * @return the normal, {@link Vec2#UP} when not on a floor
      */
     public Vec2 floorNormal() {
-        return floorNormal;
+        Vec2 current = floorNormal;
+        if (current == null) {
+            current = new Vec2(floorNormalX, floorNormalY);
+            floorNormal = current;
+        }
+        return current;
     }
 
     /**
@@ -157,7 +214,12 @@ public final class Mover extends Component {
      * @return the normal, {@link Vec2#ZERO} when not at a wall
      */
     public Vec2 wallNormal() {
-        return wallNormal;
+        Vec2 current = wallNormal;
+        if (current == null) {
+            current = new Vec2(wallNormalX, wallNormalY);
+            wallNormal = current;
+        }
+        return current;
     }
 
     /**
@@ -195,7 +257,7 @@ public final class Mover extends Component {
      */
     public boolean jump(float speed) {
         if (canJump()) {
-            velocity = new Vec2(velocity.x(), -speed);
+            setVelocity(velocityX, -speed);
             jumpedSinceFloor = true;
             onFloor = false;
             airTicks = Integer.MAX_VALUE / 2;

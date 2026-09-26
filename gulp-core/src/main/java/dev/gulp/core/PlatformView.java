@@ -41,4 +41,13 @@ final class PlatformView implements Platform {
     public String systemLocale() {
         return backend.info().systemLocale();
     }
+
+    @Override
+    public void openUrl(String url) {
+        String lower = url.toLowerCase(java.util.Locale.ROOT);
+        if (!lower.startsWith("http://") && !lower.startsWith("https://")) {
+            throw new IllegalArgumentException("Only http and https URLs can be opened: " + url);
+        }
+        backend.net().openUrl(url);
+    }
 }

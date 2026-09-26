@@ -1604,6 +1604,23 @@ public abstract class Node<N extends Node<N>> {
         return UiAccess.backend().layout(text, style, box);
     }
 
+    /**
+     * Returns a number that changes when translated text may read differently, such as after {@code
+     * translations().setLocale(...)}; widgets that cache a text layout compare it to know when to lay out again.
+     *
+     * <pre>{@code
+     * if (layout == null || layoutRevision != textRevision()) {
+     *     layout = layoutText(text, style().textStyle(), TextBox.NONE);
+     *     layoutRevision = textRevision();
+     * }
+     * }</pre>
+     *
+     * @return the revision
+     */
+    protected static int textRevision() {
+        return UiAccess.backend().textRevision();
+    }
+
     // ================================================================== drawing and animation
 
     /**

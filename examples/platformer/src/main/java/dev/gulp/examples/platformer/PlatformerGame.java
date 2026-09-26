@@ -34,6 +34,9 @@ public final class PlatformerGame extends Game {
     static CollisionLayer pickup;
     static Sound pickupSound;
 
+    /** The save slot of the progress: the level with its coins and slimes, and the coin count. */
+    static final String SLOT = "progress";
+
     /**
      * Starts the example on the best available backend.
      *
@@ -57,6 +60,7 @@ public final class PlatformerGame extends Game {
                 .integerScaling(true)
                 .pixelsPerUnit(16)
                 .clearColor(Color.rgb(0x6ea8ec))
+                .saveVersion(1)
                 .modules(new HudModule(), new PlayerModule(), new CoinModule(), new EnemyModule());
     }
 
@@ -98,7 +102,7 @@ public final class PlatformerGame extends Game {
         worlds().register(
                         "level1",
                         WorldSource.ldtk(GameAssets.Maps.WORLD)
-                                .settings(WorldSettings.DEFAULT.tileSize(16))
+                                .settings(WorldSettings.DEFAULT.tileSize(16).persistent(true))
                                 .spawn("Player", PlayerModule.player)
                                 .spawn("Coin", CoinModule.coin)
                                 .spawn("Slime", EnemyModule.slime)

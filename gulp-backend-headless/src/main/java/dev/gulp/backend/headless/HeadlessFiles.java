@@ -129,6 +129,60 @@ public final class HeadlessFiles implements PlatformFiles {
         mainQueue.accept(() -> callback.success(List.copyOf(names)));
     }
 
+    // ------------------------------------------------------------------ export and import
+
+    private final Map<String, byte[]> offered = new TreeMap<>();
+    private final Map<String, byte[]> pickable = new TreeMap<>();
+
+    /**
+     * Returns a file the game offered for download or export.
+     *
+     * <pre>{@code
+     * byte[] exported = backend.files().offered("slot1.gulpsave");
+     * }</pre>
+     *
+     * @param name the file name
+     * @return a copy of the content, or {@code null} if nothing was offered under that name
+     */
+    public byte @Nullable [] offered(String name) {
+        byte[] content = offered.get(name);
+        return content == null ? null : content.clone();
+    }
+
+    /**
+     * Prepares the file that the next pick under that name returns, as if the player chose it.
+     *
+     * <pre>{@code
+     * backend.files().putPickable("slot1.gulpsave", exported);
+     * }</pre>
+     *
+     * @param name the file name the game asks for
+     * @param content the content
+     */
+    public void putPickable(String name, byte[] content) {
+        pickable.put(name, content.clone());
+    }
+
+    @Override
+    public void offerFile(String name, ByteBuffer data, PlatformCallback<Void> callback) {
+        byte[] content = new byte[data.remaining()];
+        data.duplicate().get(content);
+        offered.put(name, content);
+        mainQueue.accept(() -> callback.success(null));
+    }
+
+    @Override
+    public void pickFile(String name, PlatformCallback<ByteBuffer> callback) {
+        byte[] content = pickable.remove(name);
+        mainQueue.accept(() -> {
+            if (content == null) {
+                callback.failure(new FileNotFoundException("No file was picked for '" + name + "'"));
+            } else {
+                callback.success(direct(content));
+            }
+        });
+    }
+
     // ------------------------------------------------------------------ resource packs and watching
 
     private final Map<String, ResourcePackInfo> packs = new java.util.LinkedHashMap<>();

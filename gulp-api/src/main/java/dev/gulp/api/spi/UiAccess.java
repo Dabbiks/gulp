@@ -287,6 +287,14 @@ public final class UiAccess {
         TextLayout layout(Text text, TextStyle style, TextBox box);
 
         /**
+         * Returns a number that changes whenever translated text may read differently, such as after a language
+         * change; widgets lay out their text again when it moves.
+         *
+         * @return the revision
+         */
+        int textRevision();
+
+        /**
          * Returns real time since the UI started.
          *
          * @return seconds

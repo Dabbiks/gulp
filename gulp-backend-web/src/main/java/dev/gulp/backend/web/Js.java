@@ -84,6 +84,16 @@ final class Js {
 
     /** A touch point. */
     @JSFunctor
+    interface HttpCallback extends JSObject {
+        void call(int status, String headers, ArrayBuffer body);
+    }
+
+    @JSFunctor
+    interface CloseCallback extends JSObject {
+        void call(int code, String reason);
+    }
+
+    @JSFunctor
     interface TouchCallback extends JSObject {
         void call(int pointer, int phase, double x, double y);
     }
@@ -185,11 +195,67 @@ final class Js {
             script = "window.gulp.listData(prefix, ok, fail);")
     static native void listData(String prefix, StringCallback ok, StringCallback fail);
 
+    @JSBody(
+            params = {"name", "bytes"},
+            script = "window.gulp.offerFile(name, bytes);")
+    static native void offerFile(String name, Int8Array bytes);
+
+    @JSBody(
+            params = {"name", "ok", "missing", "fail"},
+            script = "window.gulp.pickFile(name, ok, missing, fail);")
+    static native void pickFile(String name, BytesCallback ok, Callback missing, StringCallback fail);
+
+    @JSBody(
+            params = {"method", "url", "headers", "body", "ok", "fail"},
+            script = "window.gulp.http(method, url, headers, body, ok, fail);")
+    static native void http(
+            String method, String url, String headers, @Nullable Int8Array body, HttpCallback ok, StringCallback fail);
+
+    @JSBody(
+            params = {"url", "opened", "text", "binary", "closed", "failed"},
+            script = "return window.gulp.wsOpen(url, opened, text, binary, closed, failed);")
+    static native int wsOpen(
+            String url,
+            Callback opened,
+            StringCallback text,
+            BytesCallback binary,
+            CloseCallback closed,
+            StringCallback failed);
+
+    @JSBody(
+            params = {"id", "text"},
+            script = "return window.gulp.wsSendText(id, text);")
+    static native boolean wsSendText(int id, String text);
+
+    @JSBody(
+            params = {"id", "bytes"},
+            script = "return window.gulp.wsSendBytes(id, bytes);")
+    static native boolean wsSendBytes(int id, Int8Array bytes);
+
+    @JSBody(
+            params = {"id", "code", "reason"},
+            script = "window.gulp.wsClose(id, code, reason);")
+    static native void wsClose(int id, int code, String reason);
+
+    @JSBody(params = "url", script = "window.gulp.openUrl(url);")
+    static native void openUrl(String url);
+
+    @JSBody(params = "handler", script = "window.gulp.contextHandler = handler;")
+    static native void onContextChange(BooleanCallback handler);
+
+    @JSBody(script = "return !!window.gulp.contextLost;")
+    static native boolean isContextLost();
+
     @JSBody(script = "window.gulp.ready();")
     static native void ready();
 
     @JSBody(params = "message", script = "window.gulp.fatal(message);")
     static native void fatal(String message);
+
+    @JSBody(
+            params = {"message", "report"},
+            script = "window.gulp.fatal(message, report);")
+    static native void fatalReport(String message, String report);
 
     @JSBody(params = "handler", script = "window.gulp.command = handler;")
     static native void onCommand(StringCallback handler);

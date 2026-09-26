@@ -229,6 +229,36 @@ public final class DesktopFiles implements PlatformFiles {
         });
     }
 
+    // ------------------------------------------------------------------ export and import
+
+    /**
+     * Writes an exported file to the {@code exports} folder in the user data directory, where the player can take it.
+     * There is no native save dialog: the folder is stable and shown in the log.
+     */
+    @Override
+    public void offerFile(String name, ByteBuffer data, PlatformCallback<Void> callback) {
+        byte[] bytes = new byte[data.remaining()];
+        data.duplicate().get(bytes);
+        async(callback, () -> {
+            Path file = dataDirectory.resolve("exports").resolve(requireRelative(name));
+            Files.createDirectories(file.getParent());
+            Files.write(file, bytes);
+            return null;
+        });
+    }
+
+    /** Reads an imported file that the player put into the {@code imports} folder in the user data directory. */
+    @Override
+    public void pickFile(String name, PlatformCallback<ByteBuffer> callback) {
+        async(callback, () -> {
+            Path file = dataDirectory.resolve("imports").resolve(requireRelative(name));
+            if (!Files.isRegularFile(file)) {
+                throw new FileNotFoundException("Put the file to import at " + file.toAbsolutePath());
+            }
+            return ByteBuffer.wrap(Files.readAllBytes(file));
+        });
+    }
+
     // ------------------------------------------------------------------ manifest, resource packs, watching
 
     /** Name of the asset manifest inside the assets folder. */

@@ -60,6 +60,24 @@ public interface PlatformFiles {
     void listUserData(String prefix, PlatformCallback<List<String>> callback);
 
     /**
+     * Gives the player a file: a download on the web, {@code exports/<name>} in the user data folder on desktop.
+     *
+     * @param name the file name
+     * @param data the content
+     * @param callback completes when offered or written
+     */
+    void offerFile(String name, ByteBuffer data, PlatformCallback<Void> callback);
+
+    /**
+     * Lets the player provide a file: an upload dialog on the web, {@code imports/<name>} in the user data folder on
+     * desktop.
+     *
+     * @param name the expected file name, used on desktop
+     * @param callback receives the content; fails when cancelled or missing
+     */
+    void pickFile(String name, PlatformCallback<ByteBuffer> callback);
+
+    /**
      * Describes where user data is stored, for logs and crash reports.
      *
      * @return for example a directory path or {@code "IndexedDB gulp/coins"}

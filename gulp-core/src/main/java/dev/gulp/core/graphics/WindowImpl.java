@@ -1,10 +1,12 @@
 package dev.gulp.core.graphics;
 
 import dev.gulp.api.GameSettings;
+import dev.gulp.api.data.Preferences;
 import dev.gulp.api.render.GameWindow;
 import dev.gulp.platform.PlatformWindow;
 import java.util.List;
 import java.util.Objects;
+import org.jspecify.annotations.Nullable;
 
 /** The game window on top of the platform window, remembering what the platform does not report back. */
 public final class WindowImpl implements GameWindow {
@@ -12,6 +14,14 @@ public final class WindowImpl implements GameWindow {
     private final PlatformWindow window;
     private String title;
     private boolean vsync;
+    private @Nullable Preferences preferences;
+
+    /** Preference keys of the window settings. */
+    static final String FULLSCREEN = "gulp.window.fullscreen";
+
+    static final String BORDERLESS = "gulp.window.borderless";
+    static final String VSYNC = "gulp.window.vsync";
+    static final String MONITOR = "gulp.window.monitor";
 
     /**
      * Wraps the platform window.
@@ -36,6 +46,38 @@ public final class WindowImpl implements GameWindow {
         }
         if (settings.isBorderless()) {
             window.setBorderless(true);
+        }
+    }
+
+    /**
+     * Restores the window settings the player chose, and remembers later changes there.
+     *
+     * @param store the preferences
+     */
+    public void loadPreferences(Preferences store) {
+        if (store.has(MONITOR)) {
+            int index = store.getInt(MONITOR, 0);
+            if (index >= 0 && index < window.monitors().size()) {
+                window.setMonitor(index);
+            }
+        }
+        if (store.has(BORDERLESS)) {
+            window.setBorderless(store.getBoolean(BORDERLESS, false));
+        }
+        if (store.has(VSYNC)) {
+            vsync = store.getBoolean(VSYNC, vsync);
+            window.setVsync(vsync);
+        }
+        if (store.has(FULLSCREEN)) {
+            window.setFullscreen(store.getBoolean(FULLSCREEN, false));
+        }
+        this.preferences = store;
+    }
+
+    private void remember(String key, boolean value) {
+        Preferences store = preferences;
+        if (store != null) {
+            store.set(key, value);
         }
     }
 
@@ -76,6 +118,7 @@ public final class WindowImpl implements GameWindow {
     @Override
     public void setFullscreen(boolean fullscreen) {
         window.setFullscreen(fullscreen);
+        remember(FULLSCREEN, fullscreen);
     }
 
     @Override
@@ -86,6 +129,7 @@ public final class WindowImpl implements GameWindow {
     @Override
     public void setBorderless(boolean borderless) {
         window.setBorderless(borderless);
+        remember(BORDERLESS, borderless);
     }
 
     @Override
@@ -97,6 +141,7 @@ public final class WindowImpl implements GameWindow {
     public void setVsync(boolean vsync) {
         this.vsync = vsync;
         window.setVsync(vsync);
+        remember(VSYNC, vsync);
     }
 
     @Override
@@ -116,6 +161,10 @@ public final class WindowImpl implements GameWindow {
             throw new IndexOutOfBoundsException("No monitor " + index + " among " + monitors);
         }
         window.setMonitor(index);
+        Preferences store = preferences;
+        if (store != null) {
+            store.set(MONITOR, index);
+        }
     }
 
     @Override

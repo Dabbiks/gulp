@@ -175,6 +175,9 @@ public final class DrawImpl implements Draw {
             float originX,
             float originY,
             float degrees) {
+        if (degrees == 0f) {
+            return image(region, x, y, width, height);
+        }
         push();
         translate(x + originX, y + originY).rotate(degrees).translate(-originX, -originY);
         image(region, 0, 0, width, height);
@@ -197,6 +200,28 @@ public final class DrawImpl implements Draw {
         float u2 = region.u2();
         float v2 = region.v2();
         int base = batcher.reserve(4, 6);
+        Affine2 t = transform;
+        if (t.m01 == 0f && t.m10 == 0f && !region.isRotated()) {
+            // Axis-aligned, the common case of sprites and tiles: transform and snap two corners, not four vertices.
+            float ax = t.m00 * x0 + t.m02;
+            float ay = t.m11 * y0 + t.m12;
+            float bx = t.m00 * x1 + t.m02;
+            float by = t.m11 * y1 + t.m12;
+            if (snapStep > 0f) {
+                float inverse = 1f / snapStep;
+                ax = Math.round(ax * inverse) * snapStep;
+                ay = Math.round(ay * inverse) * snapStep;
+                bx = Math.round(bx * inverse) * snapStep;
+                by = Math.round(by * inverse) * snapStep;
+            }
+            int abgr = packed;
+            batcher.vertex(ax, ay, u, v, abgr);
+            batcher.vertex(bx, ay, u2, v, abgr);
+            batcher.vertex(bx, by, u2, v2, abgr);
+            batcher.vertex(ax, by, u, v2, abgr);
+            batcher.quad(base);
+            return;
+        }
         if (region.isRotated()) {
             vertex(x0, y0, u2, v, true);
             vertex(x1, y0, u2, v2, true);
@@ -1158,11 +1183,18 @@ public final class DrawImpl implements Draw {
         }
         depth--;
         transform.set(savedTransforms[depth]);
-        color = savedColors[depth];
-        alpha = savedAlphas[depth];
-        updatePacked();
-        material(savedMaterials[depth]);
-        effect(savedEffects[depth]);
+        if (color != savedColors[depth] || alpha != savedAlphas[depth]) {
+            color = savedColors[depth];
+            alpha = savedAlphas[depth];
+            updatePacked();
+        }
+        // Switching the material costs a shader and texture look-up; most pushes do not change it.
+        if (material != savedMaterials[depth]) {
+            material(savedMaterials[depth]);
+        }
+        if (effect != savedEffects[depth]) {
+            effect(savedEffects[depth]);
+        }
         return this;
     }
 
@@ -1186,6 +1218,9 @@ public final class DrawImpl implements Draw {
 
     @Override
     public Draw color(Color newColor) {
+        if (newColor == color) {
+            return this;
+        }
         this.color = newColor;
         updatePacked();
         return this;

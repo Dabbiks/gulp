@@ -233,6 +233,71 @@ class GulpProcessorTest {
     }
 
     @Test
+    void generatesComponentStates() throws IOException {
+        Result result = compile(Map.of("demo.Wallet", """
+                package demo;
+
+                import dev.gulp.api.entity.*;
+                import dev.gulp.api.math.Vec2;
+                import java.util.List;
+                import org.jspecify.annotations.Nullable;
+
+                @ComponentInfo(key = "demo:wallet")
+                public class Wallet extends Component {
+                    @Save int coins;
+                    @Save protected Vec2 home = Vec2.ZERO;
+                    @Save @Nullable String note;
+                    @Save List<String> items = List.of();
+                    int notSaved;
+
+                    @ComponentInfo(key = "demo:empty", persistent = false)
+                    static class Empty extends Component {}
+                }
+                """));
+
+        assertThat(result.errors()).isEmpty();
+        assertThat(result.success()).isTrue();
+        assertThat(result.generated("demo/Wallet$State.java"))
+                .contains("implements dev.gulp.api.spi.ComponentState<demo.Wallet>")
+                .contains("dev.gulp.api.data.Codec.VEC2")
+                .contains("dev.gulp.api.data.Codec.STRING.nullable()")
+                .contains("component.coins = ")
+                .doesNotContain("notSaved");
+        String services = result.generated("META-INF/services/dev.gulp.api.spi.GeneratedIndex");
+        String index = result.generated(services.trim().replace('.', '/') + ".java");
+        assertThat(index)
+                .contains("sink.component(demo.Wallet.class, \"demo:wallet\", true, new Wallet$State());")
+                .contains("sink.component(demo.Wallet.Empty.class, \"demo:empty\", false, new Wallet$Empty$State());");
+    }
+
+    @Test
+    void rejectsInvalidComponents() throws IOException {
+        Result result = compile(Map.of("demo.Broken", """
+                package demo;
+
+                import dev.gulp.api.entity.*;
+
+                @ComponentInfo(key = "demo:not_a_component") class NotAComponent {}
+                @ComponentInfo(key = "Bad Key") class BadKey extends Component {}
+                @ComponentInfo(key = "demo:fields") class Fields extends Component {
+                    @Save private int hidden;
+                    @Save final int fixed = 1;
+                    @Save static int shared;
+                    @Save Object anything;
+                }
+                class Stray extends Component { @Save int lost; }
+                """));
+
+        assertThat(result.success()).isFalse();
+        assertThat(result.errors())
+                .anyMatch(e -> e.contains("supported on Component classes only"))
+                .anyMatch(e -> e.contains("Invalid component key 'Bad Key'"))
+                .anyMatch(e -> e.contains("must not be private, final or static"))
+                .anyMatch(e -> e.contains("java.lang.Object"))
+                .anyMatch(e -> e.contains("must be in a class annotated with @ComponentInfo"));
+    }
+
+    @Test
     void moduleIdsAndCycles() {
         assertThat(ModuleIds.isValid("combat.v2-x_1")).isTrue();
         assertThat(ModuleIds.isValid("")).isFalse();

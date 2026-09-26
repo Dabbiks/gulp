@@ -28,6 +28,7 @@ public class Label extends Node<Label> {
     private TextAlign align = TextAlign.LEFT;
     private @Nullable TextLayout layout;
     private @Nullable Style layoutStyle;
+    private int layoutRevision;
     private float layoutWidth = -1f;
     private float measuredFor = -1f;
 
@@ -143,7 +144,7 @@ public class Label extends Node<Label> {
         Style style = style();
         float boxWidth = wrapWidth();
         TextLayout current = layout;
-        if (current == null || layoutStyle != style || layoutWidth != boxWidth) {
+        if (current == null || layoutStyle != style || layoutWidth != boxWidth || layoutRevision != textRevision()) {
             TextBox box = boxWidth > 0f
                     ? TextBox.width(boxWidth)
                             .wrap(TextWrap.WORDS)
@@ -154,6 +155,7 @@ public class Label extends Node<Label> {
             layout = current;
             layoutStyle = style;
             layoutWidth = boxWidth;
+            layoutRevision = textRevision();
         }
         return current;
     }

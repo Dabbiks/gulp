@@ -11,7 +11,12 @@ import dev.gulp.api.event.Event;
  */
 public final class TickEndEvent extends Event {
 
-    private final long tick;
+    static {
+        dev.gulp.api.spi.EventAccess.install(TickHooks.INSTANCE);
+    }
+
+    /** Set again for every tick: the engine reuses one instance, so keep the number, not the event. */
+    long tick;
 
     /**
      * Creates the event; fired by the engine.

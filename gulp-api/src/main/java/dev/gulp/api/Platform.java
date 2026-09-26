@@ -50,4 +50,16 @@ public interface Platform {
      * @return a BCP 47 tag such as {@code "pl-PL"}
      */
     String systemLocale();
+
+    /**
+     * Opens a web page in the system browser (a new tab on the web; browsers may block it outside a click).
+     *
+     * <pre>{@code
+     * button("Website").onClick(() -> engine().platform().openUrl("https://example.com"));
+     * }</pre>
+     *
+     * @param url an {@code http://} or {@code https://} URL
+     * @throws IllegalArgumentException for other schemes
+     */
+    void openUrl(String url);
 }

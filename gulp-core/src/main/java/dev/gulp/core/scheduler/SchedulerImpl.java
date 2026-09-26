@@ -146,6 +146,8 @@ public final class SchedulerImpl {
     }
 
     private void runTask(TaskImpl task) {
+        dev.gulp.core.debug.ProfilerImpl profiler = context.profiler();
+        long started = profiler.running ? profiler.begin() : 0L;
         try {
             task.action.run();
             task.consecutiveErrors = 0;
@@ -158,6 +160,9 @@ public final class SchedulerImpl {
             } else {
                 context.loggerOf(task.owner).error("Unhandled exception in a scheduled task", error);
             }
+        }
+        if (started != 0L) {
+            profiler.endTask(task.owner, started);
         }
     }
 

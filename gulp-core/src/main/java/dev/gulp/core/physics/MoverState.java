@@ -13,6 +13,19 @@ final class MoverState {
 
     @Nullable Entity lastFloor;
 
+    /** Contacts reused by this mover's moves; the mover's list is valid until its next move. */
+    final java.util.List<dev.gulp.api.physics.Contact> contactPool = new java.util.ArrayList<>();
+
+    int contactsUsed;
+
+    dev.gulp.api.physics.Contact nextContact() {
+        if (contactsUsed == contactPool.size()) {
+            contactPool.add(new dev.gulp.api.physics.Contact(
+                    null, null, dev.gulp.api.math.Vec2.ZERO, dev.gulp.api.math.Vec2.ZERO));
+        }
+        return contactPool.get(contactsUsed++);
+    }
+
     float lastFloorX;
     float lastFloorY;
 

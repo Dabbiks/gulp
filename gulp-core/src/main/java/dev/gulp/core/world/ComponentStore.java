@@ -14,6 +14,9 @@ final class ComponentStore {
     final int order;
     Component[] items = new Component[8];
     EntityImpl[] owners = new EntityImpl[8];
+    /** Failed ticks in a row of each component; the third disables it. */
+    int[] errors = new int[8];
+
     int size;
 
     ComponentStore(Class<?> type, int tickOrder, int order) {
@@ -26,9 +29,11 @@ final class ComponentStore {
         if (size == items.length) {
             items = Arrays.copyOf(items, size * 2);
             owners = Arrays.copyOf(owners, size * 2);
+            errors = Arrays.copyOf(errors, size * 2);
         }
         items[size] = component;
         owners[size] = owner;
+        errors[size] = 0;
         return size++;
     }
 
@@ -38,6 +43,7 @@ final class ComponentStore {
         if (slot != last) {
             items[slot] = items[last];
             owners[slot] = owners[last];
+            errors[slot] = errors[last];
             owners[slot].setSlot(items[slot], slot);
         }
         items[last] = null;

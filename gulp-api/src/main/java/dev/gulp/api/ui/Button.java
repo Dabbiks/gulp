@@ -29,6 +29,7 @@ public final class Button extends Node<Button> {
     private @Nullable AssetKey<TextureRegion> iconKey;
     private @Nullable TextLayout layout;
     private @Nullable Style layoutStyle;
+    private int layoutRevision;
 
     /**
      * Creates a text button.
@@ -138,10 +139,11 @@ public final class Button extends Node<Button> {
         }
         Style style = style();
         TextLayout current = layout;
-        if (current == null || layoutStyle != style) {
+        if (current == null || layoutStyle != style || layoutRevision != textRevision()) {
             current = layoutText(text, style.textStyle(), TextBox.NONE);
             layout = current;
             layoutStyle = style;
+            layoutRevision = textRevision();
         }
         return current;
     }

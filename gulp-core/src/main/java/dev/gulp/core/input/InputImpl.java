@@ -96,6 +96,43 @@ public final class InputImpl implements Input, InputListener {
     private final boolean[] keyLatched = new boolean[KEYS];
     private final boolean[] keyFrameLatched = new boolean[KEYS];
     private @Nullable UiInput ui;
+    private @Nullable DebugHook debug;
+
+    /** The developer tools' share of raw input: F3 combinations and picking entities. */
+    public interface DebugHook {
+        /**
+         * Sees a key before the UI and the game.
+         *
+         * @param key the key
+         * @return {@code true} if the tools used it
+         */
+        boolean keyDown(KeyboardKey key);
+
+        /**
+         * Sees a released key.
+         *
+         * @param key the key
+         */
+        void keyUp(KeyboardKey key);
+
+        /**
+         * Sees a mouse press the UI did not use.
+         *
+         * @param button the button
+         * @return {@code true} if the tools used it
+         */
+        boolean mouseDown(MouseButton button);
+    }
+
+    /**
+     * Sets the developer tools' input hook.
+     *
+     * @param hook the hook, or {@code null}
+     */
+    public void setDebugHook(@Nullable DebugHook hook) {
+        this.debug = hook;
+    }
+
     private final boolean[] mouseDown = new boolean[BUTTONS];
     private final boolean[] mouseLatched = new boolean[BUTTONS];
     private final GamepadImpl[] pads = new GamepadImpl[GAMEPADS];
@@ -360,7 +397,10 @@ public final class InputImpl implements Input, InputListener {
         if (known) {
             keyFrameLatched[keyCode] = true;
         }
-        boolean consumed = running && handler != null && handler.keyPressed(Keys.of(keyCode), modifiers, false);
+        DebugHook tools = debug;
+        boolean consumed = running
+                && ((tools != null && tools.keyDown(Keys.of(keyCode)))
+                        || (handler != null && handler.keyPressed(Keys.of(keyCode), modifiers, false)));
         if (known) {
             if (consumed) {
                 suppress(Keys.of(keyCode));
@@ -413,6 +453,10 @@ public final class InputImpl implements Input, InputListener {
         if (keyCode > 0 && keyCode < KEYS) {
             keyDown[keyCode] = false;
         }
+        DebugHook tools = debug;
+        if (running && tools != null) {
+            tools.keyUp(Keys.of(keyCode));
+        }
         if (running && events.hasListeners(KeyReleaseEvent.class)) {
             events.call(new KeyReleaseEvent(Keys.of(keyCode), scanCode, modifiers));
         }
@@ -462,6 +506,10 @@ public final class InputImpl implements Input, InputListener {
         boolean consumed = running
                 && handler != null
                 && handler.mouseButton(mouse, down, logicalX(mouseX, mouseY), logicalY(mouseX, mouseY));
+        DebugHook tools = debug;
+        if (down && !consumed && running && tools != null) {
+            consumed = tools.mouseDown(mouse);
+        }
         if (down) {
             if (consumed) {
                 suppress(mouse);

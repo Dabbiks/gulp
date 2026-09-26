@@ -374,6 +374,19 @@ public final class ModuleManagerImpl implements ModuleManager {
         throw new IllegalArgumentException("No config for " + owner.getClass().getName());
     }
 
+    /**
+     * Returns the data of every declared module, for saves.
+     *
+     * @return data by module id, in declaration order
+     */
+    public Map<String, DataContainer> allData() {
+        Map<String, DataContainer> result = new LinkedHashMap<>();
+        for (Map.Entry<String, Entry> entry : byId.entrySet()) {
+            result.put(entry.getKey(), entry.getValue().data);
+        }
+        return result;
+    }
+
     @Override
     public DataContainer data(GameModule module) {
         Entry entry = byInstance.get(module);

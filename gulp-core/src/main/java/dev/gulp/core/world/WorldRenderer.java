@@ -2,6 +2,7 @@ package dev.gulp.core.world;
 
 import dev.gulp.api.ai.Steering;
 import dev.gulp.api.asset.AssetKey;
+import dev.gulp.api.debug.DebugFlag;
 import dev.gulp.api.entity.component.SpriteComponent;
 import dev.gulp.api.entity.component.WorldText;
 import dev.gulp.api.graphics.Color;
@@ -32,7 +33,6 @@ import java.util.HashMap;
 import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Consumer;
 import org.jspecify.annotations.Nullable;
 
 /**
@@ -48,10 +48,7 @@ final class WorldRenderer {
     private final float[] view = new float[4];
     private final LightRenderer lights = new LightRenderer();
     private EntityImpl[] sprites = new EntityImpl[64];
-    private EntityImpl[] sortScratch = new EntityImpl[64];
     private int spriteCount;
-    private @Nullable String collectLayer;
-    private final Consumer<EntityImpl> collector = this::collect;
     private int visualsVersion;
     private float time;
 
@@ -137,7 +134,7 @@ final class WorldRenderer {
         String name = layer.name();
         drawParallax(world, draw, name, camera);
         drawTiles(world, draw, name, camera);
-        drawSprites(world, draw, name, alpha);
+        drawSprites(world, draw, name, alpha, camera);
         world.particles.draw(draw, name, view);
     }
 
@@ -401,42 +398,134 @@ final class WorldRenderer {
 
     // ------------------------------------------------------------------ sprites
 
-    private void collect(EntityImpl entity) {
-        if (!entity.visible || entity.removed || !entity.layer.equals(collectLayer)) {
-            return;
-        }
-        SpriteComponent sprite = entity.component(SpriteComponent.class);
-        if (sprite == null || sprite.region() == null) {
-            return;
-        }
+    private void add(EntityImpl entity, SpriteComponent sprite) {
         if (spriteCount == sprites.length) {
-            sprites = Arrays.copyOf(sprites, spriteCount * 2);
+            int capacity = spriteCount * 2;
+            sprites = Arrays.copyOf(sprites, capacity);
+            spriteComponents = Arrays.copyOf(spriteComponents, capacity);
+            sortZ = Arrays.copyOf(sortZ, capacity);
+            sortY = Arrays.copyOf(sortY, capacity);
+            sortId = Arrays.copyOf(sortId, capacity);
+            order = Arrays.copyOf(order, capacity);
+            orderScratch = Arrays.copyOf(orderScratch, capacity);
         }
-        sprites[spriteCount++] = entity;
+        // Keys in primitive arrays: sorting compares numbers next to each other instead of chasing entities.
+        sprites[spriteCount] = entity;
+        spriteComponents[spriteCount] = sprite;
+        sortZ[spriteCount] = entity.zIndex;
+        sortY[spriteCount] = entity.y + entity.height / 2f;
+        sortId[spriteCount] = entity.runtimeId;
+        spriteCount++;
     }
 
-    private void drawSprites(WorldImpl world, DrawImpl draw, String name, float alpha) {
+    private SpriteComponent[] spriteComponents = new SpriteComponent[64];
+    private int[] sortZ = new int[64];
+    private float[] sortY = new float[64];
+    private int[] sortId = new int[64];
+    private int[] order = new int[64];
+    private int[] orderScratch = new int[64];
+
+    /** Counts frames, so the sprites are sorted into layers once per frame and camera; see {@link #bucket}. */
+    int frame;
+
+    private int bucketFrame = -1;
+    private @Nullable WorldImpl bucketWorld;
+    private @Nullable CameraImpl bucketCamera;
+    private final List<String> bucketNames = new ArrayList<>();
+    private int[][] buckets = new int[4][64];
+    private int[] bucketSizes = new int[4];
+
+    /**
+     * Sorts the visible sprites into their layers with one pass over the sprite store: drawing each layer then walks
+     * only its own sprites instead of all of them. Sprites can reach past their bounds; the view is widened a little.
+     */
+    private void bucket(WorldImpl world, ComponentStore store) {
+        java.util.Arrays.fill(bucketSizes, 0);
+        float minX = view[0] - 4f;
+        float minY = view[1] - 4f;
+        float maxX = view[2] + 4f;
+        float maxY = view[3] + 4f;
+        String lastName = null;
+        int lastLayer = -1;
+        for (int s = 0; s < store.size; s++) {
+            EntityImpl entity = store.owners[s];
+            float hw = entity.width / 2f;
+            float hh = entity.height / 2f;
+            if (entity.x + hw < minX || entity.x - hw > maxX || entity.y + hh < minY || entity.y - hh > maxY) {
+                continue;
+            }
+            if (!entity.visible || entity.removed || ((SpriteComponent) store.items[s]).region() == null) {
+                continue;
+            }
+            String name = entity.layer;
+            int layer;
+            if (name == lastName) {
+                layer = lastLayer;
+            } else {
+                layer = bucketNames.indexOf(name);
+                if (layer < 0) {
+                    layer = bucketNames.size();
+                    bucketNames.add(name);
+                    if (layer == buckets.length) {
+                        buckets = Arrays.copyOf(buckets, layer * 2);
+                        bucketSizes = Arrays.copyOf(bucketSizes, layer * 2);
+                    }
+                    buckets[layer] = new int[64];
+                }
+                lastName = name;
+                lastLayer = layer;
+            }
+            int[] indices = buckets[layer];
+            if (bucketSizes[layer] == indices.length) {
+                indices = Arrays.copyOf(indices, indices.length * 2);
+                buckets[layer] = indices;
+            }
+            indices[bucketSizes[layer]++] = s;
+        }
+    }
+
+    private void drawSprites(WorldImpl world, DrawImpl draw, String name, float alpha, CameraImpl camera) {
         ComponentStore store = world.store(SpriteComponent.class);
         if (store == null || store.size == 0) {
             return;
         }
+        int previousCount = spriteCount;
         spriteCount = 0;
-        collectLayer = name;
-        // Sprites can reach past their bounds; widen the view a little.
-        world.grid.query(view[0] - 4f, view[1] - 4f, view[2] + 4f, view[3] + 4f, collector);
-        collectLayer = null;
+        if (bucketFrame != frame || bucketWorld != world || bucketCamera != camera) {
+            bucket(world, store);
+            bucketFrame = frame;
+            bucketWorld = world;
+            bucketCamera = camera;
+        }
+        int layer = bucketNames.indexOf(name);
+        if (layer >= 0) {
+            int[] indices = buckets[layer];
+            for (int i = 0; i < bucketSizes[layer]; i++) {
+                int s = indices[i];
+                // The store may have changed since bucketing (spawns during rendering); skip what moved away.
+                if (s < store.size && store.owners[s].layer.equals(name)) {
+                    add(store.owners[s], (SpriteComponent) store.items[s]);
+                }
+            }
+        }
         if (spriteCount == 0) {
             return;
+        }
+        if (spriteCount != previousCount) {
+            // Otherwise last frame's order is the starting point: unchanged scenes sort in one pass.
+            for (int i = 0; i < spriteCount; i++) {
+                order[i] = i;
+            }
         }
         sort(spriteCount);
         int tileSize = world.settings().tileSize();
         Material material = Material.DEFAULT;
         Color effect = Color.CLEAR;
-        for (int i = 0; i < spriteCount; i++) {
+        for (int n = 0; n < spriteCount; n++) {
+            int i = order[n];
             EntityImpl entity = sprites[i];
-            sprites[i] = null;
-            SpriteComponent sprite = entity.component(SpriteComponent.class);
-            TextureRegion region = sprite == null ? null : sprite.region();
+            SpriteComponent sprite = spriteComponents[i];
+            TextureRegion region = sprite.region();
             if (region == null) {
                 continue;
             }
@@ -478,7 +567,7 @@ final class WorldRenderer {
                 material = sprite.material();
                 draw.material(material);
             }
-            if (!sprite.effect().equals(effect)) {
+            if (sprite.effect() != effect && !sprite.effect().equals(effect)) {
                 effect = sprite.effect();
                 draw.effect(effect);
             }
@@ -492,6 +581,9 @@ final class WorldRenderer {
                     y - top - offsetY,
                     entity.renderRotation(alpha));
         }
+        // Drop the references so removed entities are not kept alive until the next frame.
+        Arrays.fill(sprites, 0, spriteCount, null);
+        Arrays.fill(spriteComponents, 0, spriteCount, null);
         draw.color(Color.WHITE);
         if (material != Material.DEFAULT) {
             draw.material(Material.DEFAULT);
@@ -501,46 +593,47 @@ final class WorldRenderer {
         }
     }
 
-    /** Stable merge sort by z-index, then y, then spawn order; no allocation after warm-up. */
+    /** Stable merge sort of {@link #order} by z-index, then y, then spawn order; no allocation after warm-up. */
     private void sort(int count) {
-        if (sortScratch.length < count) {
-            sortScratch = new EntityImpl[sprites.length];
-        }
+        int[] from = order;
+        int[] to = orderScratch;
         for (int width = 1; width < count; width *= 2) {
             for (int start = 0; start < count; start += width * 2) {
                 int middle = Math.min(start + width, count);
                 int end = Math.min(start + width * 2, count);
-                if (middle >= end || !before(sprites[middle], sprites[middle - 1])) {
+                if (middle >= end || !before(from[middle], from[middle - 1])) {
+                    System.arraycopy(from, start, to, start, end - start);
                     continue;
                 }
                 int i = start;
                 int j = middle;
                 int k = start;
                 while (i < middle && j < end) {
-                    sortScratch[k++] = before(sprites[j], sprites[i]) ? sprites[j++] : sprites[i++];
+                    to[k++] = before(from[j], from[i]) ? from[j++] : from[i++];
                 }
                 while (i < middle) {
-                    sortScratch[k++] = sprites[i++];
+                    to[k++] = from[i++];
                 }
                 while (j < end) {
-                    sortScratch[k++] = sprites[j++];
+                    to[k++] = from[j++];
                 }
-                System.arraycopy(sortScratch, start, sprites, start, end - start);
             }
+            int[] swap = from;
+            from = to;
+            to = swap;
         }
-        Arrays.fill(sortScratch, 0, count, null);
+        order = from;
+        orderScratch = to;
     }
 
-    private static boolean before(EntityImpl a, EntityImpl b) {
-        if (a.zIndex != b.zIndex) {
-            return a.zIndex < b.zIndex;
+    private boolean before(int a, int b) {
+        if (sortZ[a] != sortZ[b]) {
+            return sortZ[a] < sortZ[b];
         }
-        float ay = a.y + a.height / 2f;
-        float by = b.y + b.height / 2f;
-        if (ay != by) {
-            return ay < by;
+        if (sortY[a] != sortY[b]) {
+            return sortY[a] < sortY[b];
         }
-        return a.runtimeId < b.runtimeId;
+        return sortId[a] < sortId[b];
     }
 
     // ------------------------------------------------------------------ overlay
@@ -581,23 +674,26 @@ final class WorldRenderer {
         camera.viewBounds(view);
         Rect visible = new Rect(view[0], view[1], view[2] - view[0], view[3] - view[1]);
         float line = pixel * 1.5f;
+        dev.gulp.core.debug.DebugImpl tools = world.worlds.context.debug();
+        boolean collision = tools.isOn(DebugFlag.COLLISION);
+        boolean navigation = tools.isOn(DebugFlag.NAVIGATION);
         int what = 0;
-        if (world.isDebugShown(DebugView.SHAPES)) {
+        if (collision || world.isDebugShown(DebugView.SHAPES)) {
             what |= PhysicsWorld.SHAPES;
         }
-        if (world.isDebugShown(DebugView.CONTACTS)) {
+        if (collision || world.isDebugShown(DebugView.CONTACTS)) {
             what |= PhysicsWorld.CONTACTS;
         }
-        if (world.isDebugShown(DebugView.JOINTS)) {
+        if (collision || world.isDebugShown(DebugView.JOINTS)) {
             what |= PhysicsWorld.JOINTS;
         }
-        if (world.isDebugShown(DebugView.TRIGGERS)) {
+        if (collision || world.isDebugShown(DebugView.TRIGGERS)) {
             what |= PhysicsWorld.TRIGGERS;
         }
         if (what != 0) {
             world.physics.debugDraw(draw, what, visible, line);
         }
-        if (world.isDebugShown(DebugView.NAVIGATION)) {
+        if (navigation || world.isDebugShown(DebugView.NAVIGATION)) {
             int x0 = (int) Math.floor(view[0]);
             int y0 = (int) Math.floor(view[1]);
             int x1 = Math.min((int) Math.floor(view[2]), x0 + 256);
@@ -613,7 +709,7 @@ final class WorldRenderer {
                 }
             }
         }
-        if (world.isDebugShown(DebugView.PATHS)) {
+        if (navigation || world.isDebugShown(DebugView.PATHS)) {
             draw.color(PATH);
             ComponentStore agents = world.store(NavAgent.class);
             if (agents != null) {
@@ -628,7 +724,7 @@ final class WorldRenderer {
                 }
             }
         }
-        if (world.isDebugShown(DebugView.STEERING)) {
+        if (navigation || world.isDebugShown(DebugView.STEERING)) {
             ComponentStore steering = world.store(Steering.class);
             if (steering != null) {
                 for (int i = 0; i < steering.size; i++) {
@@ -641,7 +737,41 @@ final class WorldRenderer {
                 }
             }
         }
+        if (tools.isOn(DebugFlag.CHUNKS) || world.isDebugShown(DebugView.CHUNKS)) {
+            drawChunks(world, draw, pixel);
+        }
+        if (tools.isOn(DebugFlag.LIGHTS) || world.isDebugShown(DebugView.LIGHTS)) {
+            draw.color(LIGHT);
+            List<dev.gulp.api.render.Light> lights = world.lighting.lights;
+            for (int i = 0; i < lights.size(); i++) {
+                dev.gulp.api.render.Light light = lights.get(i);
+                Vec2 at = light.position();
+                draw.circleOutline(at.x(), at.y(), light.radius(), line);
+                draw.circle(at.x(), at.y(), pixel * 3f);
+            }
+        }
+        if (tools.isEnabled()) {
+            tools.drawWorld(draw, pixel);
+        }
         draw.color(Color.WHITE);
+    }
+
+    private static final Color CHUNK = Color.rgba(0x4fc3f7aa);
+    private static final Color LIGHT = Color.rgba(0xffee58cc);
+
+    /** Draws the borders of loaded chunks with their coordinates. */
+    private static void drawChunks(WorldImpl world, DrawImpl draw, float pixel) {
+        draw.color(CHUNK);
+        List<ChunkImpl> chunks = world.tileMap.loaded;
+        dev.gulp.api.text.TextStyle label =
+                dev.gulp.api.text.TextStyle.of(pixel * 10f).color(CHUNK);
+        for (int i = 0; i < chunks.size(); i++) {
+            ChunkImpl chunk = chunks.get(i);
+            float x = chunk.cx * (float) dev.gulp.api.world.Chunk.SIZE;
+            float y = chunk.cy * (float) dev.gulp.api.world.Chunk.SIZE;
+            draw.rectOutline(x, y, dev.gulp.api.world.Chunk.SIZE, dev.gulp.api.world.Chunk.SIZE, pixel);
+            draw.text(chunk.cx + "," + chunk.cy, x + pixel * 3f, y + pixel * 3f, label);
+        }
     }
 
     private static void polyline(DrawImpl draw, Path path, float line) {

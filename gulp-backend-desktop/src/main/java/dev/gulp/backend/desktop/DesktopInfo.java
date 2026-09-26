@@ -92,4 +92,15 @@ public final class DesktopInfo implements PlatformInfo {
     public String gpuDescription() {
         return gl.getString(Gl.RENDERER) + " / OpenGL " + gl.getString(Gl.VERSION);
     }
+
+    @Override
+    public long memoryUsed() {
+        Runtime runtime = Runtime.getRuntime();
+        return runtime.totalMemory() - runtime.freeMemory();
+    }
+
+    @Override
+    public long memoryMax() {
+        return Runtime.getRuntime().maxMemory();
+    }
 }

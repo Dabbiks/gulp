@@ -12,6 +12,7 @@ import java.util.List;
  * msdf   &lt;font.ttf&gt; &lt;outputDir&gt; &lt;name&gt; [emSize=40] [range=4]
  * bitmap &lt;font.ttf&gt; &lt;outputDir&gt; &lt;name&gt; &lt;size&gt; [aa=true]
  * atlas  &lt;imagesDir&gt; &lt;outputDir&gt; &lt;name&gt; [pageSize=2048] [padding=2]
+ * new    &lt;gulpHome&gt; &lt;projectDir&gt; &lt;package&gt; &lt;title&gt;
  * </pre>
  */
 public final class GulpTools {
@@ -58,6 +59,13 @@ public final class GulpTools {
                 int count = AtlasTool.pack(input, output, name, intArg(rest, 0, 2048), intArg(rest, 1, 2));
                 System.out.println("Atlas " + name + ": " + count + " regions");
             }
+            case "new" -> {
+                String main =
+                        NewProject.create(input, output, name, rest.isEmpty() ? "My Game" : String.join(" ", rest));
+                System.out.println("Created " + output.toAbsolutePath().normalize() + " with " + main);
+                System.out.println("Next: cd " + output + " and ./gradlew runDesktop (or runWeb, packageDesktop,"
+                        + " packageWeb)");
+            }
             default -> usage();
         }
     }
@@ -71,6 +79,7 @@ public final class GulpTools {
                 Usage:
                   msdf   <font.ttf> <outputDir> <name> [emSize=40] [range=4]
                   bitmap <font.ttf> <outputDir> <name> <size> [antialias=true]
-                  atlas  <imagesDir> <outputDir> <name> [pageSize=2048] [padding=2]""");
+                  atlas  <imagesDir> <outputDir> <name> [pageSize=2048] [padding=2]
+                  new    <gulpHome> <projectDir> <package> <title...>""");
     }
 }

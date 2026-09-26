@@ -49,6 +49,7 @@ public final class EnemyModule extends GameModule {
                                 .size(3f, 0.5f)
                                 .component(() -> new SpriteComponent(GameAssets.Sprites.LIFT))
                                 .component(() -> new Collider().oneWay(true))
+                                .persistent(false)
                                 .build());
     }
 

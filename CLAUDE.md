@@ -43,6 +43,10 @@
 ./gradlew :examples:showcase:packAssets   # atlasy z folderów sprites/ i fonty z gulp { assets { ... } }
 ./gradlew :gulp-tools:generateDefaultFont # odświeża wbudowany font MSDF w gulp-core
 ./gradlew :gulp-core:test --tests "dev.gulp.core.milestone.MilestoneTest"
+./gradlew :examples:bench:bench           # budżety wydajności bez okna (-Pgulp.bench.slack=2 na wolnych maszynach)
+./gradlew :examples:bench:runDesktop -Pgulp.bench   # sceny wydajnościowe w oknie, linie BENCH w logu
+./gradlew :examples:platformer:packageDesktop       # instalator/app-image dla bieżącego systemu (jlink + jpackage)
+./gradlew :gulp-tools:newGame -Pdir=../moja-gra -Ppackage=com.example.gra -Ptitle="Moja Gra"   # projekt z szablonu
 ```
 
 Testy gier bez okna: `HeadlessRunner.start(game)` z `gulp-backend-headless`, potem `step(1)` (start gry) i `step(n)` (n ticków przy 60 TPS); zawsze `stop()` na końcu, bo w procesie może działać tylko jeden silnik. `GameTestHarness` z `gulp-test` przyjdzie później.
@@ -62,6 +66,8 @@ Moduły, listenery (`@EventHandler`) i `@Serializable` wymagają `gulp-processor
 | `gulp-gradle-plugin` | plugin `dev.gulp.game` — osobny included build (ADR 0008); główne `check` i `spotlessApply` go obejmują |
 | `examples/showcase` | przykład każdej funkcji |
 | `examples/ui-gallery` | wszystkie kontenery i widgety UI, obsługa samym padem |
+| `examples/bench` | sceny wydajnościowe i testy budżetów z sekcji 20.5 |
+| `templates/game` | szablon nowego projektu gry (`:gulp-tools:newGame`) |
 | `examples/topdown`, `examples/platformer`, `examples/sandbox` | gry przykładowe (świat z szumu i wrogowie z nawigacją, poziomy LDtk z fizyką kinematyczną, piaskownica brył sztywnych) |
 
 Web: kod w `gulp-backend-web` rozmawia z przeglądarką tylko przez `@JSBody` wołające `gulp-runtime.js` (prymitywy, napisy, `ArrayBuffer`); `Int8Array.fromJavaArray` nie działa w Wasm GC — używaj `copyFromJavaArray`. Po zmianach w backendzie web uruchom `webSmokeTest`.
@@ -77,3 +83,7 @@ Fizyka, nawigacja i AI: `world.physics()` i `world.navGrid()`. Komponenty (`Coll
 UI: `import static dev.gulp.api.ui.Ui.*` daje fabryki kontenerów i widgetów, `ui()` ekrany (`open`, `push`, `pop`), `hud()`, `overlay()` i `toast`. Węzły to `Node<N>` z logiką w `gulp-api` (pomiar, rozmieszczenie, rysowanie, wejście), a rdzeń (`gulp-core/ui/UiImpl`) prowadzi warstwy, fokus i routing wejścia przez SPI `UiAccess`. Kod gry nie podaje współrzędnych, tylko flagi, kotwice i odstępy. UI dostaje wejście przed grą; akcje `gulp:ui_*` czyta co klatkę. Testy bez okna: `UiFixture` w `gulp-core/src/test` (kliknięcia, klawisze, pad). Galeria: `examples/ui-gallery`. Szczegóły: ADR 0015.
 
 Animacje i efekty: tweeny i timeline'y biegną co klatkę w czasie gry (z `realtime()` w rzeczywistym) przez SPI `AnimationAccess`; `Animator` liczy klatki w tickach. Cząsteczki, światło i łańcuch `postEffects()` należą do świata; efekty z `particles/*.json` i animacje z `animations/*.json` (eksport Aseprite) mają klucze w `GameAssets`. Materiały gotowe (`Materials.*`) czytają kolor i ilość z `Draw.effect(Color)` (4 bajty `a_params` w wierzchołku batchera). Testy bez okna: `JuiceFixture` w `gulp-core/src/test`; assety ekranu „juice” generuje `py examples/showcase/juice-src/generate_juice.py`. Szczegóły: ADR 0013.
+
+Zapisy, preferencje, lokalizacja i sieć: `saves().slot(...)` zapisuje trwałe światy (regiony 32 × 32 chunki), trwałe encje, dane modułów i pola `@Save` komponentów z `@ComponentInfo` (procesor generuje `ComponentState`). Format `Tags` z własnym `Deflate` (bez `java.util.zip`). Własne dane gry przez `GameSaveEvent` / `GameLoadEvent`; migracje `saves().migration(n, ...)`. Silnik trzyma w `preferences()` klucze `gulp.locale`, `gulp.window.*`, `gulp.ui.scale`. `tr` obsługuje podzbiór ICU (`MessageFormat`, `PluralRules`). `http()` i `http().connect(url)`; w testach headless `backend.net().respond/fail/hang` i `backend.files().offered/putPickable`. Szczegóły: ADR 0016.
+
+Jakość i narzędzia: `debug()` (F3, F3 + C/N/G/L/U/E, `draw()`, `profiler()`, `stats()`), `/debug` i `/profile`. Rdzeń trzyma zero alokacji na klatkę — pilnuje tego `AllocationTest` (mediana okien < 16 B/klatkę); przy nowym kodzie w pętlach używaj indeksów, pól zamiast przechwytujących lambd i pul obiektów. Brakujące tekstury, regiony, dźwięki i fonty dostają zastępniki. Komponent jest wyłączany po 3 błędach `onTick` z rzędu. Błąd fatalny kończy się raportem (`PlatformLog.crash`) i ekranem błędu. Web odtwarza zasoby GPU po utracie kontekstu (`GlJournal`) — nowe wywołania GL w `WebGl` muszą trafić do dziennika. Gra może używać tylko `dev.gulp.api` (`checkApiUsage` w `check`). Szczegóły: ADR 0017.

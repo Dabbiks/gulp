@@ -23,6 +23,7 @@ public abstract class CheckControl<N extends CheckControl<N>> extends Node<N> {
     private boolean checked;
     private @Nullable TextLayout layout;
     private @Nullable Style layoutStyle;
+    private int layoutRevision;
 
     CheckControl(String label) {
         this.text = Text.of(label);
@@ -135,10 +136,11 @@ public abstract class CheckControl<N extends CheckControl<N>> extends Node<N> {
         }
         Style style = style();
         TextLayout current = layout;
-        if (current == null || layoutStyle != style) {
+        if (current == null || layoutStyle != style || layoutRevision != textRevision()) {
             current = layoutText(text, style.textStyle(), TextBox.NONE);
             layout = current;
             layoutStyle = style;
+            layoutRevision = textRevision();
         }
         return current;
     }

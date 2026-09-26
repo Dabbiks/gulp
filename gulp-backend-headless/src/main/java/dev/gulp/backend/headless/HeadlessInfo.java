@@ -63,4 +63,15 @@ public final class HeadlessInfo implements PlatformInfo {
     public String gpuDescription() {
         return "none (headless)";
     }
+
+    @Override
+    public long memoryUsed() {
+        Runtime runtime = Runtime.getRuntime();
+        return runtime.totalMemory() - runtime.freeMemory();
+    }
+
+    @Override
+    public long memoryMax() {
+        return Runtime.getRuntime().maxMemory();
+    }
 }

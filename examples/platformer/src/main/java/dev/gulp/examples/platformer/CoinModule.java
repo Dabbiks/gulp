@@ -53,6 +53,9 @@ public final class CoinModule extends GameModule {
                     .start();
             State<Integer> coins = require(HudModule.class).coins();
             coins.set(coins.get() + 1);
+            if (saves().autosaveSlot() != null && !saves().isBusy()) {
+                saves().slot(PlatformerGame.SLOT).save();
+            }
         });
     }
 }

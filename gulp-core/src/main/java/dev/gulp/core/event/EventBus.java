@@ -153,6 +153,8 @@ public final class EventBus implements Events {
         if (handler.ignoreCancelled && cancelledBefore) {
             return;
         }
+        dev.gulp.core.debug.ProfilerImpl profiler = context.profiler();
+        long started = profiler.running ? profiler.begin() : 0L;
         try {
             handler.action.accept(event);
         } catch (Throwable error) {
@@ -160,6 +162,9 @@ public final class EventBus implements Events {
                     .error(
                             "Unhandled exception in handler of " + event.eventName() + " (" + handler.owner.id() + ")",
                             error);
+        }
+        if (started != 0L) {
+            profiler.endListener(handler, event.eventName(), handler.owner, started);
         }
         if (cancellable != null
                 && handler.priority == EventPriority.MONITOR.ordinal()

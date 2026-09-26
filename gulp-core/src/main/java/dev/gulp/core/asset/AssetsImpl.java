@@ -335,7 +335,36 @@ public final class AssetsImpl implements Assets {
         entry.promise.complete(value);
     }
 
-    private void fail(Entry<?> entry, Throwable error) {
+    private java.util.function.@Nullable Function<AssetType<?>, @Nullable Object> placeholders;
+
+    /**
+     * Sets the placeholders of failed loads (section 20.3): a missing texture draws as a magenta checkerboard, a
+     * missing sound is silent and a missing font falls back to the default one, with a warning instead of a failure.
+     *
+     * @param provider the placeholder of a type, or {@code null} when the type has none
+     */
+    public void setPlaceholders(java.util.function.Function<AssetType<?>, @Nullable Object> provider) {
+        this.placeholders = provider;
+    }
+
+    @SuppressWarnings("unchecked")
+    private <T> void fail(Entry<T> entry, Throwable error) {
+        java.util.function.Function<AssetType<?>, @Nullable Object> provider = placeholders;
+        Object placeholder = provider == null || entry.released ? null : provider.apply(entry.key.type());
+        if (placeholder != null) {
+            pending--;
+            finished++;
+            releaseDependencies(entry);
+            logger.warn("Cannot load asset " + entry.key + ": " + error.getMessage() + "; using a placeholder");
+            if (events.hasListeners(AssetLoadFailedEvent.class)) {
+                events.call(new AssetLoadFailedEvent(entry.key, error));
+            }
+            entry.value = (T) placeholder;
+            entry.loaded = true;
+            entry.placeholder = true;
+            entry.promise.complete((T) placeholder);
+            return;
+        }
         pending--;
         finished++;
         entry.error = error;
@@ -524,7 +553,7 @@ public final class AssetsImpl implements Assets {
         @SuppressWarnings("unchecked")
         AssetLoader<T> loader = (AssetLoader<T>) loaders.get(entry.key.type());
         T value = entry.value;
-        if (loader != null && value != null) {
+        if (loader != null && value != null && !entry.placeholder) {
             try {
                 loader.dispose(value);
             } catch (Throwable error) {
@@ -816,9 +845,10 @@ public final class AssetsImpl implements Assets {
                 atlas.replace(fresh.regionMap(), fresh.pages(), freshOwned(fresh));
             } else {
                 entry.value = value;
-                if (previous != null && previous != value) {
+                if (previous != null && previous != value && !entry.placeholder) {
                     loader.dispose(previous);
                 }
+                entry.placeholder = false;
             }
             for (AssetKey<?> dependency : previousDependencies) {
                 unload(dependency);
@@ -913,6 +943,8 @@ public final class AssetsImpl implements Assets {
 
         boolean loaded;
         boolean released;
+        /** The value is a shared placeholder for a failed load; it is never disposed. */
+        boolean placeholder;
 
         @Nullable String path;
 

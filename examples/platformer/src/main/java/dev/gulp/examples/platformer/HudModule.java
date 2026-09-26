@@ -2,10 +2,13 @@ package dev.gulp.examples.platformer;
 
 import static dev.gulp.api.ui.Ui.*;
 
+import dev.gulp.api.data.DataType;
 import dev.gulp.api.entity.Entity;
 import dev.gulp.api.entity.component.Health;
 import dev.gulp.api.module.GameModule;
 import dev.gulp.api.module.ModuleInfo;
+import dev.gulp.api.save.GameLoadEvent;
+import dev.gulp.api.save.GameSaveEvent;
 import dev.gulp.api.ui.Align;
 import dev.gulp.api.ui.Anchor;
 import dev.gulp.api.ui.Computed;
@@ -44,6 +47,8 @@ public final class HudModule extends GameModule {
                                 .anchor(Anchor.TOP_LEFT)
                                 .offset(4, 4));
         every(10, this::refresh);
+        on(GameSaveEvent.class, e -> e.data().set(key("coins"), DataType.INT, coins.get()));
+        on(GameLoadEvent.class, e -> coins.set(e.data().getOrDefault(key("coins"), DataType.INT, 0)));
     }
 
     private void refresh() {

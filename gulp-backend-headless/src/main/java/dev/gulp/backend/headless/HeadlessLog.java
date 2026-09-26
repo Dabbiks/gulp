@@ -48,6 +48,28 @@ public final class HeadlessLog implements PlatformLog {
      *
      * @return a copy, oldest first
      */
+    private final List<String> crashReports = new ArrayList<>();
+
+    @Override
+    public synchronized String crash(String name, String report) {
+        crashReports.add(report);
+        System.err.println(report);
+        return "memory:" + name;
+    }
+
+    /**
+     * Returns the crash reports written so far.
+     *
+     * <pre>{@code
+     * assertThat(backend.log().crashReports()).isEmpty();
+     * }</pre>
+     *
+     * @return the reports, oldest first
+     */
+    public synchronized List<String> crashReports() {
+        return List.copyOf(crashReports);
+    }
+
     public synchronized List<Entry> entries() {
         return List.copyOf(entries);
     }

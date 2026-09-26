@@ -38,9 +38,7 @@ import dev.gulp.api.world.TileType;
 import dev.gulp.core.util.LongObjectMap;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.IdentityHashMap;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
@@ -71,7 +69,7 @@ public final class PhysicsWorld implements Physics {
     private final List<TriggerState> triggers = new ArrayList<>();
     private final Map<Trigger, TriggerState> triggerByComponent = new IdentityHashMap<>();
     private final List<Joints.JointImpl> joints = new ArrayList<>();
-    private final Map<ContactKey, ContactConstraint> contacts = new HashMap<>();
+    private final ContactTable contacts = new ContactTable();
     private final List<ContactConstraint> active = new ArrayList<>();
     private final Map<TileShape, List<@Nullable List<Convex>>> tileCache = new IdentityHashMap<>();
     private final MoverSolver movers = new MoverSolver(this);
@@ -79,7 +77,6 @@ public final class PhysicsWorld implements Physics {
     private Vec2 gravity;
     private int subSteps = 4;
 
-    private final ContactKey probe = new ContactKey();
     private final List<Proxy> candidates = new ArrayList<>();
     private final Consumer<Proxy> collect = candidates::add;
     private final List<Placed> placedA = new ArrayList<>();
@@ -220,11 +217,8 @@ public final class PhysicsWorld implements Physics {
             proxies.remove(proxy.entity);
             bySerial.remove(proxy.serial);
             proxyList.remove(proxy);
-            for (Iterator<ContactConstraint> it = contacts.values().iterator(); it.hasNext(); ) {
-                if (it.next().other == proxy) {
-                    it.remove();
-                }
-            }
+            Proxy removed = proxy;
+            contacts.removeIf(c -> c.other == removed);
         } else {
             proxy.refresh();
         }
@@ -242,7 +236,7 @@ public final class PhysicsWorld implements Physics {
     }
 
     private void dropContacts(BodySim sim) {
-        contacts.values().removeIf(c -> c.a == sim || c.b == sim);
+        contacts.removeIf(c -> c.a == sim || c.b == sim);
     }
 
     void bodyChanged(BodySim sim) {
@@ -421,11 +415,12 @@ public final class PhysicsWorld implements Physics {
     }
 
     private final List<Proxy> nearby = new ArrayList<>();
+    private final java.util.function.Consumer<Proxy> addNearby = nearby::add;
 
     private void wakeAround(Proxy proxy, float reach) {
         nearby.clear();
         float m = Collide.SPECULATIVE + reach;
-        broadphase.query(proxy.minX - m, proxy.minY - m, proxy.maxX + m, proxy.maxY + m, nearby::add);
+        broadphase.query(proxy.minX - m, proxy.minY - m, proxy.maxX + m, proxy.maxY + m, addNearby);
         for (int i = 0; i < nearby.size(); i++) {
             BodySim other = nearby.get(i).body;
             if (other != null && other.isDynamic() && !other.awake && nearby.get(i) != proxy) {
@@ -435,7 +430,8 @@ public final class PhysicsWorld implements Physics {
     }
 
     private void updateContacts(float dt) {
-        for (ContactConstraint c : contacts.values()) {
+        for (int ci1 = 0; ci1 < contacts.size(); ci1++) {
+            ContactConstraint c = contacts.get(ci1);
             c.seen = false;
             c.wasTouching = c.touching;
             c.disabled = false;
@@ -498,12 +494,12 @@ public final class PhysicsWorld implements Physics {
                         (int) Math.floor(minY - margin),
                         (int) Math.floor(maxX + margin),
                         (int) Math.floor(maxY + margin),
-                        this::bodyTile);
+                        bodyTileVisitor);
             }
         }
         // Contacts of sleeping bodies stay as they were; the rest disappear when no longer found.
-        for (Iterator<ContactConstraint> it = contacts.values().iterator(); it.hasNext(); ) {
-            ContactConstraint c = it.next();
+        for (int i = contacts.size() - 1; i >= 0; i--) {
+            ContactConstraint c = contacts.get(i);
             if (c.seen) {
                 continue;
             }
@@ -515,12 +511,13 @@ public final class PhysicsWorld implements Physics {
             if (c.touching) {
                 fireEnd(c);
             }
-            it.remove();
+            contacts.removeAt(i);
         }
         active.clear();
         var events = host.events();
         boolean pre = events.hasListeners(PreCollideEvent.class);
-        for (ContactConstraint c : contacts.values()) {
+        for (int ci2 = 0; ci2 < contacts.size(); ci2++) {
+            ContactConstraint c = contacts.get(ci2);
             c.touching = c.count > 0 && c.minSeparation() < Collide.SLOP;
             if (!c.a.awake && (c.b == null || !c.b.awake)) {
                 continue;
@@ -545,6 +542,8 @@ public final class PhysicsWorld implements Physics {
 
     private BodySim tileBody;
     private float tileMargin;
+
+    private final PhysicsHost.TileVisitor bodyTileVisitor = this::bodyTile;
 
     private void bodyTile(int tx, int ty, TileType type, int flags) {
         BodySim body = tileBody;
@@ -594,15 +593,10 @@ public final class PhysicsWorld implements Physics {
     }
 
     private ContactConstraint constraint(BodySim a, @Nullable Proxy other, int tx, int ty, int pa, int pb) {
-        probe.a = a.proxy.serial;
-        probe.other = other != null ? other.serial : tileKey(tx, ty);
-        probe.pieceA = pa;
-        probe.pieceB = pb;
-        ContactConstraint c = contacts.get(probe);
+        long otherKey = other != null ? other.serial : tileKey(tx, ty);
+        ContactConstraint c = contacts.find(a.proxy.serial, otherKey, pa, pb);
         if (c == null) {
-            BodySim otherBody = other != null ? other.body : null;
-            c = new ContactConstraint(a, otherBody, other, tx, ty, pa, pb);
-            contacts.put(probe.copy(), c);
+            c = contacts.obtain(a, other != null ? other.body : null, other, tx, ty, pa, pb);
         }
         return c;
     }
@@ -704,8 +698,8 @@ public final class PhysicsWorld implements Physics {
                 frictionB = 0.6f;
                 Mover mover = other.mover;
                 if (mover != null) {
-                    c.otherVx = mover.velocity().x();
-                    c.otherVy = mover.velocity().y();
+                    c.otherVx = mover.velocityX();
+                    c.otherVy = mover.velocityY();
                 }
             } else {
                 frictionB = c.friction > 0f ? c.friction : 0.6f;
@@ -1003,7 +997,8 @@ public final class PhysicsWorld implements Physics {
             b.island = b.onFloor ? 1 : 0;
             b.onFloor = false;
         }
-        for (ContactConstraint c : contacts.values()) {
+        for (int ci3 = 0; ci3 < contacts.size(); ci3++) {
+            ContactConstraint c = contacts.get(ci3);
             if (!c.touching || c.disabled) {
                 if (c.wasTouching && !c.touching) {
                     fireEnd(c);
@@ -1077,13 +1072,15 @@ public final class PhysicsWorld implements Physics {
             boolean still = b.vx * b.vx + b.vy * b.vy <= LINEAR_SLEEP * LINEAR_SLEEP && Math.abs(b.w) <= ANGULAR_SLEEP;
             b.sleepTime = still && b.body.isSleepingAllowed() ? b.sleepTime + dt : 0f;
         }
-        for (ContactConstraint c : contacts.values()) {
+        for (int ci4 = 0; ci4 < contacts.size(); ci4++) {
+            ContactConstraint c = contacts.get(ci4);
             BodySim b = c.b;
             if (c.touching && b != null && b.isDynamic() && c.a.awake && b.awake) {
                 union(c.a.island, b.island);
             }
         }
-        for (Joints.JointImpl joint : joints) {
+        for (int ji = 0; ji < joints.size(); ji++) {
+            Joints.JointImpl joint = joints.get(ji);
             BodySim a = joint.a;
             if (a != null && a.isDynamic() && joint.b.isDynamic()) {
                 if (a.awake != joint.b.awake) {
@@ -1177,7 +1174,9 @@ public final class PhysicsWorld implements Physics {
     private void updateTriggers() {
         var events = host.events();
         triggerSnapshot.clear();
-        triggerSnapshot.addAll(triggers);
+        for (int i = 0; i < triggers.size(); i++) {
+            triggerSnapshot.add(triggers.get(i));
+        }
         for (int t = 0; t < triggerSnapshot.size(); t++) {
             TriggerState state = triggerSnapshot.get(t);
             if (triggerByComponent.get(state.trigger) != state) {
@@ -1686,7 +1685,7 @@ public final class PhysicsWorld implements Physics {
     }
 
     private void dropContactsBetween(BodySim a, BodySim b) {
-        contacts.values().removeIf(c -> (c.a == a && c.b == b) || (c.a == b && c.b == a));
+        contacts.removeIf(c -> (c.a == a && c.b == b) || (c.a == b && c.b == a));
     }
 
     @Override
@@ -1736,7 +1735,8 @@ public final class PhysicsWorld implements Physics {
     @Override
     public List<Joint> joints() {
         List<Joint> result = new ArrayList<>(joints.size());
-        for (Joints.JointImpl joint : joints) {
+        for (int ji = 0; ji < joints.size(); ji++) {
+            Joints.JointImpl joint = joints.get(ji);
             result.add((Joint) joint);
         }
         return Collections.unmodifiableList(result);
@@ -1813,7 +1813,8 @@ public final class PhysicsWorld implements Physics {
         }
         if ((what & CONTACTS) != 0) {
             draw.color(CONTACT);
-            for (ContactConstraint c : contacts.values()) {
+            for (int ci5 = 0; ci5 < contacts.size(); ci5++) {
+                ContactConstraint c = contacts.get(ci5);
                 if (!c.touching) {
                     continue;
                 }
@@ -1826,7 +1827,8 @@ public final class PhysicsWorld implements Physics {
         if ((what & JOINTS) != 0) {
             draw.color(JOINT);
             float[] anchors = new float[4];
-            for (Joints.JointImpl joint : joints) {
+            for (int ji = 0; ji < joints.size(); ji++) {
+                Joints.JointImpl joint = joints.get(ji);
                 joint.debugAnchors(anchors);
                 BodySim a = joint.a;
                 if (a != null) {
@@ -1902,35 +1904,141 @@ public final class PhysicsWorld implements Physics {
         contacts.clear();
     }
 
-    /** Key of a contact: body, piece, other proxy or tile, other piece. Mutable for lookups; copied when stored. */
-    private static final class ContactKey {
-        int a;
-        long other;
-        int pieceA;
-        int pieceB;
+    /**
+     * Contacts by body, other proxy or tile, and pieces: an open-addressing table keyed by the constraints' own fields,
+     * a list for walking them by index, and a pool of removed constraints, so contacts coming and going allocate
+     * nothing once the pool is warm.
+     */
+    private static final class ContactTable {
+        private ContactConstraint[] slots = new ContactConstraint[64];
+        private final List<ContactConstraint> items = new ArrayList<>();
+        private final List<ContactConstraint> pool = new ArrayList<>();
 
-        ContactKey copy() {
-            ContactKey key = new ContactKey();
-            key.a = a;
-            key.other = other;
-            key.pieceA = pieceA;
-            key.pieceB = pieceB;
-            return key;
+        private static long otherKey(ContactConstraint c) {
+            Proxy other = c.other;
+            return other != null ? other.serial : tileKey(c.tileX, c.tileY);
         }
 
-        @Override
-        public boolean equals(Object o) {
-            return o instanceof ContactKey k
-                    && k.a == a
-                    && k.other == other
-                    && k.pieceA == pieceA
-                    && k.pieceB == pieceB;
+        private static int hash(int a, long other, int pieceA, int pieceB) {
+            long h = a * 0x9E3779B97F4A7C15L;
+            h ^= other * 0xC2B2AE3D27D4EB4FL;
+            h ^= (pieceA * 31L + pieceB) * 0x165667B19E3779F9L;
+            h ^= h >>> 29;
+            return (int) (h ^ (h >>> 32));
         }
 
-        @Override
-        public int hashCode() {
-            int h = a * 31 + Long.hashCode(other);
-            return (h * 31 + pieceA) * 31 + pieceB;
+        private int home(ContactConstraint c) {
+            return hash(c.a.proxy.serial, otherKey(c), c.pieceA, c.pieceB) & (slots.length - 1);
+        }
+
+        @Nullable ContactConstraint find(int a, long other, int pieceA, int pieceB) {
+            int mask = slots.length - 1;
+            for (int i = hash(a, other, pieceA, pieceB) & mask; slots[i] != null; i = (i + 1) & mask) {
+                ContactConstraint c = slots[i];
+                if (c.a.proxy.serial == a && c.pieceA == pieceA && c.pieceB == pieceB && otherKey(c) == other) {
+                    return c;
+                }
+            }
+            return null;
+        }
+
+        ContactConstraint obtain(
+                BodySim a, @Nullable BodySim b, @Nullable Proxy other, int tileX, int tileY, int pieceA, int pieceB) {
+            ContactConstraint c;
+            if (pool.isEmpty()) {
+                c = new ContactConstraint(a, b, other, tileX, tileY, pieceA, pieceB);
+            } else {
+                c = pool.remove(pool.size() - 1);
+                c.reset(a, b, other, tileX, tileY, pieceA, pieceB);
+            }
+            if ((items.size() + 1) * 2 > slots.length) {
+                grow();
+            }
+            insert(c);
+            c.index = items.size();
+            items.add(c);
+            return c;
+        }
+
+        private void insert(ContactConstraint c) {
+            int mask = slots.length - 1;
+            int i = home(c);
+            while (slots[i] != null) {
+                i = (i + 1) & mask;
+            }
+            slots[i] = c;
+        }
+
+        private void grow() {
+            ContactConstraint[] old = slots;
+            slots = new ContactConstraint[old.length * 2];
+            for (ContactConstraint c : old) {
+                if (c != null) {
+                    insert(c);
+                }
+            }
+        }
+
+        int size() {
+            return items.size();
+        }
+
+        ContactConstraint get(int index) {
+            return items.get(index);
+        }
+
+        /** Removes one contact, moving the last into its place; walk backwards when removing. */
+        void removeAt(int index) {
+            ContactConstraint c = items.get(index);
+            unlink(c);
+            int last = items.size() - 1;
+            if (index != last) {
+                ContactConstraint moved = items.get(last);
+                items.set(index, moved);
+                moved.index = index;
+            }
+            items.remove(last);
+            c.release();
+            pool.add(c);
+        }
+
+        /** Deletes from the table with backward shifting, which keeps linear probing correct without tombstones. */
+        private void unlink(ContactConstraint c) {
+            int mask = slots.length - 1;
+            int i = home(c);
+            while (slots[i] != c) {
+                i = (i + 1) & mask;
+            }
+            slots[i] = null;
+            int j = i;
+            while (true) {
+                j = (j + 1) & mask;
+                ContactConstraint next = slots[j];
+                if (next == null) {
+                    return;
+                }
+                int k = home(next);
+                boolean stays = i <= j ? (i < k && k <= j) : (i < k || k <= j);
+                if (!stays) {
+                    slots[i] = next;
+                    slots[j] = null;
+                    i = j;
+                }
+            }
+        }
+
+        void removeIf(java.util.function.Predicate<ContactConstraint> test) {
+            for (int i = items.size() - 1; i >= 0; i--) {
+                if (test.test(items.get(i))) {
+                    removeAt(i);
+                }
+            }
+        }
+
+        void clear() {
+            for (int i = items.size() - 1; i >= 0; i--) {
+                removeAt(i);
+            }
         }
     }
 }

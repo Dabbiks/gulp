@@ -1,13 +1,18 @@
 package dev.gulp.core;
 
 import dev.gulp.api.data.Codec;
+import dev.gulp.api.entity.Component;
+import dev.gulp.api.entity.ComponentType;
 import dev.gulp.api.event.Listener;
 import dev.gulp.api.module.GameModule;
+import dev.gulp.api.registry.Key;
+import dev.gulp.api.spi.ComponentState;
 import dev.gulp.api.spi.GeneratedIndex;
 import dev.gulp.api.spi.ListenerHandlers;
 import dev.gulp.api.spi.ModuleDescriptor;
 import dev.gulp.platform.PlatformModules;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.ServiceLoader;
 import org.jspecify.annotations.Nullable;
@@ -24,6 +29,8 @@ public final class GeneratedModules implements PlatformModules {
     private final Map<Class<?>, ListenerHandlers<?>> listeners = new HashMap<>();
     private final Map<Class<?>, ModuleDescriptor> modules = new HashMap<>();
     private final Map<Class<?>, Codec<?>> codecs = new HashMap<>();
+    private final Map<Class<?>, ComponentType> componentTypes = new java.util.LinkedHashMap<>();
+    private final Map<Class<?>, ComponentState<?>> componentStates = new HashMap<>();
 
     /** Creates an empty registry; fill it with {@link #add(GeneratedIndex)}. */
     public GeneratedModules() {}
@@ -66,6 +73,13 @@ public final class GeneratedModules implements PlatformModules {
             public <T> void codec(Class<T> type, Codec<T> codec) {
                 codecs.put(type, codec);
             }
+
+            @Override
+            public <C extends Component> void component(
+                    Class<C> type, String key, boolean persistent, ComponentState<C> state) {
+                componentTypes.put(type, new ComponentType(Key.parse(key), type, persistent));
+                componentStates.put(type, state);
+            }
         });
         return this;
     }
@@ -79,6 +93,12 @@ public final class GeneratedModules implements PlatformModules {
             found = modules.get(subject);
         } else if (contract == Codec.class) {
             found = codecs.get(subject);
+        } else if (contract == ComponentType.class) {
+            found = componentTypes.get(subject);
+        } else if (contract == ComponentState.class) {
+            found = componentStates.get(subject);
+        } else if (contract == List.class && subject == ComponentType.class) {
+            found = List.copyOf(componentTypes.values());
         } else {
             found = null;
         }

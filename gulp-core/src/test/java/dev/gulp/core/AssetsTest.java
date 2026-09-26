@@ -121,16 +121,26 @@ class AssetsTest {
         Assets assets = game.assets();
         List<Throwable> failures = new ArrayList<>();
         game.on(AssetLoadFailedEvent.class, e -> failures.add(e.error()));
-        AtomicReference<Throwable> missing = new AtomicReference<>();
+        // A missing texture becomes the magenta checkerboard with a warning (section 20.3).
         AssetKey<Texture> nothing = AssetKey.texture("coins:sprites/nothing");
-        assets.load(nothing).onFailure(missing::set);
+        AtomicReference<Texture> placeholder = capture(assets.load(nothing));
+        AtomicReference<Throwable> missing = new AtomicReference<>();
+        AssetKey<String> noText = AssetKey.text("coins:data/nothing");
+        assets.load(noText).onFailure(missing::set);
         AssetType<String> noLoader = AssetType.of("unregistered", "lvl");
         assets.load(AssetKey.of(noLoader, "coins:data/level"));
         r.step(3);
-        assertThat(missing.get()).hasMessageContaining("coins/sprites/nothing.png");
-        assertThat(failures).hasSize(2);
-        assertThat(failures.get(1)).hasMessageContaining("No loader");
-        assertThatThrownBy(() -> assets.get(nothing)).hasMessageContaining("failed to load");
+        assertThat(failures).hasSize(3);
+        assertThat(failures.get(0)).hasMessageContaining("coins/sprites/nothing.png");
+        assertThat(failures.get(2)).hasMessageContaining("No loader");
+        assertThat(placeholder.get()).isSameAs(assets.get(nothing));
+        assertThat(placeholder.get().width()).isEqualTo(8);
+        assets.unload(nothing);
+        assertThat(placeholder.get().isDisposed())
+                .as("placeholders are shared, never disposed")
+                .isFalse();
+        assertThat(missing.get()).hasMessageContaining("coins/data/nothing");
+        assertThatThrownBy(() -> assets.get(noText)).hasMessageContaining("failed to load");
         assertThatThrownBy(() -> AssetType.of(" ")).isInstanceOf(IllegalArgumentException.class);
         assertThatThrownBy(() -> AssetType.of("x", ".png")).isInstanceOf(IllegalArgumentException.class);
     }

@@ -57,6 +57,17 @@
         alpha: false, antialias: false, depth: false, stencil: true, premultipliedAlpha: true,
         preserveDrawingBuffer: false, powerPreference: "high-performance"
       });
+      // A lost context (driver reset, too many contexts) comes back after preventDefault; the backend then rebuilds
+      // every GL object from its journal.
+      canvas.addEventListener("webglcontextlost", e => {
+        e.preventDefault();
+        this.contextLost = true;
+        if (this.contextHandler) this.contextHandler(false);
+      });
+      canvas.addEventListener("webglcontextrestored", () => {
+        this.contextLost = false;
+        if (this.contextHandler) this.contextHandler(true);
+      });
       this.measure();
       new ResizeObserver(() => { if (this.measure() && this.resizeHandler) this.resizeHandler(); }).observe(canvas);
       window.addEventListener("resize", () => { if (this.measure() && this.resizeHandler) this.resizeHandler(); });
@@ -397,6 +408,91 @@
       this.store("readonly", s => s.getAllKeys(), keys => ok(keys.filter(k => k.startsWith(prefix)).join("\n")), fail);
     },
 
+    // Export and import: a Blob download, and a hidden file input (the click that asked for it still counts as
+    // the user gesture the browser wants, because the frame runs right after the input event).
+    offerFile(name, bytes) {
+      const url = URL.createObjectURL(new Blob([bytes.slice().buffer], { type: "application/octet-stream" }));
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = name;
+      link.style.display = "none";
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 10000);
+    },
+    pickFile(name, ok, missing, fail) {
+      const input = document.createElement("input");
+      input.type = "file";
+      const dot = name.lastIndexOf(".");
+      if (dot > 0) input.accept = name.substring(dot);
+      input.style.display = "none";
+      let done = false;
+      const finish = () => { done = true; input.remove(); };
+      input.addEventListener("change", () => {
+        const file = input.files && input.files[0];
+        finish();
+        if (!file) { missing(); return; }
+        file.arrayBuffer().then(ok, e => fail(String(e && e.message || e))).catch(report);
+      });
+      input.addEventListener("cancel", () => { if (!done) { finish(); missing(); } });
+      document.body.appendChild(input);
+      input.click();
+    },
+
+    // Networking. Headers travel as "name\nvalue\n" pairs; timeouts are the engine's job.
+    http(method, url, headers, body, ok, fail) {
+      const init = { method: method, headers: {} };
+      const parts = headers.split("\n");
+      for (let i = 0; i + 1 < parts.length; i += 2) init.headers[parts[i]] = parts[i + 1];
+      if (body) init.body = body.slice().buffer;
+      fetch(url, init)
+        .then(r => r.arrayBuffer().then(bytes => {
+          let joined = "";
+          r.headers.forEach((value, name) => { joined += name + "\n" + value + "\n"; });
+          ok(r.status, joined, bytes);
+        }))
+        .catch(e => fail(String(e && e.message || e)));
+    },
+    sockets: new Map(),
+    nextSocket: 1,
+    wsOpen(url, opened, text, binary, closed, failed) {
+      const id = this.nextSocket++;
+      let socket;
+      try {
+        socket = new WebSocket(url);
+      } catch (e) {
+        setTimeout(() => failed(String(e && e.message || e)), 0);
+        return id;
+      }
+      socket.binaryType = "arraybuffer";
+      socket.onopen = () => opened();
+      socket.onmessage = e => typeof e.data === "string" ? text(e.data) : binary(e.data);
+      socket.onerror = () => failed("WebSocket error for " + url);
+      socket.onclose = e => { this.sockets.delete(id); closed(e.code, e.reason || ""); };
+      this.sockets.set(id, socket);
+      return id;
+    },
+    wsSendText(id, text) {
+      const socket = this.sockets.get(id);
+      if (!socket || socket.readyState !== 1) return false;
+      socket.send(text);
+      return true;
+    },
+    wsSendBytes(id, bytes) {
+      const socket = this.sockets.get(id);
+      if (!socket || socket.readyState !== 1) return false;
+      socket.send(bytes.slice().buffer);
+      return true;
+    },
+    wsClose(id, code, reason) {
+      const socket = this.sockets.get(id);
+      if (socket) socket.close(code, reason);
+    },
+    openUrl(url) {
+      window.open(url, "_blank", "noopener");
+    },
+
     // Audio on WebAudio. Each voice: source -> low-pass -> high-pass -> gain -> panner -> master, with a send from
     // the gain to a shared convolution reverb. Buffer sources cannot pause, so pausing remembers the position and
     // resuming starts a new source there; queued stream buffers are scheduled back to back on the audio clock.
@@ -626,8 +722,9 @@
     },
 
     /** Shows a fatal error over the canvas. */
-    fatal(message) {
-      if (window.gulpShowError) window.gulpShowError(message);
+    fatal(message, report) {
+      if (report) console.error(report);
+      if (window.gulpShowError) window.gulpShowError(message, report);
       else console.error(message);
     },
 

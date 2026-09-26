@@ -33,6 +33,18 @@ public final class DataContainerImpl implements DataContainer {
         }
     }
 
+    /**
+     * Replaces everything with the members of a JSON object, as when a save is loaded.
+     *
+     * @param json member names are keys
+     */
+    public void replaceWith(JsonObject json) {
+        entries.clear();
+        for (Map.Entry<String, JsonValue> member : json.members().entrySet()) {
+            entries.put(Key.parse(member.getKey()), new Entry(null, member.getValue()));
+        }
+    }
+
     @Override
     public <T> void set(Key key, DataType<T> type, T value) {
         entries.put(key, new Entry(type, value));

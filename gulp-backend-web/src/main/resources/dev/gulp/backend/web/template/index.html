@@ -15,6 +15,11 @@
   #gulp-loading .bar { width: min(320px, 70vw); height: 6px; border-radius: 3px; background: #333; overflow: hidden; }
   #gulp-loading .fill { width: 0; height: 100%; background: #ffa300; transition: width .15s; }
   #gulp-loading .error { color: #ff6b6b; max-width: 80vw; white-space: pre-wrap; text-align: center; }
+  #gulp-loading .report {
+    max-width: 90vw; max-height: 50vh; overflow: auto; margin: 0; padding: 12px; background: #1b1b1b;
+    color: #bbb; font: 12px ui-monospace, monospace; white-space: pre-wrap; user-select: text;
+  }
+  #gulp-loading button { font: inherit; padding: 6px 14px; cursor: pointer; }
 </style>
 </head>
 <body>
@@ -34,7 +39,7 @@
   const fill = document.querySelector("#gulp-loading .fill");
   let started = false;
 
-  window.gulpShowError = function (message) {
+  window.gulpShowError = function (message, report) {
     let loading = document.getElementById("gulp-loading");
     if (!loading) {
       loading = document.createElement("div");
@@ -46,6 +51,18 @@
     text.className = "error";
     text.textContent = message;
     loading.appendChild(text);
+    if (report) {
+      // The crash report of section 20.2, with a button that copies it for a bug report.
+      const pre = document.createElement("pre");
+      pre.className = "report";
+      pre.textContent = report;
+      const copy = document.createElement("button");
+      copy.textContent = "Copy the crash report";
+      copy.onclick = () => navigator.clipboard.writeText(report).then(
+          () => { copy.textContent = "Copied"; }, () => { copy.textContent = "Select the text to copy it"; });
+      loading.appendChild(copy);
+      loading.appendChild(pre);
+    }
   };
 
   // A minimal module with a struct type: valid only where Wasm GC is supported.

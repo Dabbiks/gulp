@@ -9,8 +9,10 @@ import dev.gulp.api.graphics.Graphics;
 import dev.gulp.api.i18n.Translations;
 import dev.gulp.api.input.Input;
 import dev.gulp.api.module.ModuleManager;
+import dev.gulp.api.net.Http;
 import dev.gulp.api.registry.Registries;
 import dev.gulp.api.render.Display;
+import dev.gulp.api.save.SaveStore;
 import dev.gulp.api.scheduler.Scheduler;
 import dev.gulp.api.service.Services;
 import dev.gulp.api.ui.Ui;
@@ -144,6 +146,27 @@ public interface Engine {
      * @return the UI
      */
     Ui ui();
+
+    /**
+     * Returns the save games.
+     *
+     * @return the save store
+     */
+    SaveStore saves();
+
+    /**
+     * Returns HTTP and WebSockets.
+     *
+     * @return the network access
+     */
+    Http http();
+
+    /**
+     * Returns the developer tools: F3 overlay, debug drawings, inspectors and the profiler.
+     *
+     * @return the tools
+     */
+    dev.gulp.api.debug.Debug debug();
 
     /**
      * Returns platform information.

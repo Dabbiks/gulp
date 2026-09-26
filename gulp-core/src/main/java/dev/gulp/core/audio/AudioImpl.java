@@ -109,6 +109,30 @@ public final class AudioImpl implements Audio {
      * @param decoders audio decoders
      */
     public void registerLoaders(PlatformDecoders decoders) {
+        registerLoadersOn(decoders);
+    }
+
+    private @Nullable AudioClip silence;
+
+    /**
+     * Returns a tenth of a second of silence, the placeholder of a sound that failed to load.
+     *
+     * @return the shared clip
+     */
+    public AudioClip silence() {
+        AudioClip clip = silence;
+        if (clip == null) {
+            java.nio.ShortBuffer samples = java.nio.ByteBuffer.allocateDirect(4410 * 2)
+                    .order(java.nio.ByteOrder.nativeOrder())
+                    .asShortBuffer();
+            int buffer = platform.createBuffer(samples, 1, 44_100);
+            clip = new AudioClipImpl("gulp:silence", buffer, 4410, 1, 44_100);
+            silence = clip;
+        }
+        return clip;
+    }
+
+    private void registerLoadersOn(PlatformDecoders decoders) {
         assets.registerLoader(AssetType.AUDIO, new AssetLoader<>() {
             @Override
             public Promise<AudioClip> load(dev.gulp.api.asset.AssetLoadContext context) {

@@ -67,7 +67,11 @@ public final class WorldsImpl implements Worlds, WorldView {
     final Logger logger;
     private final Supplier<PromiseImpl<World>> promises;
     private final Map<String, WorldImpl> loaded = new LinkedHashMap<>();
+    /** The loaded worlds in load order again, so ticks walk them without an iterator. */
+    private final List<WorldImpl> loadedOrder = new ArrayList<>();
+
     private final Map<String, WorldSource> registered = new LinkedHashMap<>();
+    private final Map<String, WorldSource> sources = new LinkedHashMap<>();
     private final Map<String, Promise<World>> loading = new LinkedHashMap<>();
     private final WorldRenderer renderer;
     private final List<float[]> clicks = new ArrayList<>();
@@ -172,7 +176,7 @@ public final class WorldsImpl implements Worlds, WorldView {
             throw new IllegalArgumentException("A world named '" + name + "' is already loaded");
         }
         WorldImpl world = new WorldImpl(this, name, settings);
-        loaded.put(name, world);
+        putLoaded(name, world);
         if (events.hasListeners(WorldLoadEvent.class)) {
             events.call(new WorldLoadEvent(world));
         }
@@ -193,6 +197,7 @@ public final class WorldsImpl implements Worlds, WorldView {
             return inProgress;
         }
         loading.put(name, promise);
+        sources.put(name, source);
         WorldSettings settings = source.settingsValue();
         WorldImpl world = new WorldImpl(this, name, settings);
         Promise<Void> content;
@@ -207,7 +212,7 @@ public final class WorldsImpl implements Worlds, WorldView {
         }
         content.thenSync(ignored -> {
             loading.remove(name);
-            loaded.put(name, world);
+            putLoaded(name, world);
             var onLoad = source.onLoadOrNull();
             if (onLoad != null) {
                 onLoad.accept(world);
@@ -339,7 +344,7 @@ public final class WorldsImpl implements Worlds, WorldView {
         if (events.hasListeners(WorldUnloadEvent.class)) {
             events.call(new WorldUnloadEvent(world));
         }
-        loaded.remove(name);
+        removeLoaded(name);
         world.clear();
     }
 
@@ -378,6 +383,89 @@ public final class WorldsImpl implements Worlds, WorldView {
         return world == null ? 1f : world.mainCamera().zoom();
     }
 
+    private void putLoaded(String name, WorldImpl world) {
+        WorldImpl previous = loaded.put(name, world);
+        if (previous != null) {
+            loadedOrder.remove(previous);
+        }
+        loadedOrder.add(world);
+    }
+
+    private @Nullable WorldImpl removeLoaded(String name) {
+        WorldImpl removed = loaded.remove(name);
+        if (removed != null) {
+            loadedOrder.remove(removed);
+        }
+        return removed;
+    }
+
+    /**
+     * Returns how many chunks of a world are loaded, for the F3 overlay.
+     *
+     * @param world the world
+     * @return the count
+     */
+    public int loadedChunks(World world) {
+        return ((WorldImpl) world).tileMap.loaded.size();
+    }
+
+    /**
+     * Returns the loaded worlds, for saves.
+     *
+     * @return the worlds in load order
+     */
+    public List<World> loadedWorlds() {
+        return List.copyOf(loaded.values());
+    }
+
+    /**
+     * Returns the active world.
+     *
+     * @return the world, or {@code null}
+     */
+    public @Nullable World activeWorld() {
+        return active;
+    }
+
+    /**
+     * Removes a world for good, even the active one, and loads it again: from the source it was loaded or registered
+     * with, or empty with the given settings. Used when a save is loaded.
+     *
+     * @param name the world name
+     * @param settings the settings of a world without a source
+     * @return completes with the fresh world
+     */
+    public Promise<World> reload(String name, WorldSettings settings) {
+        WorldImpl existing = removeLoaded(name);
+        if (existing != null) {
+            if (existing == active) {
+                active = null;
+                display.setWorldCamera(null);
+            }
+            existing.clear();
+        }
+        WorldSource source = sources.get(name);
+        if (source == null) {
+            source = registered.get(name);
+        }
+        if (source != null) {
+            return load(name, source);
+        }
+        PromiseImpl<World> promise = promises.get();
+        promise.complete(create(name, settings));
+        return promise;
+    }
+
+    /**
+     * Makes a world active at once, without a transition.
+     *
+     * @param world the world
+     */
+    public void activateNow(World world) {
+        transition = null;
+        activate((WorldImpl) world);
+    }
+
     @Override
     public boolean isTransitioning() {
         return transition != null;
@@ -391,6 +479,7 @@ public final class WorldsImpl implements Worlds, WorldView {
             world.clear();
         }
         loaded.clear();
+        loadedOrder.clear();
     }
 
     // ------------------------------------------------------------------ ticking and frames
@@ -404,8 +493,8 @@ public final class WorldsImpl implements Worlds, WorldView {
         inTick = true;
         try {
             // A reused snapshot: ticks may load or unload worlds, and copying every tick would allocate.
-            for (WorldImpl world : loaded.values()) {
-                ticking.add(world);
+            for (int i = 0; i < loadedOrder.size(); i++) {
+                ticking.add(loadedOrder.get(i));
             }
             for (int i = 0; i < ticking.size(); i++) {
                 WorldImpl world = ticking.get(i);
@@ -432,11 +521,13 @@ public final class WorldsImpl implements Worlds, WorldView {
      * @param alpha interpolation between ticks
      */
     public void frame(float seconds, float alpha) {
+        renderer.frame++;
         renderer.advance(seconds);
         WorldImpl world = active;
         if (world != null) {
             float tps = engine.targetTps();
-            for (CameraImpl camera : world.cameras) {
+            for (int c = 0; c < world.cameras.size(); c++) {
+                CameraImpl camera = world.cameras.get(c);
                 if (camera.target() instanceof EntityImpl target) {
                     camera.update(
                             seconds,
@@ -658,7 +749,18 @@ public final class WorldsImpl implements Worlds, WorldView {
     @Override
     public boolean hasDebug() {
         WorldImpl world = active;
-        return world != null && world.hasDebug();
+        if (world == null) {
+            return false;
+        }
+        dev.gulp.core.debug.DebugImpl tools = context.debug();
+        return world.hasDebug()
+                || (tools.isEnabled()
+                        && (tools.draw().size() > 0
+                                || tools.isOn(dev.gulp.api.debug.DebugFlag.COLLISION)
+                                || tools.isOn(dev.gulp.api.debug.DebugFlag.NAVIGATION)
+                                || tools.isOn(dev.gulp.api.debug.DebugFlag.CHUNKS)
+                                || tools.isOn(dev.gulp.api.debug.DebugFlag.LIGHTS)
+                                || tools.inspected() != null));
     }
 
     @Override

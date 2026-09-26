@@ -9,7 +9,6 @@ import dev.gulp.platform.PlatformAudio;
 import dev.gulp.platform.PlatformBackend;
 import dev.gulp.platform.PlatformDecoders;
 import dev.gulp.platform.PlatformInput;
-import dev.gulp.platform.PlatformNet;
 import dev.gulp.platform.WindowConfig;
 import java.nio.file.Path;
 import org.lwjgl.glfw.Callbacks;
@@ -47,6 +46,7 @@ public final class DesktopBackend implements PlatformBackend {
     private final DesktopDecoders decoders;
     private final DesktopInput input;
     private final DesktopAudio audio;
+    private final DesktopNet net;
     private boolean disposed;
 
     private DesktopBackend(GLFWErrorCallback errorCallback, DesktopWindow window, Path dataDirectory, DesktopLog log) {
@@ -59,6 +59,7 @@ public final class DesktopBackend implements PlatformBackend {
         this.decoders = new DesktopDecoders(executor, mainQueue);
         this.input = new DesktopInput(window.handle(), mainQueue);
         this.audio = DesktopAudio.open(log);
+        this.net = new DesktopNet(mainQueue, log);
     }
 
     /**
@@ -176,8 +177,8 @@ public final class DesktopBackend implements PlatformBackend {
     }
 
     @Override
-    public PlatformNet net() {
-        throw notYet("PlatformNet", 10);
+    public DesktopNet net() {
+        return net;
     }
 
     @Override
@@ -219,6 +220,7 @@ public final class DesktopBackend implements PlatformBackend {
         }
         disposed = true;
         executor.shutdown();
+        net.shutdown();
         files.closeWatcher();
         audio.dispose();
         long handle = window.handle();

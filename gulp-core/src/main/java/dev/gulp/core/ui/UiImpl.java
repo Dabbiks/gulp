@@ -126,6 +126,7 @@ public final class UiImpl implements Ui, UiAccess.Backend, UiInput, ScreenLayers
     }
 
     private final GulpEngine engine;
+    private int seenTextRevision;
     private final InputImpl input;
     private final EventBus events;
     private final WorldsImpl worlds;
@@ -173,9 +174,12 @@ public final class UiImpl implements Ui, UiAccess.Backend, UiInput, ScreenLayers
     private @Nullable Node<?> tooltipView;
     private boolean tooltipFromFocus;
 
-    private final float[] actionStrength = new float[UiAction.values().length];
-    private final float[] actionHeld = new float[UiAction.values().length];
-    private final float[] actionRepeat = new float[UiAction.values().length];
+    /** The UI actions, copied once: {@code values()} makes a new array on every call. */
+    private static final UiAction[] ACTIONS = UiAction.values();
+
+    private final float[] actionStrength = new float[ACTIONS.length];
+    private final float[] actionHeld = new float[ACTIONS.length];
+    private final float[] actionRepeat = new float[ACTIONS.length];
     private boolean contextButtonDown;
 
     private boolean pausedByUi;
@@ -595,6 +599,11 @@ public final class UiImpl implements Ui, UiAccess.Backend, UiInput, ScreenLayers
     }
 
     @Override
+    public int textRevision() {
+        return engine.translations().revision();
+    }
+
+    @Override
     public float time() {
         return time;
     }
@@ -837,6 +846,13 @@ public final class UiImpl implements Ui, UiAccess.Backend, UiInput, ScreenLayers
      */
     public void frame(float seconds) {
         time += seconds;
+        int revision = textRevision();
+        if (revision != seenTextRevision) {
+            // Translated text reads differently now: every widget measures again.
+            seenTextRevision = revision;
+            forEachRoot(hooks::restyle);
+            requestLayout();
+        }
         width = Math.max(1f, engine.display().width() / scale);
         height = Math.max(1f, engine.display().height() / scale);
         dropDisabledOwners();
@@ -893,7 +909,7 @@ public final class UiImpl implements Ui, UiAccess.Backend, UiInput, ScreenLayers
     }
 
     private void readActions(float seconds) {
-        UiAction[] actions = UiAction.values();
+        UiAction[] actions = ACTIONS;
         boolean blocked = consoleOpen || input.bindings().isCapturing();
         for (int i = 0; i < actions.length; i++) {
             UiAction action = actions[i];
@@ -998,7 +1014,8 @@ public final class UiImpl implements Ui, UiAccess.Backend, UiInput, ScreenLayers
     private void readGamepadExtras(float seconds) {
         boolean down = false;
         float scrollY = 0f;
-        for (Gamepad pad : input.gamepads()) {
+        for (int slot = 0; slot < InputImpl.GAMEPADS; slot++) {
+            Gamepad pad = input.gamepad(slot);
             if (pad.isConnected()) {
                 down |= pad.isDown(GamepadButton.WEST);
                 float axis = pad.axis(GamepadAxis.RIGHT_Y);
@@ -1372,7 +1389,7 @@ public final class UiImpl implements Ui, UiAccess.Backend, UiInput, ScreenLayers
     }
 
     private boolean isUiKey(KeyboardKey key) {
-        for (UiAction action : UiAction.values()) {
+        for (UiAction action : ACTIONS) {
             for (dev.gulp.api.input.Binding binding : input.bindings().of(action.action())) {
                 if (key.equals(binding)) {
                     return true;
@@ -1743,6 +1760,7 @@ public final class UiImpl implements Ui, UiAccess.Backend, UiInput, ScreenLayers
         if (inspectorOpen) {
             drawInspector(draw);
         }
+        engine.debug().drawOverlay(draw, width, height);
         if (consoleOpen) {
             drawConsole(draw);
         }

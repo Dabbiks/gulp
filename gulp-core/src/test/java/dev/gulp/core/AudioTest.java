@@ -464,14 +464,15 @@ class AudioTest {
     }
 
     @Test
-    void soundsWhoseFilesAreMissingWarnOnce() {
+    void soundsWhoseFilesAreMissingPlaySilence() {
         TestGame game = start();
         Sound ghost = Sound.builder(Key.of("test", "ghost"))
                 .file(AssetKey.audio("test:sounds/ghost"))
                 .build();
         assertThat(game.audio().play(ghost).isPlaying()).isFalse();
         runner.step(10);
-        assertThat(game.audio().play(ghost).isPlaying()).isFalse();
+        // The missing file became a short silence (section 20.3), so the game keeps working.
+        assertThat(game.audio().play(ghost).isPlaying()).isTrue();
         assertThatThrownBy(() -> Sound.builder(Key.of("test", "empty")).build())
                 .isInstanceOf(IllegalStateException.class);
     }

@@ -64,4 +64,26 @@ public interface PlatformInfo {
      * @return renderer and version, for example {@code "NVIDIA GeForce RTX 4070 / OpenGL 3.3"}
      */
     String gpuDescription();
+
+    /**
+     * Returns the heap in use, for the F3 overlay.
+     *
+     * <pre>{@code
+     * long mb = backend.info().memoryUsed() / 1_048_576;
+     * }</pre>
+     *
+     * @return bytes, or {@code -1} where the platform does not tell (web)
+     */
+    default long memoryUsed() {
+        return -1L;
+    }
+
+    /**
+     * Returns the largest heap the platform allows.
+     *
+     * @return bytes, or {@code -1} where the platform does not tell
+     */
+    default long memoryMax() {
+        return -1L;
+    }
 }

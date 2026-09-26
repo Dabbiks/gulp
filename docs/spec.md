@@ -2120,20 +2120,20 @@ Trzynaście etapów od pustego repozytorium do wersji 1.0, wykonywanych po kolei
 
 ### Etap 10 — Dane
 
-- [ ] Tagowany format binarny + kompresja; `SaveStore`, sloty, metadane, miniatury.
-- [ ] Zapis światów, encji, komponentów, kafelków i chunków (pliki regionów); migracje; autozapis; eksport i import.
-- [ ] `Preferences` w całości z ustawieniami wbudowanymi.
-- [ ] Lokalizacja: liczba mnoga, formatowanie, łańcuch zapasowy, `LocaleChangeEvent`.
-- [ ] `Http`, `WebSocket`, `openUrl`.
-- [ ] **Kamień milowy:** testy zapisu i odczytu wszystkich danych trwałych; platformówka zapisuje postęp w przeglądarce i na desktopie.
+- [x] Tagowany format binarny + kompresja; `SaveStore`, sloty, metadane, miniatury.
+- [x] Zapis światów, encji, komponentów, kafelków i chunków (pliki regionów); migracje; autozapis; eksport i import.
+- [x] `Preferences` w całości z ustawieniami wbudowanymi.
+- [x] Lokalizacja: liczba mnoga, formatowanie, łańcuch zapasowy, `LocaleChangeEvent`.
+- [x] `Http`, `WebSocket`, `openUrl`.
+- [x] **Kamień milowy:** testy zapisu i odczytu wszystkich danych trwałych; platformówka zapisuje postęp w przeglądarce i na desktopie.
 
 ### Etap 11 — Jakość i narzędzia
 
-- [ ] Nakładka F3, przełączniki, inspektor encji, `debug().draw()`, profiler z raportem.
-- [ ] Raporty awarii, rotacja logów, testy polityki błędów z sekcji 20.3.
-- [ ] Plugin Gradle w całości: `packageDesktop` (jlink + jpackage), `packageWeb`, `packAssets`, `checkApiUsage`.
-- [ ] `examples/bench` z progami w CI, testy alokacji, testy wizualne, testy dymne web.
-- [ ] Szablon nowego projektu gry.
+- [x] Nakładka F3, przełączniki, inspektor encji, `debug().draw()`, profiler z raportem.
+- [x] Raporty awarii, rotacja logów, testy polityki błędów z sekcji 20.3.
+- [x] Plugin Gradle w całości: `packageDesktop` (jlink + jpackage), `packageWeb`, `packAssets`, `checkApiUsage`.
+- [x] `examples/bench` z progami w CI, testy alokacji, testy wizualne, testy dymne web.
+- [x] Szablon nowego projektu gry.
 - [ ] **Kamień milowy:** projekt z szablonu pakuje się na Windows, macOS, Linux i web po jednej komendzie na platformę.
 
 ### Etap 12 — Wydanie

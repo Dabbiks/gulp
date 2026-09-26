@@ -1,6 +1,7 @@
 package dev.gulp.api.spi;
 
 import dev.gulp.api.data.Codec;
+import dev.gulp.api.entity.Component;
 import dev.gulp.api.event.Listener;
 import dev.gulp.api.module.GameModule;
 
@@ -64,5 +65,16 @@ public interface GeneratedIndex {
          * @param codec the generated codec
          */
         <T> void codec(Class<T> type, Codec<T> codec);
+
+        /**
+         * Reports a component class with {@code @ComponentInfo} and the code that saves its {@code @Save} fields.
+         *
+         * @param <C> the component type
+         * @param type the component class
+         * @param key the key from the annotation
+         * @param persistent whether it is saved
+         * @param state reads and writes the saved fields
+         */
+        <C extends Component> void component(Class<C> type, String key, boolean persistent, ComponentState<C> state);
     }
 }

@@ -8,7 +8,6 @@ import java.io.StringWriter;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
 import java.time.LocalTime;
 import org.jspecify.annotations.Nullable;
 
@@ -20,18 +19,78 @@ public final class DesktopLog implements PlatformLog {
 
     private static final String[] LEVELS = {"TRACE", "DEBUG", "INFO", "WARN", "ERROR"};
 
+    /** Archived logs kept next to {@code latest.log}; older ones are deleted. */
+    static final int KEEP_ARCHIVES = 10;
+
     private @Nullable BufferedWriter file;
+    private final Path crashDirectory;
 
     DesktopLog(Path logsDirectory) {
+        this.crashDirectory = logsDirectory.resolveSibling("crash-reports");
         try {
             Files.createDirectories(logsDirectory);
-            Path latest = logsDirectory.resolve("latest.log");
-            if (Files.exists(latest)) {
-                Files.move(latest, logsDirectory.resolve("previous.log"), StandardCopyOption.REPLACE_EXISTING);
-            }
-            file = Files.newBufferedWriter(latest, StandardCharsets.UTF_8);
+            rotate(logsDirectory, KEEP_ARCHIVES);
+            file = Files.newBufferedWriter(logsDirectory.resolve("latest.log"), StandardCharsets.UTF_8);
         } catch (IOException e) {
             System.err.println("[gulp] Cannot write log file in " + logsDirectory + ": " + e);
+        }
+    }
+
+    /**
+     * Archives {@code latest.log} as {@code <date>-<n>.log.gz} (the date it was last written) and keeps the newest
+     * archives only.
+     *
+     * @param logs the logs folder
+     * @param keep how many archives to keep
+     * @throws IOException if the files cannot be moved
+     */
+    static void rotate(Path logs, int keep) throws IOException {
+        Path latest = logs.resolve("latest.log");
+        if (Files.exists(latest)) {
+            String date = java.time.LocalDate.ofInstant(
+                            Files.getLastModifiedTime(latest).toInstant(), java.time.ZoneId.systemDefault())
+                    .toString();
+            int n = 1;
+            Path archive;
+            do {
+                archive = logs.resolve(date + "-" + n++ + ".log.gz");
+            } while (Files.exists(archive));
+            try (var in = Files.newInputStream(latest);
+                    var out = new java.util.zip.GZIPOutputStream(Files.newOutputStream(archive))) {
+                in.transferTo(out);
+            }
+            Files.delete(latest);
+        }
+        java.util.List<Path> archives;
+        try (var files = Files.list(logs)) {
+            archives = files.filter(f -> f.getFileName().toString().endsWith(".log.gz"))
+                    .sorted(java.util.Comparator.comparing((Path f) -> {
+                                try {
+                                    return Files.getLastModifiedTime(f);
+                                } catch (IOException e) {
+                                    return java.nio.file.attribute.FileTime.fromMillis(0);
+                                }
+                            })
+                            .thenComparing(Path::toString))
+                    .toList();
+        }
+        for (int i = 0; i < archives.size() - keep; i++) {
+            Files.deleteIfExists(archives.get(i));
+        }
+    }
+
+    @Override
+    public String crash(String name, String report) {
+        System.err.println(report);
+        try {
+            Files.createDirectories(crashDirectory);
+            Path target = crashDirectory.resolve(name);
+            Files.writeString(target, report, StandardCharsets.UTF_8);
+            write(ERROR, "gulp", "Crash report written to " + target.toAbsolutePath(), null);
+            return target.toAbsolutePath().toString();
+        } catch (IOException e) {
+            write(ERROR, "gulp", "Cannot write the crash report: " + e, null);
+            return "";
         }
     }
 

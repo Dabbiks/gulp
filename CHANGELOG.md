@@ -4,6 +4,100 @@ Format oparty na [Keep a Changelog](https://keepachangelog.com/pl/1.1.0/); wersj
 
 ## [Unreleased]
 
+### Etap 11 — Jakość i narzędzia
+
+#### Dodane
+
+- **Narzędzia deweloperskie (`dev.gulp.api.debug`):**
+  - `debug()` z nakładką F3 (FPS i wykres czasu klatki, TPS i czas ticka, encje, chunki, cząsteczki, dźwięki, wywołania rysowania, zmiany tekstur, pamięć, kursor i kafelek);
+  - przełączniki F3 + C/N/G/L/U/E i `/debug <flaga> [on|off]`: kolizje, nawigacja, granice chunków, światła, inspektor UI, inspektor encji (kliknięta encja z komponentami, polami `@Save`, tagami i danymi na żywo);
+  - `debug().draw()` (`line`, `rect`, `circle`, `arrow`, `text` z czasem życia w tickach);
+  - profiler (moduły, handlery, zadania, typy komponentów, własne sekcje) z raportem `ProfileReport` i `/profile start|stop`;
+  - `Stats`;
+  - `GameSettings.debugTools`;
+  - nowe widoki `DebugView.CHUNKS` i `LIGHTS`.
+- **Awarie i logi:**
+  - raporty awarii (`crash-reports/crash-<data>.txt` na desktopie, nakładka z przyciskiem kopiowania na webie) z modułami, systemem, GPU, wersjami i ostatnimi liniami logu;
+  - czytelny ekran błędu zamiast cichego zamknięcia;
+  - rotacja `logs/latest.log` do archiwów `.log.gz` (10 ostatnich);
+  - `PlatformLog.crash`.
+- **Polityka błędów (20.3):**
+  - komponent wyłączany po 3 błędach `onTick` z rzędu;
+  - zastępniki brakujących zasobów (szachownica, cisza, font domyślny) z ostrzeżeniem;
+  - odtwarzanie zasobów GPU po utracie kontekstu WebGL (`GlJournal`);
+  - `HeadlessGl` odrzuca shadery z `#error`, żeby testować zastępczy shader;
+  - testy wszystkich punktów (`ErrorPolicyTest`, `GlJournalTest`, `DesktopLogTest`).
+- **Plugin Gradle:**
+  - `packageDesktop` (jdeps, jlink, jpackage: MSI/DMG/DEB/RPM albo zipowany `app-image`) z blokiem `gulp { desktop { ... } }`;
+  - `checkApiUsage` w `check`.
+- **Wydajność:**
+  - `examples/bench` (sprite'y, encje, cząsteczki, UI, mapa) z trybem automatycznym i testami budżetów (`:examples:bench:bench`);
+  - `AllocationTest` (zero alokacji na klatkę w rysowaniu, fizyce, eventach i zadaniach).
+- **Szablon:** `templates/game` i `./gradlew :gulp-tools:newGame` (`NewProject`) — nowy projekt z wrapperem, testem, pakowaniem desktop i web.
+- **CI:**
+  - benchmarki;
+  - pakowanie projektu z szablonu na Linuksie, Windowsie i macOS oraz web;
+  - limit 5 MB gzip dla `game.wasm`;
+  - utrata i odzyskanie kontekstu w teście dymnym web.
+
+#### Zmienione
+
+- `Contact` jest klasą wielokrotnego użytku (ważną do następnego ruchu) z `pointX/Y` i `normalX/Y`.
+- `Mover` ma `velocityX()` i `velocityY()`, a wektory tworzy dopiero przy odczycie.
+- `TickStartEvent` i `TickEndEvent` są używane wielokrotnie (SPI `EventAccess`).
+- Brakująca tekstura, region, dźwięk lub font nie kończą się już błędem `load`, tylko zastępnikiem.
+- `/profile` i `/debug` są komendami wbudowanymi.
+
+#### Naprawione
+
+- Alokacje co klatkę w UI (`UiAction.values()`), shaderach, siatce przestrzennej, pętlach świata i fizyce.
+- Rysowanie 50 000 sprite'ów przyspieszyło około dwukrotnie: jedno przejście na klatkę zamiast jednego na warstwę, sortowanie na tablicach prostych, szybka ścieżka quadów.
+- Przestarzała składnia `by tasks.registering` w skryptach Gradle.
+
+### Etap 10 — Dane
+
+#### Dodane
+
+- **Zapisy gry (`dev.gulp.api.save`):**
+  - `saves().slot(name)` zwraca `SaveSlot` z metodami `save`, `save(title)`, `load`, `delete`, `exists`, `metadata`, `exportData`, `importData`, `exportFile`, `importFile`;
+  - `saves().list()`, `migration(from, step)`, `version()`, `autosave(slot, interval)`, `stopAutosave`, `isBusy`;
+  - `SaveMetadata` (tytuł, data, czas gry w tickach, wersja, miniatura) oraz eventy `GameSaveEvent` i `GameLoadEvent`;
+  - `GameSettings.saveVersion(n)`.
+- **Co się zapisuje:**
+  - trwałe światy (`WorldSettings.persistent`) z danymi, zmienionymi chunkami w plikach regionów (32 × 32 chunki), stanami kafelków i trwałymi encjami (UUID, transformacja, nazwa, tagi, dane);
+  - komponenty z `@ComponentInfo` i polami `@Save`, dla których procesor generuje `ComponentState` bez refleksji;
+  - dane modułów i aktywny świat.
+- **Format:** tagowany format binarny z kompresją DEFLATE, pisaną samodzielnie i czytelną dla JDK oraz przeglądarki (`Tags`, `Deflate`).
+- **Autozapis i przenoszenie:** autozapis w czasie rzeczywistym i przy ukryciu karty na webie; eksport i import slotu (web: pobieranie i wgrywanie; desktop: foldery `exports/` i `imports/`).
+- **Preferencje:** silnik pamięta język (`gulp.locale`), tryb okna, VSync i monitor (`gulp.window.*`) oraz skalę UI (`gulp.ui.scale`) i przywraca je przed `onStart`.
+- **Lokalizacja:**
+  - podzbiór ICU w `tr` i `Text.translatable`: `{0}`, `{nazwa}`, `number`, `date`, `plural` (reguły CLDR dla pl, ru, uk, cs, sk, fr, CJK i innych), `select`;
+  - `translations().format`, `formatNumber`, `formatDate`;
+  - teksty UI odświeżają się po `setLocale` (`UiAccess.Backend.textRevision`).
+- **Sieć (`dev.gulp.api.net`):**
+  - `http().get`, `post`, `request(HttpRequest)` z limitem czasu i `HttpResponse` (`text`, `json`, `bytes`, nagłówki);
+  - `http().connect(url)` zwraca `WebSocket` z kolejką przed otwarciem;
+  - `platform().openUrl` tylko dla http(s).
+- **Backendy:**
+  - desktop: `HttpClient` i `WebSocket` z JDK;
+  - web: `fetch`, `WebSocket`, pobieranie i wgrywanie plików przez `gulp-runtime.js`;
+  - headless: `HeadlessNet.fail`, `hang`, `refuseSocket`, `sockets()` oraz `HeadlessFiles.offered` i `putPickable`.
+- **Kodeki:** `Codec.VEC2`, `DataType.VEC2`.
+- **Przykłady:**
+  - platformówka zapisuje postęp (monety, poziom, punkt odrodzenia) z przyciskiem „Continue”, autozapisem i testem `ProgressSaveTest`;
+  - showcase ma wybór języka w ustawieniach.
+
+#### Zmienione
+
+- `ComponentType` ma pole `persistent`.
+- `EntityImpl.id` nie jest `final` (odtwarzanie UUID przy wczytaniu).
+- `GulpEngine.translations()` zwraca `TranslationsImpl`.
+
+#### Naprawione
+
+- `readPixels` na webie podaje `Uint8Array`, więc zrzut ekranu (i miniatura zapisu) działa bez ostrzeżenia WebGL.
+- `HttpRequest.Builder.timeout` odrzuca zero i wartości ujemne.
+
 ### Etap 9 — UI
 
 #### Dodane

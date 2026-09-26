@@ -4,6 +4,7 @@ import dev.gulp.api.GameSettings;
 import dev.gulp.api.Logger;
 import dev.gulp.api.data.JsonObject;
 import dev.gulp.api.data.JsonValue;
+import dev.gulp.api.data.Preferences;
 import dev.gulp.api.i18n.LocaleChangeEvent;
 import dev.gulp.api.i18n.Translations;
 import dev.gulp.api.scheduler.Promise;
@@ -22,6 +23,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.function.Supplier;
+import org.jspecify.annotations.Nullable;
 
 /**
  * {@link Translations}: {@code <namespace>/lang/<locale>.json} of the game's namespace and the engine's, read through
@@ -39,6 +41,11 @@ public final class TranslationsImpl implements Translations {
     private String locale;
     private List<Map<String, String>> chain = List.of();
     private final Set<String> warned = new HashSet<>();
+    private @Nullable Preferences preferences;
+
+    /** Preference key of the chosen locale. */
+    public static final String LOCALE_KEY = "gulp.locale";
+
     private int revision;
 
     /**
@@ -67,6 +74,15 @@ public final class TranslationsImpl implements Translations {
         this.events = events;
         this.logger = logger;
         this.promises = promises;
+    }
+
+    /**
+     * Connects the preferences where the chosen locale is kept.
+     *
+     * @param store the preferences
+     */
+    public void setPreferences(Preferences store) {
+        this.preferences = store;
     }
 
     /**
@@ -183,40 +199,19 @@ public final class TranslationsImpl implements Translations {
         return key;
     }
 
-    /**
-     * Replaces {@code {0}}, {@code {1}}, and so on; other braces stay.
-     *
-     * @param pattern the translation
-     * @param arguments the values
-     * @return the formatted string
-     */
-    static String format(String pattern, Object[] arguments) {
-        if (arguments.length == 0 || pattern.indexOf('{') < 0) {
-            return pattern;
-        }
-        StringBuilder out = new StringBuilder(pattern.length() + 16);
-        int i = 0;
-        while (i < pattern.length()) {
-            char c = pattern.charAt(i);
-            if (c == '{') {
-                int close = pattern.indexOf('}', i);
-                if (close > i + 1) {
-                    String inside = pattern.substring(i + 1, close);
-                    boolean digits = inside.chars().allMatch(Character::isDigit);
-                    if (digits && inside.length() < 4) {
-                        int index = Integer.parseInt(inside);
-                        if (index < arguments.length) {
-                            out.append(arguments[index]);
-                            i = close + 1;
-                            continue;
-                        }
-                    }
-                }
-            }
-            out.append(c);
-            i++;
-        }
-        return out.toString();
+    @Override
+    public String format(String pattern, Object... arguments) {
+        return MessageFormat.format(pattern, locale, arguments);
+    }
+
+    @Override
+    public String formatNumber(double value) {
+        return MessageFormat.formatNumber(value, locale);
+    }
+
+    @Override
+    public String formatDate(long epochMillis) {
+        return MessageFormat.formatDate(epochMillis, locale);
     }
 
     @Override
@@ -236,6 +231,10 @@ public final class TranslationsImpl implements Translations {
         read(normalized, maps -> {
             locale = normalized;
             chain = maps;
+            Preferences saved = preferences;
+            if (saved != null) {
+                saved.set(LOCALE_KEY, normalized);
+            }
             warned.clear();
             revision++;
             if (events.hasListeners(LocaleChangeEvent.class)) {

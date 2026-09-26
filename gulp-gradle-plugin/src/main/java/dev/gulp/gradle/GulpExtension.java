@@ -21,6 +21,7 @@ import org.gradle.api.provider.Property;
 public abstract class GulpExtension {
 
     private final Web web;
+    private final Desktop desktop;
     private final GulpAssets assets = new GulpAssets();
 
     /**
@@ -34,6 +35,7 @@ public abstract class GulpExtension {
         web.getTarget().convention(WebTarget.WASM_GC);
         web.getJsFallback().convention(true);
         web.getPort().convention(8080);
+        this.desktop = objects.newInstance(Desktop.class);
     }
 
     /**
@@ -120,5 +122,70 @@ public abstract class GulpExtension {
          * @return {@code 8080} by default
          */
         public abstract Property<Integer> getPort();
+    }
+
+    /**
+     * Returns the desktop packaging settings.
+     *
+     * @return the settings
+     */
+    public Desktop getDesktop() {
+        return desktop;
+    }
+
+    /**
+     * Configures desktop packaging.
+     *
+     * <pre>{@code
+     * gulp { desktop { installerType = "msi"; vendor = "Example Games"; icon = file("icon.ico") } }
+     * }</pre>
+     *
+     * @param action the configuration
+     */
+    public void desktop(Action<? super Desktop> action) {
+        action.execute(desktop);
+    }
+
+    /** Settings of {@code packageDesktop}. */
+    public abstract static class Desktop {
+
+        /** Creates the settings; instantiated by Gradle. */
+        public Desktop() {}
+
+        /**
+         * Returns the {@code jpackage} type; by default MSI with WiX on Windows, DMG on macOS, DEB or RPM on Linux, or
+         * a zipped application folder when those tools are missing.
+         *
+         * @return {@code app-image}, {@code msi}, {@code exe}, {@code dmg}, {@code pkg}, {@code deb} or {@code rpm}
+         */
+        public abstract Property<String> getInstallerType();
+
+        /**
+         * Returns the application version; by default the project version reduced to numbers.
+         *
+         * @return such as {@code 1.2.0}
+         */
+        public abstract Property<String> getAppVersion();
+
+        /**
+         * Returns the vendor shown by installers.
+         *
+         * @return the vendor
+         */
+        public abstract Property<String> getVendor();
+
+        /**
+         * Returns the icon: {@code .ico} on Windows, {@code .icns} on macOS, {@code .png} on Linux.
+         *
+         * @return the file
+         */
+        public abstract org.gradle.api.file.RegularFileProperty getIcon();
+
+        /**
+         * Returns extra JVM options of the packaged game, such as {@code -Xmx1g}.
+         *
+         * @return the options
+         */
+        public abstract org.gradle.api.provider.ListProperty<String> getJavaOptions();
     }
 }

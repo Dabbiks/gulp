@@ -9,6 +9,7 @@ import dev.gulp.api.Owner;
 import dev.gulp.api.Platform;
 import dev.gulp.api.asset.AssetGroup;
 import dev.gulp.api.asset.AssetKey;
+import dev.gulp.api.asset.AssetType;
 import dev.gulp.api.asset.Assets;
 import dev.gulp.api.audio.Audio;
 import dev.gulp.api.audio.AudioClip;
@@ -28,7 +29,6 @@ import dev.gulp.api.event.lifecycle.TickStartEvent;
 import dev.gulp.api.event.lifecycle.WindowResizeEvent;
 import dev.gulp.api.graphics.Graphics;
 import dev.gulp.api.graphics.TextureRegion;
-import dev.gulp.api.i18n.Translations;
 import dev.gulp.api.input.Input;
 import dev.gulp.api.module.GameModule;
 import dev.gulp.api.module.ModuleManager;
@@ -40,6 +40,7 @@ import dev.gulp.api.scheduler.Promise;
 import dev.gulp.api.scheduler.Scheduler;
 import dev.gulp.api.service.Services;
 import dev.gulp.api.spi.EngineBinding;
+import dev.gulp.api.spi.EventAccess;
 import dev.gulp.api.spi.PhysicsAccess;
 import dev.gulp.api.text.Font;
 import dev.gulp.api.text.FontFamily;
@@ -63,7 +64,9 @@ import dev.gulp.core.i18n.TranslationsImpl;
 import dev.gulp.core.input.InputImpl;
 import dev.gulp.core.log.LoggerImpl;
 import dev.gulp.core.module.ModuleManagerImpl;
+import dev.gulp.core.net.HttpImpl;
 import dev.gulp.core.registry.RegistriesImpl;
+import dev.gulp.core.save.SaveStoreImpl;
 import dev.gulp.core.scheduler.PromiseImpl;
 import dev.gulp.core.scheduler.SchedulerImpl;
 import dev.gulp.core.service.ServicesImpl;
@@ -123,8 +126,16 @@ public final class GulpEngine implements Engine, FrameHandler, CoreContext {
     private final GameSettings settings;
     private final PlatformBackend backend;
     private final boolean development;
+    private final dev.gulp.core.debug.ProfilerImpl profiler;
+    private final dev.gulp.core.debug.DebugImpl debug;
     private final LogLevel logLevel;
     private final Map<String, Logger> loggers = new HashMap<>();
+    private final dev.gulp.core.log.RecentLog recentLog;
+    private dev.gulp.core.log.@Nullable CrashScreen crashScreen;
+
+    /** The engine version, written into crash reports. */
+    public static final String VERSION = "0.1.0-SNAPSHOT";
+
     private final Logger engineLogger;
     private final Owner engineOwner;
     private final MainQueue mainQueue = new MainQueue();
@@ -143,6 +154,8 @@ public final class GulpEngine implements Engine, FrameHandler, CoreContext {
     private final Renderer renderer;
     private final dev.gulp.core.anim.AnimationSystem animations;
     private final UiImpl ui;
+    private final SaveStoreImpl saves;
+    private final HttpImpl http;
     private final AssetsImpl assets;
     private final TranslationsImpl translations;
     private final TextSystem textSystem;
@@ -190,7 +203,12 @@ public final class GulpEngine implements Engine, FrameHandler, CoreContext {
         this.settings = settings;
         this.backend = backend;
         this.development = backend.info().isDevelopment();
+        Boolean toolsChoice = settings.debugTools();
+        boolean toolsEnabled = toolsChoice != null ? toolsChoice : development;
+        this.profiler =
+                new dev.gulp.core.debug.ProfilerImpl(toolsEnabled, System::nanoTime, () -> tick, () -> frameCount);
         this.logLevel = LoggerImpl.configuredLevel();
+        this.recentLog = new dev.gulp.core.log.RecentLog(backend.log(), 50);
         this.engineLogger = logger(Key.RESERVED);
         this.tickNanos = 1_000_000_000L / settings.ticksPerSecond();
         this.measuredTps = settings.ticksPerSecond();
@@ -273,6 +291,22 @@ public final class GulpEngine implements Engine, FrameHandler, CoreContext {
                 () -> display.camera().position(),
                 engineLogger);
         audio.registerLoaders(backend.decoders());
+        assets.setPlaceholders(type -> {
+            if (type == AssetType.TEXTURE) {
+                return graphics.fallbackTexture();
+            }
+            if (type == AssetType.REGION) {
+                return graphics.fallbackTexture().region();
+            }
+            if (type == AssetType.AUDIO) {
+                return audio.silence();
+            }
+            if (type == AssetType.FONT) {
+                FontFamily family = textSystem.defaultFamily();
+                return family == null ? null : family.regular();
+            }
+            return null;
+        });
         input.setPointMapper(display);
         this.worlds = new WorldsImpl(
                 this,
@@ -308,6 +342,97 @@ public final class GulpEngine implements Engine, FrameHandler, CoreContext {
                 (moduleId, module) -> config(moduleId, module),
                 events,
                 this::cleanup);
+        this.saves = new SaveStoreImpl(
+                this,
+                backend.files(),
+                worlds,
+                modules,
+                generated,
+                new SaveStoreImpl.Promises() {
+                    @Override
+                    public <T> PromiseImpl<T> create() {
+                        return new PromiseImpl<>(game, GulpEngine.this, mainQueue);
+                    }
+
+                    @Override
+                    public <T> PromiseImpl<T> failed(Throwable error) {
+                        return PromiseImpl.failed(game, GulpEngine.this, mainQueue, error);
+                    }
+                },
+                engineLogger,
+                graphics::decode,
+                settings.saveVersion());
+        this.http = new HttpImpl(
+                this::netOrNull,
+                () -> new PromiseImpl<>(game, this, mainQueue),
+                scheduler.api().realtime().owner(game),
+                engineLogger);
+        this.debug = new dev.gulp.core.debug.DebugImpl(
+                toolsEnabled, new DebugEnvironment(), engineLogger, profiler, saves::describe);
+        if (toolsEnabled) {
+            input.setDebugHook(debug);
+        }
+    }
+
+    /** What the developer tools read from the engine. */
+    private final class DebugEnvironment implements dev.gulp.core.debug.DebugImpl.Environment {
+        @Override
+        public dev.gulp.api.world.@org.jspecify.annotations.Nullable World activeWorld() {
+            return worlds.activeWorld();
+        }
+
+        @Override
+        public int chunks(dev.gulp.api.world.World world) {
+            return worlds.loadedChunks(world);
+        }
+
+        @Override
+        public int sounds() {
+            return audio.activeVoices();
+        }
+
+        @Override
+        public dev.gulp.api.render.RenderStats renderStats() {
+            return display.stats();
+        }
+
+        @Override
+        public dev.gulp.api.math.Vec2 mouseWorld(dev.gulp.api.world.World world) {
+            return input.mouseWorld(world.camera());
+        }
+
+        @Override
+        public long memoryUsed() {
+            return backend.info().memoryUsed();
+        }
+
+        @Override
+        public long memoryMax() {
+            return backend.info().memoryMax();
+        }
+
+        @Override
+        public void uiInspector(boolean open) {
+            ui.inspector(open);
+        }
+
+        @Override
+        public boolean isUiInspectorOpen() {
+            return ui.isInspectorOpen();
+        }
+
+        @Override
+        public void writeFile(String name, byte[] content) {
+            dev.gulp.core.debug.DebugImpl.write(backend.files(), engineLogger, name, content);
+        }
+    }
+
+    private dev.gulp.platform.@org.jspecify.annotations.Nullable PlatformNet netOrNull() {
+        try {
+            return backend.net();
+        } catch (UnsupportedOperationException error) {
+            return null;
+        }
     }
 
     /**
@@ -351,7 +476,7 @@ public final class GulpEngine implements Engine, FrameHandler, CoreContext {
     }
 
     private Logger logger(String name) {
-        return loggers.computeIfAbsent(name, n -> new LoggerImpl(n, backend.log(), logLevel));
+        return loggers.computeIfAbsent(name, n -> new LoggerImpl(n, recentLog, logLevel));
     }
 
     // ------------------------------------------------------------------ lifecycle
@@ -389,6 +514,13 @@ public final class GulpEngine implements Engine, FrameHandler, CoreContext {
         pendingConfigs++;
         preferences.load(() -> {
             audio.loadSettings();
+            display.window().loadPreferences(preferences);
+            translations.setPreferences(preferences);
+            String savedLocale = preferences.getString(TranslationsImpl.LOCALE_KEY, "");
+            if (!savedLocale.isEmpty() && !savedLocale.equals(translations.locale())) {
+                pendingConfigs++;
+                translations.setLocale(savedLocale).thenSync(done -> pendingConfigs--);
+            }
             pendingConfigs--;
         });
         // The built-in font loads with the configs; without it (tests without assets) text is skipped with a warning.
@@ -413,8 +545,78 @@ public final class GulpEngine implements Engine, FrameHandler, CoreContext {
 
     @Override
     public boolean frame(long nanoTime) {
+        if (crashScreen != null) {
+            try {
+                render(nanoTime);
+            } catch (Throwable error) {
+                stopRequested = true;
+            }
+            return !stopRequested && !backend.window().shouldClose();
+        }
+        try {
+            return runFrame(nanoTime);
+        } catch (Throwable error) {
+            crash("Unexpected error in the main loop", error);
+            return !stopRequested && !backend.window().shouldClose();
+        }
+    }
+
+    /**
+     * Handles a fatal error (section 20.3): logs it, writes a crash report and shows a readable error screen on
+     * desktop until the window is closed; on the web the report appears in the error overlay, and the loop stops.
+     *
+     * @param description what the engine was doing
+     * @param error what was thrown
+     */
+    public void crash(String description, Throwable error) {
+        if (failure != null) {
+            return;
+        }
+        failure = error;
+        String location = "";
+        try {
+            engineLogger.error(description, error);
+            long now = System.currentTimeMillis();
+            List<String> moduleLines = new ArrayList<>();
+            for (String id : modules.ids()) {
+                moduleLines.add(id + ": " + modules.state(id));
+            }
+            var info = backend.info();
+            String java = System.getProperty("java.version");
+            String text = dev.gulp.core.log.CrashReport.text(
+                    new dev.gulp.core.log.CrashReport.Details(
+                            description,
+                            now,
+                            game.id(),
+                            VERSION,
+                            platform.backend(),
+                            info.osName() + " (" + info.architecture() + ")",
+                            info.gpuDescription(),
+                            java == null ? "?" : java,
+                            moduleLines,
+                            recentLog.lines()),
+                    error);
+            location = recentLog.sink().crash(dev.gulp.core.log.CrashReport.fileName(now), text);
+        } catch (Throwable reportError) {
+            System.err.println("[gulp] Cannot write the crash report: " + reportError);
+        }
+        if (platform.backend().equals("desktop")) {
+            crashScreen = new dev.gulp.core.log.CrashScreen(error.toString(), location);
+        } else {
+            stopRequested = true;
+        }
+    }
+
+    private final java.util.function.Consumer<Throwable> drainErrors = this::mainQueueFailed;
+
+    private void mainQueueFailed(Throwable error) {
+        engineLogger.error("Unhandled exception in main-thread work", error);
+    }
+
+    private boolean runFrame(long nanoTime) {
         frameCount++;
-        mainQueue.drain(error -> engineLogger.error("Unhandled exception in main-thread work", error));
+        debug.frame(nanoTime);
+        mainQueue.drain(drainErrors);
         input.frame(nanoTime);
         if (phase == Phase.LOADING && pendingConfigs == 0 && !stopRequested) {
             try {
@@ -431,10 +633,8 @@ public final class GulpEngine implements Engine, FrameHandler, CoreContext {
                     startGame(nanoTime);
                 }
             } catch (Throwable error) {
-                failure = error;
-                stopRequested = true;
-                engineLogger.error("The game failed to start", error);
-                return false;
+                crash("The game failed to start", error);
+                return !stopRequested && !backend.window().shouldClose();
             }
         }
         if (phase == Phase.RUNNING && !stopRequested) {
@@ -466,6 +666,9 @@ public final class GulpEngine implements Engine, FrameHandler, CoreContext {
             registries.register(Registries.DAMAGE_TYPE, DamageType.GENERIC);
             for (UiAction action : UiAction.values()) {
                 registries.register(Registries.INPUT_ACTION, action.action());
+            }
+            for (dev.gulp.api.entity.ComponentType type : saves.componentTypes()) {
+                registries.register(Registries.COMPONENT_TYPE, type);
             }
             for (Theme theme : List.of(Theme.DARK, Theme.LIGHT, Theme.PIXEL)) {
                 registries.register(Registries.THEME, theme);
@@ -503,6 +706,7 @@ public final class GulpEngine implements Engine, FrameHandler, CoreContext {
     private void startGame(long nanoTime) {
         startup = null;
         ui.start();
+        saves.start(engineOwner);
         game.onStart();
         phase = Phase.RUNNING;
         input.setRunning(true);
@@ -559,23 +763,35 @@ public final class GulpEngine implements Engine, FrameHandler, CoreContext {
         }
     }
 
+    /** The tick events, reused every tick (pools of frequent events, section 20.5). */
+    private final TickStartEvent tickStart = new TickStartEvent(0);
+
+    private final TickEndEvent tickEnd = new TickEndEvent(0);
+
     private void gameTick() {
+        long started = System.nanoTime();
         tick++;
         tpsTicks++;
         input.tick();
         if (events.hasListeners(TickStartEvent.class)) {
-            events.call(new TickStartEvent(tick));
+            EventAccess.setTick(tickStart, tick);
+            events.call(tickStart);
         }
         scheduler.tickGame();
         worlds.tick(false);
         if (events.hasListeners(TickEndEvent.class)) {
-            events.call(new TickEndEvent(tick));
+            EventAccess.setTick(tickEnd, tick);
+            events.call(tickEnd);
         }
+        debug.ticked(System.nanoTime() - started, measuredTps);
     }
 
     private void render(long nanoTime) {
         PlatformWindow window = backend.window();
-        if (phase == Phase.LOADING && startup != null) {
+        dev.gulp.core.log.CrashScreen crashed = crashScreen;
+        if (crashed != null) {
+            renderer.showLoading(crashed, 0f);
+        } else if (phase == Phase.LOADING && startup != null) {
             renderer.showLoading(assets.loadingScreen(), assets.startup().progress());
         } else {
             renderer.hideLoading();
@@ -584,6 +800,7 @@ public final class GulpEngine implements Engine, FrameHandler, CoreContext {
             firstFrameNanos = nanoTime;
         }
         renderer.draw().setTime((nanoTime - firstFrameNanos) / 1e9f);
+        long started = System.nanoTime();
         renderer.render(
                 window.framebufferWidth(),
                 window.framebufferHeight(),
@@ -592,6 +809,7 @@ public final class GulpEngine implements Engine, FrameHandler, CoreContext {
                 alpha(),
                 phase == Phase.RUNNING && !stopRequested,
                 nanoTime);
+        debug.rendered(System.nanoTime() - started);
     }
 
     @Override
@@ -678,6 +896,16 @@ public final class GulpEngine implements Engine, FrameHandler, CoreContext {
     }
 
     @Override
+    public dev.gulp.core.debug.ProfilerImpl profiler() {
+        return profiler;
+    }
+
+    @Override
+    public dev.gulp.core.debug.DebugImpl debug() {
+        return debug;
+    }
+
+    @Override
     public void checkMainThread(String method) {
         Thread main = mainThread;
         if (development && main != null && Thread.currentThread() != main) {
@@ -740,7 +968,7 @@ public final class GulpEngine implements Engine, FrameHandler, CoreContext {
     }
 
     @Override
-    public Translations translations() {
+    public TranslationsImpl translations() {
         return translations;
     }
 
@@ -762,6 +990,16 @@ public final class GulpEngine implements Engine, FrameHandler, CoreContext {
     @Override
     public UiImpl ui() {
         return ui;
+    }
+
+    @Override
+    public SaveStoreImpl saves() {
+        return saves;
+    }
+
+    @Override
+    public HttpImpl http() {
+        return http;
     }
 
     @Override

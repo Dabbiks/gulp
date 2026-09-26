@@ -32,6 +32,8 @@ public final class DataType<T> {
     public static final DataType<String> STRING = new DataType<>("string", Codec.STRING);
     /** A key. */
     public static final DataType<Key> KEY = new DataType<>("key", Codec.KEY);
+    /** A vector. */
+    public static final DataType<dev.gulp.api.math.Vec2> VEC2 = new DataType<>("vec2", Codec.VEC2);
     /** A nested container. */
     public static final DataType<DataContainer> CONTAINER = new DataType<>(
             "container",

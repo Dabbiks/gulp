@@ -78,6 +78,10 @@ final class WorldImpl implements World {
     private boolean ticking;
     boolean loaded = true;
     final List<EntityImpl> onScreen = new ArrayList<>();
+
+    /** Entities whose transform changed since the last tick, see {@link EntityImpl#rememberPrevious()}. */
+    final List<EntityImpl> moved = new ArrayList<>();
+
     int screenStamp;
     final PhysicsWorld physics;
     final NavGridImpl navGrid;
@@ -259,7 +263,8 @@ final class WorldImpl implements World {
             worlds.releaseEntity(entity);
         }
         removals.clear();
-        for (PendingStoreRemoval pending : storeRemovals) {
+        for (int i = 0; i < storeRemovals.size(); i++) {
+            PendingStoreRemoval pending = storeRemovals.get(i);
             storeRemoveNow(pending.component, pending.slot);
         }
         storeRemovals.clear();
@@ -357,14 +362,19 @@ final class WorldImpl implements World {
         try {
             if (!paused) {
                 ticks++;
-                for (int i = 0; i < entities.size(); i++) {
-                    entities.get(i).rememberPrevious();
+                // Only entities that moved since the last tick: the others already have prev equal to now.
+                for (int i = 0; i < moved.size(); i++) {
+                    moved.get(i).rememberPrevious();
                 }
+                moved.clear();
                 tileMap.tick(rng);
             }
+            dev.gulp.core.debug.ProfilerImpl profiler = worlds.context.profiler();
             for (int s = 0; s < stores.size(); s++) {
                 ComponentStore store = stores.get(s);
                 int count = store.size;
+                long started = profiler.running ? profiler.begin() : 0L;
+                int ticked = 0;
                 for (int i = 0; i < count && i < store.size; i++) {
                     Component component = store.items[i];
                     EntityImpl owner = store.owners[i];
@@ -374,12 +384,16 @@ final class WorldImpl implements World {
                     if (paused && owner.pauseMode != PauseMode.ALWAYS) {
                         continue;
                     }
+                    ticked++;
                     try {
                         ComponentAccess.tick(component);
+                        store.errors[i] = 0;
                     } catch (RuntimeException error) {
-                        worlds.logger.error(
-                                "onTick of " + component.getClass().getSimpleName() + " failed in " + owner, error);
+                        failed(store, i, component, owner, error);
                     }
+                }
+                if (started != 0L) {
+                    profiler.endComponents(store.type, ticked, started);
                 }
             }
             if (!paused) {
@@ -391,6 +405,25 @@ final class WorldImpl implements World {
         }
         flushRemovals();
     }
+
+    /** Logs a failed tick; the third failure in a row disables the component (section 20.3). */
+    private void failed(ComponentStore store, int slot, Component component, EntityImpl owner, RuntimeException error) {
+        int errors = ++store.errors[slot];
+        String name = component.getClass().getSimpleName();
+        if (errors >= MAX_CONSECUTIVE_ERRORS) {
+            store.errors[slot] = 0;
+            component.setEnabled(false);
+            worlds.logger.error(
+                    "onTick of " + name + " failed " + MAX_CONSECUTIVE_ERRORS + " times in a row in " + owner
+                            + "; the component was disabled",
+                    error);
+        } else {
+            worlds.logger.error("onTick of " + name + " failed in " + owner, error);
+        }
+    }
+
+    /** Failed ticks in a row after which a component is disabled. */
+    static final int MAX_CONSECUTIVE_ERRORS = 3;
 
     // ------------------------------------------------------------------ World
 
@@ -617,6 +650,7 @@ final class WorldImpl implements World {
         ticking = false;
         flushRemovals();
         ticking = wasTicking;
+        moved.clear();
         grid.clear();
         particles.clear();
         physics.dispose();

@@ -175,6 +175,27 @@ class WebSmokeTest {
                 }
             }
             assertThat(juiceColors).as("distinct colors on the juice screen").hasSizeGreaterThan(20);
+
+            // A lost WebGL context comes back with every texture, shader and buffer rebuilt (section 20.3).
+            Object lost = page.evaluate("(() => { const gl = document.getElementById('gulp-canvas')"
+                    + ".getContext('webgl2'); window.gulpLose = gl && gl.getExtension('WEBGL_lose_context');"
+                    + " if (!window.gulpLose) return false; window.gulpLose.loseContext(); return true; })()");
+            if (Boolean.TRUE.equals(lost)) {
+                waitFor(page, logs, "context was lost", 5_000);
+                page.evaluate("window.gulpLose.restoreContext()");
+                waitFor(page, logs, "GPU resources rebuilt", 5_000);
+                page.waitForTimeout(1_000);
+                BufferedImage restored = ImageIO.read(new ByteArrayInputStream(page.screenshot()));
+                Set<Integer> restoredColors = new HashSet<>();
+                for (int y = 0; y < restored.getHeight(); y += 7) {
+                    for (int x = 0; x < restored.getWidth(); x += 7) {
+                        restoredColors.add(restored.getRGB(x, y));
+                    }
+                }
+                assertThat(restoredColors)
+                        .as("distinct colors after the context came back")
+                        .hasSizeGreaterThan(20);
+            }
             synchronized (errors) {
                 assertThat(errors)
                         .as("console errors in %s (%s)", browserName, target)

@@ -58,6 +58,15 @@ public interface Codec<T> {
     /** Any JSON value, unchanged. */
     Codec<JsonValue> JSON = of(value -> value, json -> json);
 
+    /** Vectors as {@code [x, y]}. */
+    Codec<dev.gulp.api.math.Vec2> VEC2 =
+            of(v -> JsonArray.builder().add(v.x()).add(v.y()).build(), json -> {
+                JsonArray array = expect(json, JsonArray.class, "[x, y] array");
+                return new dev.gulp.api.math.Vec2(
+                        (float) expect(array.get(0), JsonNumber.class, "number").doubleValue(),
+                        (float) expect(array.get(1), JsonNumber.class, "number").doubleValue());
+            });
+
     /**
      * Converts a value to JSON.
      *

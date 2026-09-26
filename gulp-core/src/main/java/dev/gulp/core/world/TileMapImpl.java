@@ -296,6 +296,31 @@ final class TileMapImpl implements TileMap {
         return layer;
     }
 
+    /**
+     * Finds a tile type of this map's palette by key, including types made by map loaders.
+     *
+     * @param key the key text
+     * @return the type, or {@code null}
+     */
+    @Nullable TileType typeByKey(String key) {
+        for (int i = 1; i < palette.size(); i++) {
+            TileType type = palette.get(i);
+            if (type != null && type.key().toString().equals(key)) {
+                return type;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Visits the changed chunks kept in memory after they were unloaded.
+     *
+     * @param action receives each chunk
+     */
+    void forEachKept(java.util.function.Consumer<ChunkImpl> action) {
+        saved.forEachValue(action);
+    }
+
     TileLayerImpl layerOrCreate(String name) {
         TileLayerImpl layer = byName.get(name);
         return layer != null ? layer : addLayer(name, layers.size() * 10);

@@ -32,6 +32,20 @@ public interface CoreContext {
     void checkMainThread(String method);
 
     /**
+     * Returns the profiler, which the engine checks before measuring handlers and tasks.
+     *
+     * @return the profiler
+     */
+    dev.gulp.core.debug.ProfilerImpl profiler();
+
+    /**
+     * Returns the developer tools.
+     *
+     * @return the tools
+     */
+    dev.gulp.core.debug.DebugImpl debug();
+
+    /**
      * Rejects a registration by an inactive owner.
      *
      * @param owner the owner

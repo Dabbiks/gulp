@@ -163,7 +163,7 @@ public final class GraphicsImpl implements Graphics {
         return white;
     }
 
-    TextureImpl fallbackTexture() {
+    public TextureImpl fallbackTexture() {
         return fallback;
     }
 

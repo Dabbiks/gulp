@@ -204,8 +204,81 @@ public final class PhysicsAccess {
         void assignBit(CollisionLayer layer, int bit);
     }
 
+    /** Implemented inside {@link dev.gulp.api.physics.Contact}: the engine refills contacts instead of making new ones. */
+    public interface ContactHooks {
+        /**
+         * Sets every field of a contact.
+         *
+         * @param contact the contact
+         * @param entity the entity hit, or {@code null}
+         * @param tile whether a tile was hit
+         * @param tileX the tile column
+         * @param tileY the tile row
+         * @param pointX where they touch
+         * @param pointY where they touch
+         * @param normalX the normal
+         * @param normalY the normal
+         */
+        void set(
+                dev.gulp.api.physics.Contact contact,
+                dev.gulp.api.entity.@Nullable Entity entity,
+                boolean tile,
+                int tileX,
+                int tileY,
+                float pointX,
+                float pointY,
+                float normalX,
+                float normalY);
+    }
+
     private static @Nullable Backend backend;
     private static @Nullable LayerHooks layers;
+    private static @Nullable ContactHooks contactHooks;
+
+    /**
+     * Installs the contact hooks; called by {@link dev.gulp.api.physics.Contact}.
+     *
+     * @param installed the hooks
+     */
+    public static void installContacts(ContactHooks installed) {
+        if (contactHooks == null) {
+            contactHooks = installed;
+        }
+    }
+
+    /**
+     * Refills a contact the engine reuses.
+     *
+     * <pre>{@code
+     * PhysicsAccess.setContact(contact, null, true, 3, 7, 3.5f, 7f, 0f, -1f);
+     * }</pre>
+     *
+     * @param contact the contact; creating one installed the hooks
+     * @param entity the entity hit, or {@code null}
+     * @param tile whether a tile was hit
+     * @param tileX the tile column
+     * @param tileY the tile row
+     * @param pointX where they touch
+     * @param pointY where they touch
+     * @param normalX the normal
+     * @param normalY the normal
+     */
+    public static void setContact(
+            dev.gulp.api.physics.Contact contact,
+            dev.gulp.api.entity.@Nullable Entity entity,
+            boolean tile,
+            int tileX,
+            int tileY,
+            float pointX,
+            float pointY,
+            float normalX,
+            float normalY) {
+        ContactHooks current = contactHooks;
+        if (current == null) {
+            throw new IllegalStateException("Contact hooks are not installed");
+        }
+        current.set(contact, entity, tile, tileX, tileY, pointX, pointY, normalX, normalY);
+    }
 
     private PhysicsAccess() {}
 

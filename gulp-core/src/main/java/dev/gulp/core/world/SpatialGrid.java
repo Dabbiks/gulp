@@ -31,7 +31,8 @@ final class SpatialGrid {
                 long key = LongObjectMap.pack(cx, cy);
                 ArrayList<EntityImpl> list = cells.get(key);
                 if (list == null) {
-                    list = new ArrayList<>(4);
+                    // Cells come and go as entities walk; their lists are reused so moving allocates nothing.
+                    list = spare.isEmpty() ? new ArrayList<>(4) : spare.remove(spare.size() - 1);
                     cells.put(key, list);
                 }
                 list.add(entity);
@@ -43,6 +44,11 @@ final class SpatialGrid {
         entity.cellMaxY = maxY;
         entity.inGrid = true;
     }
+
+    /** Emptied cell lists kept for reuse, up to {@link #MAX_SPARE}. */
+    private final ArrayList<ArrayList<EntityImpl>> spare = new ArrayList<>();
+
+    private static final int MAX_SPARE = 1024;
 
     void remove(EntityImpl entity) {
         if (!entity.inGrid) {
@@ -61,6 +67,9 @@ final class SpatialGrid {
                     }
                     if (list.isEmpty()) {
                         cells.remove(key);
+                        if (spare.size() < MAX_SPARE) {
+                            spare.add(list);
+                        }
                     }
                 }
             }
@@ -102,7 +111,12 @@ final class SpatialGrid {
         int cy1 = cell(maxY);
         if ((long) (cx1 - cx0 + 1) * (cy1 - cy0 + 1) > cells.size() * 4L) {
             // A huge area: walk the occupied cells instead of the empty ones.
-            cells.forEachValue(list -> visit(list, stampNow, minX, minY, maxX, maxY, action));
+            for (int slot = 0; slot < cells.capacity(); slot++) {
+                ArrayList<EntityImpl> list = cells.valueAt(slot);
+                if (list != null) {
+                    visit(list, stampNow, minX, minY, maxX, maxY, action);
+                }
+            }
             return;
         }
         for (int cy = cy0; cy <= cy1; cy++) {

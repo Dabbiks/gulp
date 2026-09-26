@@ -37,7 +37,7 @@ import org.jspecify.annotations.Nullable;
 final class EntityImpl implements Entity {
 
     WorldImpl world;
-    final UUID id;
+    UUID id;
     final int runtimeId;
     final EntityType type;
     final EntityOwner owner = new EntityOwner();
@@ -166,6 +166,7 @@ final class EntityImpl implements Entity {
     public Entity setPosition(float newX, float newY) {
         float dx = newX - x;
         float dy = newY - y;
+        markMoved();
         x = newX;
         y = newY;
         if (spawned) {
@@ -262,6 +263,7 @@ final class EntityImpl implements Entity {
         prevX = x;
         prevY = y;
         prevRotation = rotation;
+        moved = false;
     }
 
     @Override
@@ -271,8 +273,20 @@ final class EntityImpl implements Entity {
 
     @Override
     public Entity setRotation(float degrees) {
+        markMoved();
         rotation = degrees;
         return this;
+    }
+
+    /** Whether the entity is in its world's list of entities to remember the previous transform of. */
+    boolean moved;
+
+    /** Queues the entity for {@link #rememberPrevious()}: ticks visit only entities that moved, not all of them. */
+    private void markMoved() {
+        if (!moved) {
+            moved = true;
+            world.moved.add(this);
+        }
     }
 
     @Override

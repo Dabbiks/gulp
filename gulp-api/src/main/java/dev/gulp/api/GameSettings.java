@@ -35,9 +35,11 @@ public final class GameSettings {
     private boolean vsync = true;
     private int targetFps = 0;
     private int ticksPerSecond = 60;
+    private int saveVersion = 1;
     private Color clearColor = Color.BLACK;
     private final List<GameModule> modules = new ArrayList<>();
     private @Nullable Boolean developerConsole;
+    private @Nullable Boolean debugTools;
     private int baseWidth;
     private int baseHeight;
     private StretchMode stretchMode = StretchMode.DISABLED;
@@ -145,6 +147,30 @@ public final class GameSettings {
      */
     public GameSettings fullscreen(boolean fullscreen) {
         this.fullscreen = fullscreen;
+        return this;
+    }
+
+    /**
+     * Returns the version written into saves.
+     *
+     * @return 1 by default
+     */
+    public int saveVersion() {
+        return saveVersion;
+    }
+
+    /**
+     * Sets the version written into saves; older saves go through {@code saves().migration(...)} steps when loaded.
+     *
+     * @param version the current version, from 1
+     * @return this settings object
+     * @throws IllegalArgumentException if below 1
+     */
+    public GameSettings saveVersion(int version) {
+        if (version < 1) {
+            throw new IllegalArgumentException("Save version must be at least 1");
+        }
+        this.saveVersion = version;
         return this;
     }
 
@@ -541,6 +567,31 @@ public final class GameSettings {
      */
     public GameSettings developerConsole(boolean developerConsole) {
         this.developerConsole = developerConsole;
+        return this;
+    }
+
+    /**
+     * Returns the explicit developer tools choice.
+     *
+     * @return {@code true} or {@code false} if set, {@code null} for the default: on in development builds only
+     */
+    public @Nullable Boolean debugTools() {
+        return debugTools;
+    }
+
+    /**
+     * Enables or disables the developer tools of {@link dev.gulp.api.debug.Debug}: the F3 overlay, debug drawings,
+     * inspectors and the profiler. By default they work in development builds only.
+     *
+     * <pre>{@code
+     * settings.debugTools(true); // keep F3 in the released game
+     * }</pre>
+     *
+     * @param debugTools whether the tools work
+     * @return this settings object
+     */
+    public GameSettings debugTools(boolean debugTools) {
+        this.debugTools = debugTools;
         return this;
     }
 }

@@ -18,7 +18,7 @@ tasks.withType<JavaCompile>().configureEach {
 }
 
 // Lets the plugin add the framework modules of its own version to game builds.
-val writeVersion by tasks.registering {
+val writeVersion = tasks.register("writeVersion") {
     val output = layout.buildDirectory.file("generated/version/dev/gulp/gradle/version.txt")
     val versionText = project.version.toString()
     inputs.property("version", versionText)

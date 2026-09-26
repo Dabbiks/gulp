@@ -11,6 +11,7 @@ import dev.gulp.platform.DecodedAudio;
 import dev.gulp.platform.DecodedImage;
 import dev.gulp.platform.FrameHandler;
 import dev.gulp.platform.Gl;
+import dev.gulp.platform.HttpResult;
 import dev.gulp.platform.InputListener;
 import dev.gulp.platform.PlatformAudio;
 import dev.gulp.platform.PlatformAudioStream;
@@ -26,8 +27,10 @@ import dev.gulp.platform.PlatformInput;
 import dev.gulp.platform.PlatformLog;
 import dev.gulp.platform.PlatformLoop;
 import dev.gulp.platform.PlatformNet;
+import dev.gulp.platform.PlatformWebSocket;
 import dev.gulp.platform.PlatformWindow;
 import dev.gulp.platform.ResourcePackInfo;
+import dev.gulp.platform.WebSocketListener;
 import dev.gulp.platform.WindowListener;
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -40,6 +43,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Consumer;
@@ -77,6 +81,27 @@ public final class WebBackend implements PlatformBackend {
     private WebBackend(WebGL2RenderingContext context) {
         this.gl = new WebGl(context);
         this.info = new Info(gl);
+        Js.onContextChange(restored -> {
+            if (!restored) {
+                log.write(
+                        PlatformLog.WARN,
+                        "gulp",
+                        "The WebGL context was lost; waiting for the browser to restore it",
+                        null);
+                return;
+            }
+            try {
+                long kept = gl.restore();
+                log.write(
+                        PlatformLog.INFO,
+                        "gulp",
+                        "The WebGL context was restored; GPU resources rebuilt (" + kept / 1024
+                                + " KB of pixels and buffers uploaded again)",
+                        null);
+            } catch (RuntimeException error) {
+                log.write(PlatformLog.ERROR, "gulp", "Rebuilding GPU resources after a context loss failed", error);
+            }
+        });
     }
 
     /**
@@ -153,7 +178,7 @@ public final class WebBackend implements PlatformBackend {
 
     @Override
     public PlatformNet net() {
-        throw new UnsupportedOperationException("PlatformNet is not implemented on the web yet (roadmap stage 10)");
+        return net;
     }
 
     @Override
@@ -212,6 +237,81 @@ public final class WebBackend implements PlatformBackend {
         return Int8Array.copyFromJavaArray(array);
     }
 
+    // ------------------------------------------------------------------ net
+
+    private final Net net = new Net();
+
+    /** Networking on fetch and WebSocket; the browser enforces CORS for both. */
+    private final class Net implements PlatformNet {
+
+        @Override
+        public void http(
+                String method,
+                String url,
+                Map<String, String> headers,
+                @Nullable ByteBuffer body,
+                PlatformCallback<HttpResult> callback) {
+            StringBuilder joined = new StringBuilder();
+            for (Map.Entry<String, String> header : headers.entrySet()) {
+                joined.append(header.getKey())
+                        .append('\n')
+                        .append(header.getValue())
+                        .append('\n');
+            }
+            Js.http(
+                    method,
+                    url,
+                    joined.toString(),
+                    body == null ? null : toJs(body),
+                    (status, headerText, bytes) -> mainQueue.post(() -> {
+                        Map<String, List<String>> map = new java.util.LinkedHashMap<>();
+                        String[] parts = headerText.split("\n");
+                        for (int i = 0; i + 1 < parts.length; i += 2) {
+                            map.computeIfAbsent(parts[i], k -> new ArrayList<>())
+                                    .add(parts[i + 1]);
+                        }
+                        callback.success(new HttpResult(status, map, toBuffer(bytes)));
+                    }),
+                    message -> mainQueue.post(() -> callback.failure(new IOException(message))));
+        }
+
+        @Override
+        public PlatformWebSocket openWebSocket(String url, WebSocketListener listener) {
+            int id = Js.wsOpen(
+                    url,
+                    () -> mainQueue.post(listener::opened),
+                    text -> mainQueue.post(() -> listener.textMessage(text)),
+                    bytes -> mainQueue.post(() -> listener.binaryMessage(toBuffer(bytes))),
+                    (code, reason) -> mainQueue.post(() -> listener.closed(code, reason)),
+                    message -> mainQueue.post(() -> listener.failed(new IOException(message))));
+            return new PlatformWebSocket() {
+                @Override
+                public void send(String text) {
+                    if (!Js.wsSendText(id, text)) {
+                        throw new IllegalStateException("WebSocket is not open");
+                    }
+                }
+
+                @Override
+                public void send(ByteBuffer data) {
+                    if (!Js.wsSendBytes(id, toJs(data))) {
+                        throw new IllegalStateException("WebSocket is not open");
+                    }
+                }
+
+                @Override
+                public void close(int code, String reason) {
+                    Js.wsClose(id, code, reason);
+                }
+            };
+        }
+
+        @Override
+        public void openUrl(String url) {
+            Js.openUrl(url);
+        }
+    }
+
     // ------------------------------------------------------------------ loop
 
     private final class Loop implements PlatformLoop {
@@ -233,6 +333,11 @@ public final class WebBackend implements PlatformBackend {
         private void frame(double timestamp) {
             FrameHandler current = handler;
             if (!running || current == null) {
+                return;
+            }
+            if (Js.isContextLost()) {
+                // No frames while the context is gone: nothing may be created on it before the restore.
+                Js.requestAnimationFrame(callback);
                 return;
             }
             boolean keepRunning;
@@ -569,6 +674,26 @@ public final class WebBackend implements PlatformBackend {
         }
 
         @Override
+        public void offerFile(String name, ByteBuffer data, PlatformCallback<Void> callback) {
+            try {
+                Js.offerFile(name, toJs(data));
+            } catch (RuntimeException e) {
+                mainQueue.post(() -> callback.failure(e));
+                return;
+            }
+            mainQueue.post(() -> callback.success(null));
+        }
+
+        @Override
+        public void pickFile(String name, PlatformCallback<ByteBuffer> callback) {
+            Js.pickFile(
+                    name,
+                    bytes -> mainQueue.post(() -> callback.success(toBuffer(bytes))),
+                    () -> mainQueue.post(() -> callback.failure(new FileNotFoundException("No file was chosen"))),
+                    message -> mainQueue.post(() -> callback.failure(new IOException(message))));
+        }
+
+        @Override
         public void readUserData(String name, PlatformCallback<ByteBuffer> callback) {
             Js.readData(
                     name,
@@ -778,6 +903,13 @@ public final class WebBackend implements PlatformBackend {
 
     private static final class Log implements PlatformLog {
         private static final String[] LEVELS = {"TRACE", "DEBUG", "INFO", "WARN", "ERROR"};
+
+        /** Shows the report in the error overlay, with a button that copies it. */
+        @Override
+        public String crash(String name, String report) {
+            Js.fatalReport("The game crashed.", report);
+            return "";
+        }
 
         @Override
         public void write(int level, String logger, String message, @Nullable Throwable error) {

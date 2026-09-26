@@ -56,6 +56,9 @@ public final class GulpProcessor extends AbstractProcessor {
     static final String LISTENER = "dev.gulp.api.event.Listener";
     static final String EVENT = "dev.gulp.api.event.Event";
     static final String GAME_MODULE = "dev.gulp.api.module.GameModule";
+    static final String COMPONENT_INFO = "dev.gulp.api.entity.ComponentInfo";
+    static final String SAVE = "dev.gulp.api.entity.Save";
+    static final String COMPONENT = "dev.gulp.api.entity.Component";
 
     private Elements elements;
     private Types types;
@@ -84,7 +87,7 @@ public final class GulpProcessor extends AbstractProcessor {
 
     @Override
     public Set<String> getSupportedAnnotationTypes() {
-        return Set.of(EVENT_HANDLER, MODULE_INFO, SERIALIZABLE);
+        return Set.of(EVENT_HANDLER, MODULE_INFO, SERIALIZABLE, COMPONENT_INFO, SAVE);
     }
 
     @Override
@@ -98,6 +101,8 @@ public final class GulpProcessor extends AbstractProcessor {
         TypeElement handlerAnnotation = elements.getTypeElement(EVENT_HANDLER);
         TypeElement moduleAnnotation = elements.getTypeElement(MODULE_INFO);
         TypeElement serializableAnnotation = elements.getTypeElement(SERIALIZABLE);
+        TypeElement componentAnnotation = elements.getTypeElement(COMPONENT_INFO);
+        TypeElement saveAnnotation = elements.getTypeElement(SAVE);
 
         if (handlerAnnotation != null) {
             Map<TypeElement, List<ExecutableElement>> byListener = new LinkedHashMap<>();
@@ -123,6 +128,18 @@ public final class GulpProcessor extends AbstractProcessor {
         if (serializableAnnotation != null) {
             for (Element element : round.getElementsAnnotatedWith(serializableAnnotation)) {
                 generateCodec((TypeElement) element);
+            }
+        }
+        if (componentAnnotation != null) {
+            for (Element element : round.getElementsAnnotatedWith(componentAnnotation)) {
+                generateComponentState((TypeElement) element);
+            }
+        }
+        if (saveAnnotation != null) {
+            for (Element element : round.getElementsAnnotatedWith(saveAnnotation)) {
+                if (annotation(element.getEnclosingElement(), COMPONENT_INFO) == null) {
+                    error(element, "@Save fields must be in a class annotated with @ComponentInfo");
+                }
             }
         }
 
@@ -432,6 +449,130 @@ public final class GulpProcessor extends AbstractProcessor {
         return true;
     }
 
+    // ---------------------------------------------------------------- components
+
+    private boolean generateComponentState(TypeElement component) {
+        String className = component.getQualifiedName().toString();
+        if (!generatedTypes.add("state:" + className)) {
+            return false;
+        }
+        TypeMirror componentType = type(COMPONENT);
+        if (component.getKind() != ElementKind.CLASS
+                || componentType == null
+                || !types.isAssignable(types.erasure(component.asType()), componentType)) {
+            error(component, "@ComponentInfo is supported on Component classes only");
+            return false;
+        }
+        if (!component.getTypeParameters().isEmpty()) {
+            error(component, "@ComponentInfo classes must not be generic");
+            return false;
+        }
+        if (!checkAccessible(component, "Component")) {
+            return false;
+        }
+        String key = "";
+        boolean persistent = true;
+        AnnotationMirror info = annotation(component, COMPONENT_INFO);
+        if (info != null) {
+            for (Map.Entry<? extends ExecutableElement, ? extends AnnotationValue> value :
+                    elements.getElementValuesWithDefaults(info).entrySet()) {
+                switch (value.getKey().getSimpleName().toString()) {
+                    case "key" -> key = (String) value.getValue().getValue();
+                    case "persistent" -> persistent = (Boolean) value.getValue().getValue();
+                    default -> {}
+                }
+            }
+        }
+        if (!key.matches("[a-z0-9_.-]+:[a-z0-9_./-]+")) {
+            error(component, "Invalid component key '" + key + "': use namespace:path in lower case");
+            return false;
+        }
+        String ref = sourceName(component);
+        List<String> fields = new ArrayList<>();
+        List<String> save = new ArrayList<>();
+        List<String> load = new ArrayList<>();
+        boolean valid = true;
+        int index = 0;
+        for (Element member : component.getEnclosedElements()) {
+            if (member.getKind() != ElementKind.FIELD || annotation(member, SAVE) == null) {
+                continue;
+            }
+            Set<Modifier> modifiers = member.getModifiers();
+            if (modifiers.contains(Modifier.PRIVATE)
+                    || modifiers.contains(Modifier.FINAL)
+                    || modifiers.contains(Modifier.STATIC)) {
+                error(member, "@Save fields must not be private, final or static");
+                valid = false;
+                continue;
+            }
+            String name = member.getSimpleName().toString();
+            String codec = codecExpression(member.asType(), member);
+            if (codec == null) {
+                valid = false;
+                continue;
+            }
+            boolean nullable = isNullable(member) && !member.asType().getKind().isPrimitive();
+            String field = "C" + index++;
+            fields.add("    private static final dev.gulp.api.data.Codec " + field + " = " + codec
+                    + (nullable ? ".nullable()" : "") + ";");
+            save.add("        json.put(" + literal(name) + ", " + field + ".encode(component." + name + "));");
+            load.add("        value = json.get(" + literal(name) + ");\n        if (value != null) {\n"
+                    + "            component." + name + " = (" + boxedName(member.asType()) + ") decode(" + field
+                    + ", value, " + literal(name) + ");\n        }");
+        }
+        if (!valid) {
+            return false;
+        }
+        String packageName = packageOf(component);
+        String generated = binaryTail(component) + "$State";
+        StringBuilder source = new StringBuilder();
+        header(source, packageName);
+        source.append("/** Generated saved state of {@link ")
+                .append(ref)
+                .append("}. Do not edit. */\n")
+                .append("@SuppressWarnings({\"unchecked\", \"rawtypes\"})\n")
+                .append("public final class ")
+                .append(generated)
+                .append(" implements dev.gulp.api.spi.ComponentState<")
+                .append(ref)
+                .append("> {\n\n");
+        for (String field : fields) {
+            source.append(field).append('\n');
+        }
+        source.append("\n    /** Creates the state. */\n    public ")
+                .append(generated)
+                .append("() {}\n\n")
+                .append("    @Override\n    public dev.gulp.api.data.JsonObject save(")
+                .append(ref)
+                .append(" component) {\n")
+                .append(
+                        "        dev.gulp.api.data.JsonObject.Builder json = dev.gulp.api.data.JsonObject.builder();\n");
+        for (String line : save) {
+            source.append(line).append('\n');
+        }
+        source.append("        return json.build();\n    }\n\n")
+                .append("    @Override\n    public void load(")
+                .append(ref)
+                .append(" component, dev.gulp.api.data.JsonObject json) {\n");
+        if (!load.isEmpty()) {
+            source.append("        dev.gulp.api.data.JsonValue value;\n");
+        }
+        for (String line : load) {
+            source.append(line).append('\n');
+        }
+        source.append("    }\n\n")
+                .append("    private static Object decode(dev.gulp.api.data.Codec codec, dev.gulp.api.data.JsonValue"
+                        + " json, String name) {\n")
+                .append("        try {\n            return codec.decode(json);\n")
+                .append("        } catch (dev.gulp.api.data.CodecException e) {\n")
+                .append("            throw e.at(\".\" + name);\n        }\n    }\n}\n");
+        writeSource(qualified(packageName, generated), source, component);
+        pending(packageName)
+                .add("        sink.component(" + ref + ".class, " + literal(key) + ", " + persistent + ", new "
+                        + generated + "());");
+        return true;
+    }
+
     private String codecExpression(TypeMirror type, Element where) {
         switch (type.getKind()) {
             case BOOLEAN:
@@ -470,6 +611,8 @@ public final class GulpProcessor extends AbstractProcessor {
                 return "dev.gulp.api.data.Codec.KEY";
             case "dev.gulp.api.data.JsonValue":
                 return "dev.gulp.api.data.Codec.JSON";
+            case "dev.gulp.api.math.Vec2":
+                return "dev.gulp.api.data.Codec.VEC2";
             case "java.util.List": {
                 String element0 = codecExpression(declared.getTypeArguments().getFirst(), where);
                 return element0 == null ? null : "dev.gulp.api.data.Codec.listOf(" + element0 + ")";
@@ -497,7 +640,7 @@ public final class GulpProcessor extends AbstractProcessor {
         error(
                 where,
                 "Unsupported type in @Serializable record: " + type
-                        + " (use primitives, String, Key, enums, JsonValue, List, Map<String, ?> or @Serializable records)");
+                        + " (use primitives, String, Key, Vec2, enums, JsonValue, List, Map<String, ?> or @Serializable records)");
         return null;
     }
 
@@ -510,7 +653,7 @@ public final class GulpProcessor extends AbstractProcessor {
         return types.erasure(type).toString();
     }
 
-    private static boolean isNullable(RecordComponentElement component) {
+    private static boolean isNullable(Element component) {
         for (AnnotationMirror mirror : component.getAnnotationMirrors()) {
             if (mirror.getAnnotationType().asElement().getSimpleName().contentEquals("Nullable")) {
                 return true;

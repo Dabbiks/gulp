@@ -5,6 +5,7 @@ import dev.gulp.api.command.ArgumentType;
 import dev.gulp.api.command.Arguments;
 import dev.gulp.api.command.Command;
 import dev.gulp.api.command.CommandException;
+import dev.gulp.api.debug.DebugFlag;
 import dev.gulp.api.entity.Entity;
 import dev.gulp.api.entity.EntityType;
 import dev.gulp.api.math.Vec2;
@@ -205,6 +206,72 @@ public final class BuiltinCommands {
                             engine.setTimeScale(scale);
                             ctx.reply("Time scale set to " + format(scale));
                         })
+                        .build());
+
+        String[] flags = new String[DebugFlag.values().length + 1];
+        flags[0] = "overlay";
+        for (DebugFlag flag : DebugFlag.values()) {
+            flags[flag.ordinal() + 1] = flag.commandName();
+        }
+        commands.register(
+                owner,
+                Command.builder("debug")
+                        .description("Switches the F3 overlay or a debug drawing: /debug <flag> [on|off]")
+                        .argument(Arguments.choice("flag", flags))
+                        .argument(Arguments.choice("state", "on", "off").optional())
+                        .executes(ctx -> {
+                            var debug = engine.debug();
+                            if (!debug.isEnabled()) {
+                                throw new CommandException("The developer tools are off in this build");
+                            }
+                            String name = ctx.arg("flag");
+                            String state = ctx.has("state") ? ctx.arg("state") : null;
+                            if (name.equals("overlay")) {
+                                debug.setOverlayVisible(state == null ? !debug.isOverlayVisible() : state.equals("on"));
+                                ctx.reply("Overlay " + (debug.isOverlayVisible() ? "on" : "off"));
+                                return;
+                            }
+                            DebugFlag flag = DebugFlag.byName(name);
+                            if (flag == null) {
+                                throw new CommandException("Unknown debug flag " + name);
+                            }
+                            debug.set(flag, state == null ? !debug.isOn(flag) : state.equals("on"));
+                            ctx.reply("Debug " + name + (debug.isOn(flag) ? " on" : " off"));
+                        })
+                        .build());
+
+        commands.register(
+                owner,
+                Command.builder("profile")
+                        .description("Measures modules, listeners, tasks and components; stop writes the report")
+                        .subcommand(Command.builder("start")
+                                .executes(ctx -> {
+                                    if (!engine.debug().isEnabled()) {
+                                        throw new CommandException("The developer tools are off in this build");
+                                    }
+                                    engine.debug().profiler().start();
+                                    ctx.reply("Profiler started; /profile stop writes the report");
+                                })
+                                .build())
+                        .subcommand(Command.builder("stop")
+                                .executes(ctx -> {
+                                    if (!engine.debug().profiler().isRunning()) {
+                                        throw new CommandException("The profiler is not running");
+                                    }
+                                    var report = engine.debug().stopAndReport(System.currentTimeMillis());
+                                    int shown = 0;
+                                    for (var entry : report.entries()) {
+                                        if (shown++ == 8) {
+                                            break;
+                                        }
+                                        ctx.reply(entry.category().name().toLowerCase(Locale.ROOT) + " "
+                                                + entry.name() + ": " + format((float) (entry.totalNanos() / 1e6))
+                                                + " ms");
+                                    }
+                                    ctx.reply(report.ticks() + " ticks profiled; full report in the log and in"
+                                            + " profiles/");
+                                })
+                                .build())
                         .build());
     }
 

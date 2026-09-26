@@ -8,16 +8,16 @@ import org.jspecify.annotations.Nullable;
  */
 final class ContactConstraint {
 
-    final BodySim a;
+    BodySim a;
     /** The other body, or {@code null} for static geometry and movers. */
-    final @Nullable BodySim b;
+    @Nullable BodySim b;
     /** The other proxy, or {@code null} for a tile. */
-    final @Nullable Proxy other;
+    @Nullable Proxy other;
 
-    final int tileX;
-    final int tileY;
-    final int pieceA;
-    final int pieceB;
+    int tileX;
+    int tileY;
+    int pieceA;
+    int pieceB;
 
     int count;
     float nx;
@@ -51,6 +51,9 @@ final class ContactConstraint {
     boolean wasTouching;
     boolean disabled;
 
+    /** Position in the contact list of the world, for removal. */
+    int index;
+
     ContactConstraint(
             BodySim a, @Nullable BodySim b, @Nullable Proxy other, int tileX, int tileY, int pieceA, int pieceB) {
         this.a = a;
@@ -60,6 +63,43 @@ final class ContactConstraint {
         this.tileY = tileY;
         this.pieceA = pieceA;
         this.pieceB = pieceB;
+    }
+
+    /** Makes a pooled constraint new again for another pair. */
+    void reset(BodySim a, @Nullable BodySim b, @Nullable Proxy other, int tileX, int tileY, int pieceA, int pieceB) {
+        this.a = a;
+        this.b = b;
+        this.other = other;
+        this.tileX = tileX;
+        this.tileY = tileY;
+        this.pieceA = pieceA;
+        this.pieceB = pieceB;
+        count = 0;
+        nx = 0f;
+        ny = 0f;
+        for (int i = 0; i < 2; i++) {
+            px[i] = 0f;
+            py[i] = 0f;
+            separation[i] = 0f;
+            id[i] = 0;
+            normalImpulse[i] = 0f;
+            tangentImpulse[i] = 0f;
+            maxNormalImpulse[i] = 0f;
+        }
+        friction = 0f;
+        restitution = 0f;
+        otherVx = 0f;
+        otherVy = 0f;
+        seen = false;
+        touching = false;
+        wasTouching = false;
+        disabled = false;
+    }
+
+    /** Drops references to bodies and proxies while the constraint waits in the pool. */
+    void release() {
+        b = null;
+        other = null;
     }
 
     /** Copies a new manifold in, carrying impulses over to points with matching features. */

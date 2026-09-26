@@ -252,9 +252,24 @@ public final class HeadlessGl implements Gl {
         return handle();
     }
 
+    /** Sources by shader, so that a {@code #error} directive fails the compile as it does on a GPU. */
+    private final java.util.Map<Integer, String> shaderSources = new java.util.HashMap<>();
+
     @Override
     public void shaderSource(int shader, String source) {
         call();
+        shaderSources.put(shader, source);
+    }
+
+    private int errorLine(int shader) {
+        String source = shaderSources.getOrDefault(shader, "");
+        String[] lines = source.split("\n", -1);
+        for (int i = 0; i < lines.length; i++) {
+            if (lines[i].trim().startsWith("#error")) {
+                return i + 1;
+            }
+        }
+        return 0;
     }
 
     @Override
@@ -265,13 +280,14 @@ public final class HeadlessGl implements Gl {
     @Override
     public int getShaderi(int shader, int pname) {
         call();
-        return pname == COMPILE_STATUS ? TRUE : 0;
+        return pname == COMPILE_STATUS ? (errorLine(shader) == 0 ? TRUE : FALSE) : 0;
     }
 
     @Override
     public String getShaderInfoLog(int shader) {
         call();
-        return "";
+        int line = errorLine(shader);
+        return line == 0 ? "" : "ERROR: 0:" + line + ": '#error' : directive";
     }
 
     @Override

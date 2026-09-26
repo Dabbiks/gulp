@@ -2,9 +2,11 @@ package dev.gulp.examples.platformer;
 
 import dev.gulp.api.anim.Animator;
 import dev.gulp.api.entity.Component;
+import dev.gulp.api.entity.ComponentInfo;
 import dev.gulp.api.entity.DamageType;
 import dev.gulp.api.entity.Entity;
 import dev.gulp.api.entity.EntityType;
+import dev.gulp.api.entity.Save;
 import dev.gulp.api.entity.component.Health;
 import dev.gulp.api.entity.component.SpriteComponent;
 import dev.gulp.api.input.Input;
@@ -15,6 +17,7 @@ import dev.gulp.api.physics.Mover;
 import dev.gulp.api.registry.Registries;
 import dev.gulp.api.world.TileShape;
 import dev.gulp.api.world.TileType;
+import org.jspecify.annotations.Nullable;
 
 /** The player: a mover with coyote time and a jump buffer, stomping on enemies and respawning after a fall. */
 @ModuleInfo(id = "player")
@@ -47,9 +50,13 @@ public final class PlayerModule extends GameModule {
     }
 
     /** Reads the controls every tick and moves the player. */
+    @ComponentInfo(key = "platformer:player_controller")
     public static final class PlayerController extends Component {
         private Mover mover;
-        private Vec2 start = Vec2.ZERO;
+
+        /** Where the player comes back after dying; saved, so a loaded game keeps the level's start. */
+        @Save
+        @Nullable Vec2 start;
 
         /** Creates the controller. */
         public PlayerController() {}
@@ -57,7 +64,9 @@ public final class PlayerModule extends GameModule {
         @Override
         protected void onSpawn() {
             mover = entity().get(Mover.class);
-            start = entity().position();
+            if (start == null) {
+                start = entity().position();
+            }
             entity().get(Animator.class)
                     .auto()
                     .when(() -> !mover.isOnFloor(), "jump")

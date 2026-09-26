@@ -17,3 +17,8 @@ gulp {
     mainClass = "dev.gulp.examples.platformer.PlatformerGame"
     title = "Gulp Platformer"
 }
+
+dependencies {
+    testImplementation(project(":gulp-backend-headless"))
+    testAnnotationProcessor(project(":gulp-processor"))
+}

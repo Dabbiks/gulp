@@ -39,3 +39,20 @@ tasks.register<JavaExec>("generateDefaultFont") {
     val license = file("fonts/OFL.txt")
     doLast { license.copyTo(output.resolve("default-OFL.txt"), overwrite = true) }
 }
+
+// ./gradlew newGame -Pdir=../coin-hunter -Ppackage=com.example.coins -Ptitle="Coin Hunter"
+tasks.register<JavaExec>("newGame") {
+    description = "Creates a game project from templates/game."
+    group = "gulp"
+    classpath = sourceSets.main.get().runtimeClasspath
+    mainClass = "dev.gulp.tools.GulpTools"
+    val dir = providers.gradleProperty("dir")
+    val pkg = providers.gradleProperty("package").orElse("com.example.mygame")
+    val title = providers.gradleProperty("title").orElse("My Game")
+    val home = rootProject.projectDir.path
+    val base = rootProject.projectDir
+    argumentProviders.add(CommandLineArgumentProvider {
+        val target = dir.orNull ?: throw GradleException("Give the folder: -Pdir=../my-game")
+        listOf("new", home, base.resolve(target).path, pkg.get()) + title.get().split(" ")
+    })
+}

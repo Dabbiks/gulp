@@ -22,5 +22,9 @@ public enum DebugView {
     /** Paths of navigation agents and path followers. */
     PATHS,
     /** Velocities and steering forces of steering agents. */
-    STEERING
+    STEERING,
+    /** Borders of loaded chunks with their coordinates. */
+    CHUNKS,
+    /** Radii of lights and the outlines of occluders. */
+    LIGHTS
 }

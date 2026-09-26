@@ -38,7 +38,7 @@ tasks.named<Test>("test") {
     useJUnitPlatform { excludeTags("visual") }
 }
 
-val visualTest by tasks.registering(Test::class) {
+val visualTest = tasks.register<Test>("visualTest") {
     description = "Renders scenes in a real window and compares them with reference images."
     group = "verification"
     testClassesDirs = sourceSets.test.get().output.classesDirs

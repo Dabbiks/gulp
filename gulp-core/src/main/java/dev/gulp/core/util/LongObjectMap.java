@@ -201,6 +201,27 @@ public final class LongObjectMap<V> {
     }
 
     /**
+     * Returns the number of slots, for walking the values without a lambda: {@code for (int i = 0; i <
+     * map.capacity(); i++) { V v = map.valueAt(i); ... } }.
+     *
+     * @return the slot count
+     */
+    public int capacity() {
+        return keys.length;
+    }
+
+    /**
+     * Returns the value in a slot.
+     *
+     * @param slot a slot below {@link #capacity()}
+     * @return the value, or {@code null} for an empty slot
+     */
+    @SuppressWarnings("unchecked")
+    public @Nullable V valueAt(int slot) {
+        return keys[slot] == EMPTY ? null : (V) values[slot];
+    }
+
+    /**
      * Runs an action for every value.
      *
      * @param action the action

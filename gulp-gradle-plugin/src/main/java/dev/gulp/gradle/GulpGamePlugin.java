@@ -34,7 +34,11 @@ import org.teavm.gradle.api.TeaVMExtension;
  *       HTML page, the loading screen, the assets and their manifest;
  *   <li>{@code runWeb} serves {@code build/web} on {@code localhost:8080}; with {@code --continuous} Gradle rebuilds
  *       on every change and the page reloads itself;
- *   <li>{@code packageWeb} zips {@code build/web} for itch.io and similar hosts.
+ *   <li>{@code packageWeb} zips {@code build/web} for itch.io and similar hosts;
+ *   <li>{@code packageDesktop} builds an installer for the current system with its own Java runtime (jlink and
+ *       jpackage);
+ *   <li>{@code checkApiUsage}, part of {@code check}, fails when game code uses the engine outside
+ *       {@code dev.gulp.api}.
  * </ul>
  *
  * <pre>{@code
@@ -287,6 +291,49 @@ public final class GulpGamePlugin implements Plugin<Project> {
             task.getDestinationDirectory()
                     .set(project.getLayout().getBuildDirectory().dir("distributions"));
         });
+
+        JavaPluginExtension java = project.getExtensions().getByType(JavaPluginExtension.class);
+        org.gradle.jvm.toolchain.JavaToolchainService toolchains =
+                project.getExtensions().getByType(org.gradle.jvm.toolchain.JavaToolchainService.class);
+        GulpExtension.Desktop desktop = gulp.getDesktop();
+        desktop.getInstallerType()
+                .convention(project.provider(
+                        () -> PackageDesktop.defaultType(PackageDesktop.currentOs(), PackageDesktop::onPath)));
+        desktop.getAppVersion()
+                .convention(project.provider(() -> PackageDesktop.appVersion(String.valueOf(project.getVersion()))));
+        project.getTasks().register("packageDesktop", PackageDesktop.class, task -> {
+            task.setGroup(GROUP);
+            task.setDescription("Builds an installer for this system with its own Java runtime (jlink + jpackage).");
+            task.getGameJar()
+                    .set(project.getTasks()
+                            .named(JavaPlugin.JAR_TASK_NAME, org.gradle.api.tasks.bundling.Jar.class)
+                            .flatMap(org.gradle.api.tasks.bundling.Jar::getArchiveFile));
+            task.getLibraries()
+                    .from(main.getRuntimeClasspath().filter(f -> f.getName().endsWith(".jar")));
+            task.getLibraries().from(desktopRuntime);
+            task.getMainClass().set(gulp.getMainClass());
+            task.getAppName().set(gulp.getTitle());
+            task.getAppVersion().set(desktop.getAppVersion());
+            task.getInstallerType().set(desktop.getInstallerType());
+            task.getVendor().set(desktop.getVendor());
+            task.getIcon().set(desktop.getIcon());
+            task.getJavaOptions().set(desktop.getJavaOptions());
+            task.getJavaHome()
+                    .set(toolchains
+                            .launcherFor(java.getToolchain())
+                            .map(launcher -> launcher.getMetadata().getInstallationPath()));
+            task.getWorkDirectory().set(project.getLayout().getBuildDirectory().dir("tmp/packageDesktop"));
+            task.getDestination().set(project.getLayout().getBuildDirectory().dir("distributions/desktop"));
+        });
+
+        TaskProvider<CheckApiUsage> checkApi = project.getTasks()
+                .register("checkApiUsage", CheckApiUsage.class, task -> {
+                    task.setGroup(GROUP);
+                    task.setDescription("Fails when game code uses the engine outside dev.gulp.api.");
+                    task.getClassesDirs().from(main.getOutput().getClassesDirs());
+                    task.getReport().set(project.getLayout().getBuildDirectory().file("reports/gulp/api-usage.txt"));
+                });
+        project.getTasks().named("check", task -> task.dependsOn(checkApi));
     }
 
     /** Script the runWeb server adds to the page: reloads it when a rebuild changes the served files. */

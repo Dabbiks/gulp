@@ -160,6 +160,10 @@ public final class ShaderImpl implements Shader {
     private final String log;
     private final Map<String, Integer> locations = new HashMap<>();
     private final Map<String, Object> uniforms = new LinkedHashMap<>();
+    /** The uniforms again in parallel lists, so binding walks them without an iterator. */
+    private final java.util.List<String> uniformNames = new java.util.ArrayList<>();
+
+    private final java.util.List<Object> uniformValues = new java.util.ArrayList<>();
     private final FloatBuffer matrix =
             ByteBuffer.allocateDirect(9 * 4).order(ByteOrder.nativeOrder()).asFloatBuffer();
     private final float[] columns = new float[9];
@@ -285,8 +289,8 @@ public final class ShaderImpl implements Shader {
         matrix.put(projection).flip();
         gl.uniformMatrix3fv(location("u_projection"), matrix);
         gl.uniform1i(location("u_texture"), 0);
-        for (Map.Entry<String, Object> uniform : uniforms.entrySet()) {
-            apply(location(uniform.getKey()), uniform.getValue());
+        for (int i = 0; i < uniformNames.size(); i++) {
+            apply(location(uniformNames.get(i)), uniformValues.get(i));
         }
     }
 
@@ -319,7 +323,12 @@ public final class ShaderImpl implements Shader {
     }
 
     private Shader store(String name, Object value) {
-        uniforms.put(name, value);
+        if (uniforms.put(name, value) == null) {
+            uniformNames.add(name);
+            uniformValues.add(value);
+        } else {
+            uniformValues.set(uniformNames.indexOf(name), value);
+        }
         return this;
     }
 

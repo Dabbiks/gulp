@@ -11,6 +11,7 @@ import dev.gulp.api.module.ModuleInfo;
 import dev.gulp.api.registry.Key;
 import dev.gulp.api.registry.Registries;
 import dev.gulp.api.render.GameWindow;
+import dev.gulp.api.text.Text;
 import dev.gulp.api.ui.Align;
 import dev.gulp.api.ui.Grid;
 import dev.gulp.api.ui.Node;
@@ -96,7 +97,7 @@ public final class MenuDemoModule extends GameModule {
         @Override
         protected Node<?> build() {
             return center(panel(column(
-                                    label("Settings").variant("title"),
+                                    label(Text.translatable("settings.title")).variant("title"),
                                     tabs(
                                                     tab("Display", displayPage()),
                                                     tab("Audio", audioPage()),
@@ -118,8 +119,15 @@ public final class MenuDemoModule extends GameModule {
                             }));
             State<Float> scale = State.of(ui().scale());
             scale.subscribe(ui()::setScale);
+            // The language is remembered in preferences by the engine; translated labels follow at once.
+            State<String> language = State.of(translations().locale());
+            language.subscribe(translations()::setLocale);
             return grid(
                             2,
+                            label(Text.translatable("settings.language")),
+                            dropdown(translations().availableLocales(), MenuDemoModule::languageName)
+                                    .bind(language)
+                                    .width(160),
                             label("Fullscreen"),
                             toggle("").checked(window.isFullscreen()).onChange(window::setFullscreen),
                             label("VSync"),
@@ -157,5 +165,13 @@ public final class MenuDemoModule extends GameModule {
     private static String themeName(Theme theme) {
         String path = theme.key().path();
         return path.startsWith("light") ? "Light" : path.startsWith("pixel") ? "Pixel" : "Dark";
+    }
+
+    private static String languageName(String locale) {
+        return switch (locale) {
+            case "pl_pl" -> "Polski";
+            case "en_us" -> "English (US)";
+            default -> locale;
+        };
     }
 }
